@@ -227,6 +227,11 @@ test('a countdown collects chatters, shows the line-up, and starts the fight', a
   const lineup = await until((m) => m.type === 'announce' && m.lineup, 'line-up');
   assert.equal(lineup.holdMs, 200);
   assert.deepEqual(lineup.lineup.teams.map((t: any) => t.members.length), [4, 4, 4]);
+  // Each fighter comes with their emote (none in this chat) and name color, to be found at a glance.
+  for (const member of lineup.lineup.teams.flatMap((t: any) => t.members)) {
+    assert.ok('emote' in member, `${member.name} has an emote field`);
+    assert.ok(Object.values(COLORS).includes(member.color), `${member.name} has their name color`);
+  }
   assert.ok(messages.some((m) => m.type === 'countdown' && m.done), 'the countdown display is cleared');
 
   const battle = await until((m) => m.type === 'battle-start', 'battle');

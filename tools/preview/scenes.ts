@@ -83,7 +83,7 @@ window.requestAnimationFrame = () => 0;
   // Images load when first drawn: draw, wait until they are in (a broken one counts as in), draw again.
   function settle() {
     render();
-    const pending = [...emoteImages.values()].some((e) => !e.ready && !e.image.complete) || document.fonts.status !== 'loaded';
+    const pending = [...emoteImages.values()].some((e) => !e.ready && !e.failed) || document.fonts.status !== 'loaded';
     if (pending && tries++ < 80) { setTimeout(settle, 50); return; }
     if (!shifted) {
       // Announcements and pachinko keep their own clock: move it back once, then settle again,
@@ -376,12 +376,32 @@ export function generateScenes(outDir: string, lang = 'en'): Scene[] {
       lineup: {
         teams: config.guilds.list.map((g) => ({
           name: guild(g.id), color: g.color,
-          members: drawn.filter((f) => f.side === g.id).slice(0, 10).map((f) => ({ name: f.name, detail: t(`class.${f.class}`) })),
+          // With the emote each fights as and their name color, as the server adds them.
+          members: drawn.filter((f) => f.side === g.id).slice(0, 10)
+            .map((f) => ({ name: f.name, detail: t(`class.${f.class}`), emote: emotes.get(f.id) ?? null, color: f.color })),
         })),
         note: t('server.draft.guildNote', { n: config.draft.onFieldPerGuild }),
       },
     }],
     moments: [Math.round(config.draft.lineupMs * 0.85)],
+  });
+
+  // A Hero Clash heat: the three heroes presented with their guilds, classes and emotes.
+  const heroes = config.guilds.list.map((g) => drawn.find((f) => f.side === g.id)!);
+  page('heat', {
+    messages: [stateMessage, {
+      type: 'announce', title: t('server.clash.heatTitle', { n: 1, total: 3 }), subtitle: '', holdMs: config.war.announceMs,
+      lineup: {
+        teams: heroes.map((f) => ({
+          name: guild(f.side), color: config.guilds.list.find((g) => g.id === f.side)!.color,
+          members: [{ name: f.name, detail: t(`class.${f.class}`), emote: emotes.get(f.id) ?? null, color: f.color }],
+        })),
+        note: t('server.clash.lineupNote'),
+      },
+    }],
+    moments: [1600, 4600],
+    // It shows only 5 seconds; loading the page's images can take longer than that.
+    tweak: 'clearTimeout(announcementTimer);',
   });
 
   // Pachinko: three boards of balls dropping, at the start, midway and at the end.

@@ -63,6 +63,7 @@
   "server.clash.finalTitle": "Hero Clash: the final",
   "server.clash.finalLabel": "Hero Clash: final",
   "server.clash.finalBattle": "Hero Clash: Final",
+  "server.clash.lineupNote": "Equal stats and a class each: the last one standing wins.",
   "server.clash.noChampion": "No champion this time",
   "server.clash.champion": "{name} is the champion",
   "server.clash.boostPrize": "{guild} earns +{percent}% XP for {minutes} minutes and takes the neutral tile",

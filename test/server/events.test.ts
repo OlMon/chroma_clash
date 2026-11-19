@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import type { Lineup } from '../../src/server/draft-engine.ts';
 import { test } from 'node:test';
 import { config, type GuildId } from '../../src/config.ts';
 import { Store } from '../../src/db/store.ts';
@@ -99,6 +100,10 @@ test('a clash runs three heats and a final with equal stats, and crowns a champi
   const kinds: string[] = [];
   for (let step = engine.next(); step; step = engine.next()) {
     kinds.push(step.kind);
+    // Presented first: each hero with their guild and the class dealt for this match, and their id for the emote.
+    const lineup = step.lineup as Lineup;
+    assert.deepEqual(lineup.teams.flatMap((t) => t.members.map((m) => m.id)), step.heroes.map((h) => h.user_id));
+    step.setup!.fighters.forEach((fighter, i) => assert.equal(lineup.teams[i]!.members[0]!.detail, config.classes.names[fighter.class!]));
     const battle = new Battle(step.setup!);
     assert.equal(battle.durationMs, config.clash.matchMs);
     for (const fighter of battle.fighters) {

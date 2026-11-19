@@ -1284,10 +1284,38 @@ function drawCountdown() {
  * each announced large as it is drawn and then kept in its team's list, so a
  * chatter can spot their own name without scanning a full list at once.
  */
+/**
+ * A chatter's emote on a dark disc with a ring, as their fighter wears it;
+ * without an emote, a disc in their name color. For line-ups and lists.
+ */
+function drawEmoteDisc(emote, x, y, r, ring, fill) {
+  const image = emoteImage(emote);
+  circle(x, y, r);
+  ctx.fillStyle = image ? 'rgba(17, 20, 24, 0.85)' : fill || ring;
+  ctx.fill();
+  if (image) {
+    ctx.save();
+    circle(x, y, r);
+    ctx.clip();
+    const size = r * 1.9;
+    ctx.drawImage(image, x - size / 2, y - size / 2, size, size);
+    ctx.restore();
+  }
+  circle(x, y, r);
+  ctx.lineWidth = Math.max(2, r * 0.14);
+  ctx.strokeStyle = ring;
+  ctx.stroke();
+}
+
 function drawLineup(a) {
   const elapsed = performance.now() - a.shownAt;
-  const box = { left: 260, top: 90, width: 1400, height: 900 };
+  // As tall as its longest column, at most 10 rows, and centered: three heroes need a small box.
+  const longest = Math.min(10, Math.max(1, ...a.lineup.teams.map((team) => team.members.length)));
+  const height = 284 + longest * 60 + 6;
+  const box = { left: 260, top: Math.max(30, (canvas.height - height) / 2), width: 1400, height };
   drawBox(box.left, box.top, box.width, box.height, { radius: 28, strong: true });
+  // Place numbers only where a team has more than one fighter.
+  const numbered = a.lineup.teams.some((team) => team.members.length > 1);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = '#FFFFFF';
@@ -1322,14 +1350,22 @@ function drawLineup(a) {
   // Under the title: the fighter just drawn, large; once all are drawn, how the fight works.
   if (!done && latest) {
     const column = columns[latest.column];
+    const member = column.members[latest.row];
     const pop = 1 + 0.25 * Math.max(0, 1 - sinceLatest / 160);
     ctx.save();
     ctx.translate(canvas.width / 2, box.top + 132);
     ctx.scale(pop, pop);
     ctx.font = `700 40px ${FONT}`;
+    // The name with the emote before it, the two centered together.
+    const nameWidth = textWidth(member.name);
+    const discR = 24;
+    const left = -(nameWidth + discR * 2 + 14) / 2;
+    drawEmoteDisc(member.emote, left + discR, 0, discR, column.color, member.color);
+    ctx.textAlign = 'left';
     ctx.fillStyle = column.color;
-    ctx.fillText(column.members[latest.row].name, 0, 0);
+    ctx.fillText(member.name, left + discR * 2 + 14, 0);
     ctx.restore();
+    ctx.textAlign = 'center';
   } else {
     ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
     ctx.font = `400 24px ${FONT}`;
@@ -1350,10 +1386,12 @@ function drawLineup(a) {
     column.members.slice(0, rows).forEach((member, row) => {
       const y = box.top + 284 + row * 60;
       const isLatest = !done && latest && latest.column === index && latest.row === row;
-      ctx.textAlign = 'right';
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
-      ctx.font = `400 20px ${FONT}`;
-      ctx.fillText(String(column.start + row + 1), center - 150, y);
+      if (numbered) {
+        ctx.textAlign = 'right';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+        ctx.font = `400 20px ${FONT}`;
+        ctx.fillText(String(column.start + row + 1), center - 150, y);
+      }
       // A place not drawn yet shows only its number.
       if (!shown.has(`${index}:${row}`)) return;
       if (isLatest) {
@@ -1365,14 +1403,16 @@ function drawLineup(a) {
         ctx.fill();
         ctx.globalAlpha = 1;
       }
+      // The emote the chatter fights as, so they can find themselves at a glance.
+      drawEmoteDisc(member.emote, center - 116, y, 20, column.color, member.color);
       ctx.textAlign = 'left';
       ctx.fillStyle = '#FFFFFF';
       ctx.font = `600 26px ${FONT}`;
-      ctx.fillText(member.name, center - 136, y - (member.detail ? 9 : 0));
+      ctx.fillText(member.name, center - 86, y - (member.detail ? 9 : 0), 300);
       if (member.detail) {
         ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
         ctx.font = `400 17px ${FONT}`;
-        ctx.fillText(member.detail, center - 136, y + 17);
+        ctx.fillText(member.detail, center - 86, y + 17, 300);
       }
     });
   });
@@ -1827,7 +1867,8 @@ function loadImage(url) {
     const image = new Image();
     entry = { image, ready: false };
     image.src = url;
-    image.decode().then(() => { entry.ready = true; }, () => {});
+    // A broken image is marked, so nothing waits for it.
+    image.decode().then(() => { entry.ready = true; }, () => { entry.failed = true; });
     emoteImages.set(url, entry);
   }
   return entry.ready ? entry.image : null;
@@ -3512,7 +3553,7 @@ function playerRanking(board, elapsed) {
   const fall = (pachinko.rows + 1) * pachinko.hopMs;
   const players = new Map();
   board.drops.forEach((drop, order) => {
-    const entry = players.get(drop.name) ?? { name: drop.name, points: 0, landed: false, order, lastLanded: -Infinity };
+    const entry = players.get(drop.name) ?? { name: drop.name, emote: drop.emote, color: drop.color, points: 0, landed: false, order, lastLanded: -Infinity };
     if (elapsed - drop.at >= fall) {
       entry.points += drop.points;
       entry.landed = true;
@@ -3566,19 +3607,13 @@ function drawPlayerList(layout, board, elapsed) {
     const top1 = player.name === leader;
 
     const dropping = falling.has(player.name);
+    // The player's emote, as on their ball; a pulsing white ring while their ball is falling.
+    drawEmoteDisc(player.emote, x + 8, y, 8, board.color, player.color || board.color);
     if (dropping) {
-      // A little ball in the guild's color where the place number was: this one is falling now.
-      circle(x + 8, y, 6 + Math.sin(elapsed / 90));
-      ctx.fillStyle = board.color;
-      ctx.fill();
+      circle(x + 8, y, 10.5 + Math.sin(elapsed / 90));
       ctx.lineWidth = 2;
       ctx.strokeStyle = '#FFFFFF';
       ctx.stroke();
-    } else {
-      ctx.font = `700 13px ${FONT}`;
-      ctx.textAlign = 'right';
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
-      ctx.fillText(`${place + 1}`, x + 14, y);
     }
 
     ctx.font = `${top1 || dropping ? 800 : 600} 14px ${FONT}`;

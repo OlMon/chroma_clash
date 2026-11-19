@@ -21,7 +21,7 @@ import type { ChatMessageEvent } from '../irc/events.ts';
 import { assignClasses, type FighterSpec } from '../game/battle.ts';
 import { createRng } from '../util/rng.ts';
 import { ClashEngine } from './clash-engine.ts';
-import { DraftEngine, drawFighters, drawProblem, type DraftMode } from './draft-engine.ts';
+import { DraftEngine, drawFighters, drawProblem, type DraftMode, type Lineup } from './draft-engine.ts';
 import { PachinkoEngine } from './pachinko-engine.ts';
 import { EventRunner, type EventEngine } from './event-runner.ts';
 import { GodEngine, type GodStartKind } from './god-engine.ts';
@@ -247,9 +247,28 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
     () => store.getSetting('obstacles') !== '0',
     () => bannerPlace(store.getSetting('map_banner')),
   );
+  /**
+   * A line-up as the overlay shows it: each member with the emote their
+   * fighter wears (the same rules as in battle) and their name color.
+   */
+  const withEmotes = (message: object): object => {
+    const lineup = (message as { lineup?: Lineup }).lineup;
+    if (!lineup) return message;
+    const display = store.displaySettings();
+    const teams = lineup.teams.map((team) => ({
+      ...team,
+      members: team.members.map((member) => {
+        const user = member.id ? store.getUser(member.id) : null;
+        if (!user) return member;
+        const emote = emotes.fighterEmote(user.emote_id, user.user_id, { sources: display.emoteSources, random: display.randomEmotes, special: false });
+        return { ...member, emote, color: user.color };
+      }),
+    }));
+    return { ...message, lineup: { ...lineup, teams } };
+  };
   const war = new EventRunner({
     battles: runner,
-    send: (message: object) => sendAll(JSON.stringify(message)),
+    send: (message: object) => sendAll(JSON.stringify(withEmotes(message))),
     onChange: () => broadcast(),
     // The closing was written in the language chosen when the event started.
     onFinish: (closing) => announceInChat(tr('server.chat.closing', closing)),

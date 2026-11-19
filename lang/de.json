@@ -63,6 +63,7 @@
   "server.clash.finalTitle": "Heldenkampf: das Finale",
   "server.clash.finalLabel": "Heldenkampf: Finale",
   "server.clash.finalBattle": "Heldenkampf: Finale",
+  "server.clash.lineupNote": "Gleiche Werte und je eine Klasse: Wer als Letzter steht, gewinnt.",
   "server.clash.noChampion": "Diesmal kein Champion",
   "server.clash.champion": "{name} ist Champion",
   "server.clash.boostPrize": "{guild} bekommt {minutes} Minuten lang +{percent}% XP und das neutrale Feld",

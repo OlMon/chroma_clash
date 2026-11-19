@@ -5,6 +5,7 @@ import { assignClasses, type BattleResult, type FighterSpec } from '../game/batt
 import { createRng, type Rng } from '../util/rng.ts';
 import type { EventEngine, EventMap, EventStep } from './event-runner.ts';
 import { guildName, languageOf, translator } from '../i18n.ts';
+import type { Lineup } from './draft-engine.ts';
 
 export interface ClashStep extends EventStep {
   kind: 'heat' | 'final' | 'skipped';
@@ -99,11 +100,21 @@ export class ClashEngine implements EventEngine<ClashStep> {
     }));
     // A class is dealt anew for each match.
     assignClasses(fighters, this.rng);
+    // The heroes presented before the match: each with their guild, class and emote.
+    const lineup: Lineup = {
+      teams: heroes.map((hero, index) => ({
+        name: guildName(this.lang, hero.guild_id),
+        color: guildOf(hero.guild_id).color,
+        members: [{ name: hero.display_name, detail: this.t(`class.${fighters[index]!.class}`), id: hero.user_id }],
+      })),
+      note: this.t('server.clash.lineupNote'),
+    };
     return {
       kind,
       heroes,
       title,
       subtitle: heroes.map((hero) => hero.display_name).join('  vs  '),
+      lineup,
       label: kind === 'final' ? this.t('server.clash.finalLabel') : title,
       // Every hero is a side of their own; apart from the class each was dealt, they are equal.
       setup: {

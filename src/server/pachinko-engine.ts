@@ -51,7 +51,9 @@ export class PachinkoEngine implements EventEngine {
         .map((guild) => ({
           name: guildName(this.lang, guild.id),
           color: guild.color,
-          members: this.picks.filter((user) => user.guild_id === guild.id).map((user) => ({ name: user.display_name, detail: '' })),
+          members: this.picks
+            .filter((user) => user.guild_id === guild.id)
+            .map((user) => ({ name: user.display_name, detail: '', id: user.user_id })),
         }))
         .filter((team) => team.members.length > 0),
       note: this.t('server.pachinko.note', { count: balls }),

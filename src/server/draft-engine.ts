@@ -1,3 +1,4 @@
+import type { EmoteImage } from '../emotes/sources.ts';
 import { toughnessFor } from './battles.ts';
 import { config, type ClassId, type GuildId } from '../config.ts';
 import type { Store, UserRow } from '../db/store.ts';
@@ -11,8 +12,21 @@ import { DEFAULT_LANGUAGE, guildName, languageOf, translator } from '../i18n.ts'
 export type DraftMode = 'guild' | 'free' | 'pachinko';
 
 /** What the overlay lists before the fight. `detail` is a second line per fighter: its class. */
+/**
+ * Who fights, as the overlay presents them before a fight. `id` is the
+ * chatter's; the server adds each one's emote (`emote`) and name color
+ * (`color`) before sending, so the overlay can show them beside the name.
+ */
+export interface LineupMember {
+  name: string;
+  detail: string;
+  id?: string;
+  emote?: EmoteImage | null;
+  color?: string | null;
+}
+
 export interface Lineup {
-  teams: { name: string; color: string; members: { name: string; detail: string }[] }[];
+  teams: { name: string; color: string; members: LineupMember[] }[];
   note: string;
 }
 
@@ -115,7 +129,7 @@ export class DraftEngine implements EventEngine<DraftStep> {
           {
             name: this.t('mode.freeForAll'),
             color: '#FFFFFF',
-            members: this.picks.map((user) => ({ name: user.display_name, detail: this.className(user) })),
+            members: this.picks.map((user) => ({ name: user.display_name, detail: this.className(user), id: user.user_id })),
           },
         ],
         note: this.t('server.draft.freeNote', { n: Math.min(freeForAllOnField, this.picks.length) }),
@@ -128,7 +142,7 @@ export class DraftEngine implements EventEngine<DraftStep> {
           color: guild.color,
           members: this.picks
             .filter((user) => user.guild_id === guild.id)
-            .map((user) => ({ name: user.display_name, detail: this.className(user) })),
+            .map((user) => ({ name: user.display_name, detail: this.className(user), id: user.user_id })),
         }))
         .filter((team) => team.members.length > 0),
       note: this.t('server.draft.guildNote', { n: onFieldPerGuild }),
