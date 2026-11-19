@@ -221,6 +221,8 @@ test('a countdown collects chatters, shows the line-up, and starts the fight', a
   assert.equal(counting.title, 'Guild Clash');
   assert.ok(counting.remainingMs > 0 && counting.remainingMs <= 700);
   assert.ok(counting.recent.length > 0);
+  // The overlay shows the map banner during the countdown, in place of the corner panels.
+  assert.deepEqual(counting.banner, { place: 'bottom', height: config.battle.bannerHeight, width: config.battle.arena.width });
 
   const lineup = await until((m) => m.type === 'announce' && m.lineup, 'line-up');
   assert.equal(lineup.holdMs, 200);

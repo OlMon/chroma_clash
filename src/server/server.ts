@@ -13,7 +13,7 @@ import { databaseProblem } from '../db/schema.ts';
 import { databaseSize, readOverlayReport, type OverlayInfo } from './status.ts';
 import { config, type GuildId, type SkillId, type StatId } from '../config.ts';
 import type { Store } from '../db/store.ts';
-import { BattleRunner, type BannerPlace } from './battle-runner.ts';
+import { BattleRunner, bannerStrip, type BannerPlace } from './battle-runner.ts';
 import { prepareBattle, toughnessFor } from './battles.ts';
 import { applyTuning, setTuning } from './tuning.ts';
 import type { UserRow } from '../db/store.ts';
@@ -323,6 +323,8 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
       remainingMs: Math.max(0, countdown.endsAt - Date.now()),
       joined: countdown.writers.size,
       recent: countdown.recent,
+      // During a countdown the overlay shows the map banner instead of the corner panels.
+      banner: bannerStrip(bannerPlace(store.getSetting('map_banner'))),
     });
   }
 

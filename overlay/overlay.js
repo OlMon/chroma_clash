@@ -662,7 +662,7 @@ let panelAnimating = false;
 let panelDrawnAt = 0;
 
 function panelBlocked() {
-  return Boolean(pachinko || battle || (announcement && (announcement.map || announcement.lineup || announcement.celebrate)));
+  return Boolean(pachinko || battle || countdown || (announcement && (announcement.map || announcement.lineup || announcement.celebrate)));
 }
 
 function panelNeedsAnimation() {
@@ -1061,8 +1061,14 @@ function renderPanel() {
     drawCelebration(announcement, performance.now() - announcement.shownAt);
     return;
   }
-  if (countdown) drawCountdown();
-  else if (announcement) drawBanner(announcement.title, announcement.subtitle || '', null);
+  if (countdown) {
+    // Like a battle, a countdown has the screen to itself: the map banner stands in for the corner panels.
+    drawCountdown();
+    const banner = bannerOnScreen(countdown.banner);
+    if (banner) drawOnTop(() => drawMapBanner(banner));
+    return;
+  }
+  if (announcement) drawBanner(announcement.title, announcement.subtitle || '', null);
   drawCorner();
 }
 
@@ -2912,10 +2918,7 @@ function onPachinko(message) {
   announcement = null;
   // A page that opened during the game joins it where it has got to.
   pachinko = { ...message, shownAt: performance.now() - (message.elapsedMs || 0) };
-  // The map banner's strip, in pixels, as for a battle.
-  pachinko.banner = message.banner
-    ? { place: message.banner.place, height: (message.banner.height * canvas.width) / message.banner.width }
-    : null;
+  pachinko.banner = bannerOnScreen(message.banner);
   // Who lands where, in order, so balls stack up in their slots.
   for (const board of pachinko.boards) {
     const counts = new Array(pachinko.slots.length).fill(0);
@@ -3817,6 +3820,11 @@ function renderBattle(now) {
 }
 
 // --- Map banner: the state of the map during a battle -----------------------------
+
+/** The map banner's strip as the server sends it outside a battle (a height on an arena of a given width), in pixels. */
+function bannerOnScreen(banner) {
+  return banner ? { place: banner.place, height: (banner.height * canvas.width) / banner.width } : null;
+}
 
 /**
  * A strip across the top or the bottom of the screen: the map, and each

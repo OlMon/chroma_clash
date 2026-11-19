@@ -339,6 +339,7 @@ export function generateScenes(outDir: string, lang = 'en'): Scene[] {
     messages: [stateMessage, {
       type: 'countdown', title: guildClash, subtitle: t('server.countdown.subtitle'), remainingMs: 23_400, joined: 17,
       recent: chatters.slice(0, 8).map((c) => c.displayName),
+      banner: { place: 'bottom', height: config.battle.bannerHeight, width: config.battle.arena.width },
     }],
     moments: [0],
   });

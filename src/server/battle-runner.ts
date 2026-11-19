@@ -5,6 +5,15 @@ import type { EmoteImage } from '../emotes/sources.ts';
 /** Where the map banner sits during battles: across the top, across the bottom, or nowhere. */
 export type BannerPlace = 'top' | 'bottom' | null;
 
+/**
+ * The map banner's strip for the overlay outside a battle (a countdown,
+ * Pachinko): its place, and its `height` on an arena `width` wide, which is
+ * the screen's width. Null when the banner is off.
+ */
+export function bannerStrip(place: BannerPlace): { place: 'top' | 'bottom'; height: number; width: number } | null {
+  return place ? { place, height: config.battle.bannerHeight, width: config.battle.arena.width } : null;
+}
+
 /** At most this many steps are run at once to catch up with the clock. */
 const MAX_CATCH_UP = 6;
 
