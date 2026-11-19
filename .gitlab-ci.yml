@@ -1,0 +1,28 @@
+# Publishes the static website in website/ with GitLab Pages.
+pages:
+  stage: deploy
+  image: alpine:3.20
+  script:
+    - rm -rf public
+    - cp -r website public
+  artifacts:
+    paths:
+      - public
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# Builds the packaged Linux release when a version tag is pushed (git tag v0.2.0).
+# The package can only be built on the system it is for: Windows and macOS
+# packages need a job on such a runner, or `npm run release` run there by hand.
+release-linux:
+  stage: build
+  image: node:26
+  script:
+    - npm ci
+    - npm test
+    - npm run release
+  artifacts:
+    paths:
+      - dist/*.tar.gz
+  rules:
+    - if: $CI_COMMIT_TAG

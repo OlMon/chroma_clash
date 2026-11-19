@@ -1,0 +1,27 @@
+{
+  "name": "chroma-clash",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "node --test \"test/**/*.test.ts\"",
+    "typecheck": "tsc --noEmit",
+    "irc": "node src/cli/irc-reader.ts",
+    "sim": "node src/cli/simulate.ts",
+    "start": "node src/main.ts",
+    "release": "node tools/release/build.ts",
+    "preview": "node tools/preview/render.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/ws": "^8.18.2",
+    "esbuild": "^0.28.2",
+    "typescript": "^5.8.0"
+  },
+  "dependencies": {
+    "ws": "^8.23.0"
+  }
+}

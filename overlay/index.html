@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Chroma Clash overlay</title>
+  <style>
+    /* Transparent page: OBS shows only what the canvas draws. */
+    html, body { margin: 0; background: transparent; overflow: hidden; }
+    canvas { display: block; width: 100vw; height: auto; aspect-ratio: 16 / 9; }
+  </style>
+</head>
+<body>
+  <canvas id="stage" width="1920" height="1080"></canvas>
+  <script src="/lang/i18n.js"></script>
+  <script src="theme.js"></script>
+  <script src="overlay.js"></script>
+</body>
+</html>

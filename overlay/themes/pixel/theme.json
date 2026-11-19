@@ -1,0 +1,18 @@
+{
+  "name": "Pixel RPG",
+  "description": "Chunky pixels, blue window frames and a pixel font, like an old-school role-playing game.",
+  "script": "theme.js",
+  "pixelScale": 3,
+  "hardEdges": true,
+  "fontScale": 1.3,
+  "font": {
+    "family": "Jersey 10",
+    "file": "jersey-10.woff2",
+    "weight": "100 900"
+  },
+  "palette": {
+    "neutralTile": "rgba(40, 52, 110, 0.6)",
+    "neutralTileBig": "#26305C",
+    "stone": "#DCD2B8"
+  }
+}

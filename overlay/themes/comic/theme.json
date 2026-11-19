@@ -1,0 +1,24 @@
+{
+  "name": "Dark Fantasy Comic",
+  "description": "Bold ink outlines, halftone shading, blackletter lettering and grim inked panels, like a dark fantasy comic book.",
+  "script": "theme.js",
+  "font": { "family": "Pirata One", "file": "pirata-one.woff2", "weight": "100 900" },
+  "fontScale": 1.12,
+  "ink": { "color": "#0B0807", "width": 3, "shadow": 6, "shadowAlpha": 0.5 },
+  "halftone": { "size": 6, "dot": 0.22, "alpha": 0.18 },
+  "palette": {
+    "panel": "rgba(30, 23, 19, 0.92)",
+    "panelStrong": "rgba(24, 18, 15, 0.96)",
+    "neutralTile": "rgba(74, 62, 52, 0.6)",
+    "neutralTileBig": "#3A2F28",
+    "stone": "#BCAE8C",
+    "classColors": {
+      "fighter": "#E98C6C",
+      "tank": "#A3B3C9",
+      "thief": "#B29BE0",
+      "archer": "#A3CF83",
+      "mage": "#82C3F2",
+      "healer": "#F2DE80"
+    }
+  }
+}

@@ -1,0 +1,553 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chroma Clash</title>
+  <meta name="description" content="Chroma Clash is a Twitch overlay game where chat plays without typing commands. Chatters join a guild by their name colour, build land, and fight in automatic battles.">
+  <meta name="theme-color" content="#0d0f17">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <a class="brand" href="#top" aria-label="Chroma Clash, back to top">
+        <img src="favicon.svg" alt="" width="28" height="28">
+        <span>Chroma Clash</span>
+      </a>
+      <button class="menu-btn" type="button" aria-expanded="false" aria-controls="nav">Menu</button>
+      <nav id="nav" class="nav" aria-label="Sections">
+        <a href="#how">How it works</a>
+        <a href="#guilds">Guilds &amp; map</a>
+        <a href="#monument">Monument</a>
+        <a href="#battles">Battles</a>
+        <a href="#classes">Classes</a>
+        <a href="#god">The god</a>
+        <a href="#arena">Arena</a>
+        <a href="#looks">Looks</a>
+        <a href="#control">Running it</a>
+        <a class="nav-cta" href="#start">Coming soon</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- Hero -->
+    <section class="hero" id="top">
+      <div class="wrap hero-grid">
+        <a class="sticker" href="#start" aria-label="Coming soon, 100% free. Free as in lurking.">
+          <span class="sticker-top">Coming soon</span>
+          <span class="sticker-big">100% free!</span>
+          <span class="sticker-small">Free as in lurking</span>
+        </a>
+        <div class="hero-text">
+          <p class="eyebrow">A Twitch chat overlay game</p>
+          <h1>Chat plays.<br>Nobody types a command.</h1>
+          <p class="lead">Chatters join a guild by their <strong>name colour</strong>: <span class="g-red">red</span>, <span class="g-green">green</span> or <span class="g-blue">blue</span>. Just by chatting, they grow their guild's land on a hex map and build its Monument. When the streamer wants some action, they start a battle and the chatters' fighters clash on screen, fully automatic.</p>
+          <p class="lead">The streamer takes part too: as the god of the map.</p>
+          <div class="cta-row">
+            <a class="btn btn-primary" href="#start">Out next week</a>
+            <a class="btn" href="#how">How it works</a>
+          </div>
+          <ul class="facts">
+            <li><b>3</b> guilds</li>
+            <li><b>19</b> hex tiles</li>
+            <li><b>0</b> chat commands</li>
+            <li>Runs on the streamer's PC</li>
+          </ul>
+        </div>
+        <figure class="stage hero-stage">
+          <canvas class="anim" data-anim="map" width="560" height="520" data-narrow="440x480" aria-label="Animated hex map: three guilds develop their tiles, capture land from each other, and their Monuments grow."></canvas>
+          <figcaption>The map: tile levels go up as chat talks. Wars move borders. Now and then a mishap knocks a tile back.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- How it works -->
+    <section class="section" id="how">
+      <div class="wrap">
+        <h2>How it works in 30 seconds</h2>
+        <ol class="steps">
+          <li>
+            <span class="step-n">1</span>
+            <h3>Chat normally</h3>
+            <p>Chat time is split into short windows of a few minutes. Every chatter who writes at least once in a window earns one tick. One message or fifty: still one tick.</p>
+          </li>
+          <li>
+            <span class="step-n">2</span>
+            <h3>Colour picks your guild</h3>
+            <p>Your Twitch name colour puts you in Red, Green or Blue. You stay there for the whole season.</p>
+          </li>
+          <li>
+            <span class="step-n">3</span>
+            <h3>Land grows, Monuments rise</h3>
+            <p>Ticks develop your guild's tiles. Developed land feeds the guild's Monument. First Monument to finish wins the season.</p>
+          </li>
+          <li>
+            <span class="step-n">4</span>
+            <h3>The streamer starts the fights</h3>
+            <p>Wars, Clashes and god fights run by themselves on the overlay. Chatters are drawn as their latest emote and fight automatically.</p>
+          </li>
+        </ol>
+        <div class="callout" id="spam">
+          <svg class="callout-icon" viewBox="0 0 48 48" aria-hidden="true">
+            <path d="M24 4 L41 10 V23 C41 34 33.5 41 24 44 C14.5 41 7 34 7 23 V10 Z" fill="#1e2335" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>
+            <path d="M16 24 L22 30 L33 18" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <div>
+            <h3>Built-in spam protection</h3>
+            <p>More spam is not more help. A chatter earns at most one tick per time window, whether they write one message or flood the chat with fifty. Copy-paste walls, emote spam and one-letter messages add nothing for the guild. What counts is <b>how many people</b> chat, and how often they come back, not how many messages they send. Known bots like Nightbot or StreamElements earn nothing at all.</p>
+            <p class="note">So the best way to help your guild is the nicest one for the stream too: just be there and talk.</p>
+          </div>
+        </div>
+        <p class="note">Progress is saved between streams. A season usually lasts many streams, so it matters over weeks, not just one break.</p>
+      </div>
+    </section>
+
+    <!-- Guilds & map -->
+    <section class="section alt" id="guilds">
+      <div class="wrap two-col">
+        <div>
+          <h2>Guilds &amp; the map</h2>
+          <p>There are three guilds. The hue of your Twitch name colour decides which one you join:</p>
+          <ul class="guild-list">
+            <li><span class="dot red"></span><span><b>Red</b>: magenta, red, orange and yellow-orange names</span></li>
+            <li><span class="dot green"></span><span><b>Green</b>: yellow, green and teal names</span></li>
+            <li><span class="dot blue"></span><span><b>Blue</b>: cyan, blue and purple names</span></li>
+          </ul>
+          <p>No colour set, or a grey one? The game picks a guild from your user id, so it is always the same. In a very small chat, newcomers fill the smallest guild first, so no guild sits empty. Your guild is locked for the season. Changing your colour later does not move you.</p>
+          <h3>The map</h3>
+          <p>The map is a hexagon of 19 tiles. Each guild has a city on a corner. Cities can never be taken, so no guild is ever out. At the start of a season every guild owns five tiles next to its city, and all three already border each other. The center tile belongs to the god.</p>
+          <ul class="ticks">
+            <li><b>Tile levels 0 to 10.</b> Every chatter has a home tile in their guild, and each tick builds it. Higher levels make a tile harder to take in a War.</li>
+            <li><b>Uneven growth.</b> <span class="new">New</span> A tile with many regulars shoots ahead while a quiet one lags, and every season some land is more fertile than other land.</li>
+            <li><b>Mishaps.</b> <span class="new">New</span> Lightning seeks the tallest tiles and knocks them down a level or two. A fire burns a level every five minutes until enough of the guild is chatting to put it out, and it can spread to the neighbours. Now and then a good harvest raises a tile.</li>
+            <li><b>The center tile.</b> A guild can win it, but only holds it for 30 minutes of stream time. Then the god takes it back.</li>
+          </ul>
+        </div>
+        <figure class="stage">
+          <div class="hue-wheel" role="img" aria-label="Colour wheel split into three guild ranges: red from 300 to 60 degrees, green from 60 to 180, blue from 180 to 300.">
+            <div class="hue-ring"></div>
+            <div class="hue-labels">
+              <span class="hl hl-red">Red</span>
+              <span class="hl hl-green">Green</span>
+              <span class="hl hl-blue">Blue</span>
+            </div>
+          </div>
+          <figcaption>Name colour hue: Red 300° to 60°, Green 60° to 180°, Blue 180° to 300°. Your fighter keeps your real colour, with a ring in your guild's colour.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- Monument -->
+    <section class="section" id="monument">
+      <div class="wrap two-col reverse">
+        <div>
+          <h2>The Monument race</h2>
+          <p>Each guild builds one Monument: an Obelisk, a Ziggurat or a Temple, dealt at random each season. It is the season's finish line.</p>
+          <p>In every time window in which a guild is active, its Monument grows by 1 plus the levels of all its tiles. More land and better land means a faster Monument. That is why Wars over land matter.</p>
+          <p>The first guild to reach <b>6,000</b> wins the season on the spot. The overlay shows each Monument going up in five stages.</p>
+          <h3>How a season ends</h3>
+          <ul class="ticks">
+            <li>A guild finishes its Monument and wins.</li>
+            <li>The god wins <b>5</b> fights against chat in the season, and the god wins it.</li>
+            <li>The streamer ends it from the control panel. The furthest Monument wins.</li>
+          </ul>
+          <p>Then the land is dealt again, Monuments, XP and levels reset, and everyone is assigned a guild again from their current colour. Lifetime stats like kills, battles and seasons won are kept.</p>
+        </div>
+        <figure class="stage">
+          <canvas class="anim" data-anim="monument" width="560" height="380" data-narrow="460x360" aria-label="Animation: three Monuments, an Obelisk, a Ziggurat and a Temple, rise in five stages."></canvas>
+          <figcaption>Obelisk, Ziggurat, Temple: built in five stages. The first one finished wins.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- Battles -->
+    <section class="section alt" id="battles">
+      <div class="wrap">
+        <h2>Battles</h2>
+        <p class="intro">The streamer decides when a fight starts. Every fight lasts about a minute to a minute and a half. Fights are fully automatic: fighters walk to the nearest enemy, hit, dodge and use their class skills. Each fighter is drawn as the emote the chatter used last, on a dark disc with a ring in the guild's colour and the name above it.</p>
+        <figure class="stage wide">
+          <video class="clip" src="media/battle.mp4" poster="media/battle.jpg" width="960" height="540" muted loop playsinline preload="metadata" aria-label="Recorded from the real overlay in the Plain theme: Blue attacks Red in a War battle, 23 against 21 chatters. Fighters swing, shoot arrows and cast spells, the health bars at the top drop, and the map banner at the bottom shows the guilds' land."></video>
+          <figcaption><span>Recorded from the real overlay, Plain theme: a War battle, Blue attacks Red, with the map banner along the bottom. Emotes are switched off for this recording; on stream every fighter wears the chatter's emote.</span></figcaption>
+        </figure>
+
+        <div class="cards five">
+          <article class="card">
+            <h3>War</h3>
+            <p class="tag">Counts for the season</p>
+            <p>Three battles, one per guild as attacker. Each guild attacks a border tile of its biggest neighbour. Win it and the tile is yours, at half its level. Everyone active in the last 30 minutes takes part, up to 40 per side. Moderators can be allowed to start one with <code>!war</code>.</p>
+          </article>
+          <article class="card">
+            <h3>Hero Clash</h3>
+            <p class="tag">Counts for the season</p>
+            <p>The three most active chatters of each guild today fight in three-way heats, then a final. Equal stats for everyone. The winner's guild gets +50% XP for 30 minutes and the winner wears a crown.</p>
+          </article>
+          <article class="card">
+            <h3>Guild Clash</h3>
+            <p class="tag">Countdown fight, counts</p>
+            <p>A 30-second countdown appears. Everyone who writes during it is in the draw. Up to 10 per guild are drawn, the line-up is shown, then 3 per guild fight at once and the bench steps in. Last guild standing gets the Hero Clash reward.</p>
+          </article>
+          <article class="card">
+            <h3>Free-for-all</h3>
+            <p class="tag">Countdown fight, just for fun</p>
+            <p>Same countdown and draw. 30 chatters are drawn, 10 fight at a time, everyone for themselves. The last one standing wins. It changes nothing in the game.</p>
+          </article>
+          <article class="card">
+            <h3>Endless mode</h3>
+            <p class="tag">For intros, outros, breaks</p>
+            <p>A never-ending free-for-all of the active chatters. The streamer picks how many fight at once (2 to 60). Fallen fighters rejoin after 3 seconds. No XP, no stats, just motion on screen.</p>
+          </article>
+        </div>
+
+        <div class="split-notes">
+          <div class="panel">
+            <h3>Obstacles <span class="new">New</span></h3>
+            <p>Battles can get obstacles, picked at random for each battle. The streamer can switch them off.</p>
+            <ul class="ticks">
+              <li><b>Walls</b> that stand still and block the way.</li>
+              <li><b>Barrels</b> that roll across the arena.</li>
+              <li><b>Bumpers</b> like on a pinball table, bouncing chatters away.</li>
+              <li><b>Spike traps</b> that glow red, then strike everyone standing on them.</li>
+            </ul>
+            <p>About two in five team battles get a layout, and every battle of a War gets a new one. In a free-for-all and in endless mode they appear and disappear during the fight.</p>
+          </div>
+          <div class="panel">
+            <h3>Fair fights</h3>
+            <ul class="ticks">
+              <li>Levels give a small health bonus, capped at +30%, so veterans do not flatten newcomers.</li>
+              <li>Smaller guilds get stronger fighters, so a guild half the size still wins about half the time.</li>
+              <li>A bit of luck each battle keeps upsets possible.</li>
+              <li>Countdown fights use equal stats: nothing is decided before the fight. The 15-second line-up is a good moment for chat bets.</li>
+              <li>During any battle the panels make room for the fight. A slim map banner across the top or bottom of the screen keeps the map and the Monument race in view; nothing in the fight ever covers it. <span class="new">New</span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Classes -->
+    <section class="section" id="classes">
+      <div class="wrap">
+        <h2>Classes</h2>
+        <p class="intro">Every chatter gets a random class for each fight. A small badge on the fighter shows which one. Classes keep fights moving instead of two lines trading hits.</p>
+        <div class="class-grid">
+          <article class="class-card" style="--c:#FFB49A">
+            <svg class="badge" viewBox="-12 -12 24 24" aria-hidden="true"><use href="#i-fighter"/></svg>
+            <div><h3>Fighter <small>30%</small></h3><p>Walks to the nearest enemy. With two or more around, it spins and hits them all.</p></div>
+          </article>
+          <article class="class-card" style="--c:#B8E6A3">
+            <svg class="badge" viewBox="-12 -12 24 24" aria-hidden="true"><use href="#i-archer"/></svg>
+            <div><h3>Archer <small>20%</small></h3><p>Shoots from a distance and backs away from anyone who gets close.</p></div>
+          </article>
+          <article class="class-card" style="--c:#B9C8DE">
+            <svg class="badge" viewBox="-12 -12 24 24" aria-hidden="true"><use href="#i-tank"/></svg>
+            <div><h3>Tank <small>15%</small></h3><p>Slow, with 50% more health. Enemies nearby go for it first. Raises a shield when things get hot.</p></div>
+          </article>
+          <article class="class-card" style="--c:#CDB6F5">
+            <svg class="badge" viewBox="-12 -12 24 24" aria-hidden="true"><use href="#i-thief"/></svg>
+            <div><h3>Thief <small>15%</small></h3><p>Fast. Hunts archers, mages and healers. Strikes, darts back, and slips into the shadows.</p></div>
+          </article>
+          <article class="class-card" style="--c:#9FD6FF">
+            <svg class="badge" viewBox="-12 -12 24 24" aria-hidden="true"><use href="#i-mage"/></svg>
+            <div><h3>Mage <small>10%</small></h3><p>Marks a rune circle on the ground. A moment later it blasts everyone inside.</p></div>
+          </article>
+          <article class="class-card" style="--c:#FFF0A0">
+            <svg class="badge" viewBox="-12 -12 24 24" aria-hidden="true"><use href="#i-healer"/></svg>
+            <div><h3>Healer <small>10%</small></h3><p>Follows the most hurt ally and heals it. Alone, it fights weakly for itself.</p></div>
+          </article>
+        </div>
+        <p class="note">The percentages are how often each class is dealt.</p>
+      </div>
+    </section>
+
+    <!-- God -->
+    <section class="section alt god" id="god">
+      <div class="wrap">
+        <h2>The god: the streamer</h2>
+        <p class="intro">The streamer does not join a guild. Instead they descend as the god of the map: one big fighter with the streamer's name, colour and latest emote (or channel picture). The streamer only chooses when. The fight itself runs on its own, like every other.</p>
+        <div class="cards two">
+          <article class="card card-god">
+            <h3>God's Wrath</h3>
+            <p class="tag">Streamer vs the leading guild</p>
+            <p>The god attacks the guild with the most tiles, on its tile farthest from its city. If the god wins, the tile turns neutral and is drawn scorched in the streamer's colour. If the guild wins, it keeps the tile and its fighters get bonus XP. A brake on the leader.</p>
+          </article>
+          <article class="card card-god">
+            <h3>Streamer vs Chat</h3>
+            <p class="tag">Streamer vs everyone</p>
+            <p>A boss fight against all three guilds at once. If chat wins, everyone gets bonus XP. If the god wins the first one of a stream, it lays waste to the map: every guild loses a tile and every Monument loses 15%. Later fights in the same stream are friendly: nothing is at stake.</p>
+          </article>
+        </div>
+        <figure class="stage wide">
+          <video class="clip" src="media/streamer-vs-chat.mp4" poster="media/streamer-vs-chat.jpg" width="960" height="540" muted loop playsinline preload="metadata" aria-label="Recorded from the real overlay in the Dark Fantasy Comic theme: Streamer vs Chat. The god, a big golden fighter, is swarmed by about 80 chatters from all three guilds and casts its skills, announced in big comic lettering."></video>
+          <figcaption><span>Recorded from the real overlay, Dark Fantasy Comic theme: Streamer vs Chat with 85 chatters against the god, and its skills announced in big letters. The god's picture here is a placeholder; on stream it is the streamer's own.</span></figcaption>
+        </figure>
+        <p>The god's health grows with the size of chat, so it is a fair fight for 5 chatters or 100. The god wins if it is still standing when time runs out, so chat has to bring it down. The overlay keeps the score, like "God 3 : 2 Chat". Win 5 times in a season and the god wins the season.</p>
+
+        <h3 class="sub">The god's skills</h3>
+        <p>Every few seconds the god casts a skill, announced in big letters a second ahead. The streamer can switch each one on or off.</p>
+        <p>Between skills the god never stands still: it dashes through the crowd, knocking chatters aside, blinks to another spot in a puff of smoke, or runs off one side of the screen and storms back in at the other. Chatters cannot follow it there. <span class="new">New</span></p>
+        <div class="skills">
+          <div class="skill"><b>Rampage</b><span>Bounces from edge to edge, knocking everyone aside.</span></div>
+          <div class="skill"><b>Shockwave</b><span>Hurls the five nearest fighters across the arena.</span></div>
+          <div class="skill"><b>Leap</b><span>A shadow marks the spot, then it lands on the thickest crowd.</span></div>
+          <div class="skill"><b>Vortex</b><span>Whirlwinds catch small groups and carry them off.</span></div>
+          <div class="skill"><b>Smite</b><span>Lightning hits the three top damage dealers and leaves burning ground.</span></div>
+          <div class="skill"><b>Divine Shield</b><span>Cannot be hurt for 3 seconds.</span></div>
+          <div class="skill"><b>Minions</b><span>Summons four small copies of the god. They look clearly different from chatters, so everyone can tell who is who. <span class="new">New</span></span></div>
+          <div class="skill"><b>Enrage</b><span>Always on: below 30% health the god grows, turns red and hits harder.</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Arena -->
+    <section class="section" id="arena">
+      <div class="wrap two-col">
+        <div>
+          <h2>Arena: just for fun</h2>
+          <p>The Arena tab in the control panel has fights that change nothing in the game. Good for breaks and for betting in chat.</p>
+          <ul class="ticks">
+            <li><b>Free-for-all</b> with a countdown and a line-up.</li>
+            <li><b>Friendly Streamer vs Chat</b>, as often as the streamer likes.</li>
+            <li><b>Endless mode</b> for intros and outros.</li>
+            <li><b>Test battles</b> between chosen guilds.</li>
+          </ul>
+          <h3>Pachinko <span class="new">New</span></h3>
+          <p>Chatters are picked like in a Guild Clash: write during the countdown to be in the draw. But nobody fights. Each guild gets its own pachinko board. Every picked chatter drops from the top, one ball at a time with the boards taking turns, bounces off the pins and lands in a slot worth points. The edge slots are rare and worth the most. The guild with the highest total wins. A guild with fewer players drops some of them twice, so every guild drops as many balls. Like everything in the Arena, it is just for fun.</p>
+        </div>
+        <figure class="stage">
+          <canvas class="anim" data-anim="pachinko" width="560" height="440" data-narrow="460x460" aria-label="Animation: three pachinko boards, one per guild. Balls drop through pins into slots worth points, and the totals add up."></canvas>
+          <figcaption>One board per guild. Highest total wins.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- Looks -->
+    <section class="section alt" id="looks">
+      <div class="wrap">
+        <h2>Looks &amp; emotes</h2>
+        <p class="intro">The overlay comes with three themes. Pick one in the control panel, or pin one per OBS scene with <code>?theme=pixel</code> in the overlay address.</p>
+        <div class="themes">
+          <article class="theme theme-plain">
+            <div class="theme-demo" aria-hidden="true">
+              <div class="t-panel"><span class="t-name">YourChannel</span><span class="t-bar"><i></i></span></div>
+              <div class="t-fighter"><span></span></div>
+            </div>
+            <h3>Plain</h3>
+            <p>The flat, clean look the game started with.</p>
+          </article>
+          <article class="theme theme-pixel">
+            <div class="theme-demo" aria-hidden="true">
+              <div class="t-panel"><span class="t-name">YourChannel</span><span class="t-bar"><i></i></span></div>
+              <div class="t-fighter"><span></span></div>
+            </div>
+            <h3>Pixel RPG</h3>
+            <p>The default. Chunky pixels, blue window frames and a pixel font, like an old role-playing game.</p>
+          </article>
+          <article class="theme theme-comic">
+            <div class="theme-demo" aria-hidden="true">
+              <div class="t-panel"><span class="t-name">YourChannel</span><span class="t-bar"><i></i></span></div>
+              <div class="t-fighter"><span></span></div>
+            </div>
+            <h3>Dark Fantasy Comic</h3>
+            <p>Heavy ink, halftone dots, blackletter lettering, and god skills shouted in a comic burst.</p>
+          </article>
+        </div>
+        <div class="split-notes">
+          <div class="panel">
+            <h3>Emotes from everywhere</h3>
+            <p>Fighters look like the last emote their chatter used. The game knows emotes from:</p>
+            <ul class="pills">
+              <li>Twitch</li><li>BetterTTV</li><li>FrankerFaceZ</li><li>7TV</li>
+            </ul>
+            <p>Global sets and the channel's own sets are loaded without a login. Animated emotes move. Each source can be switched off. Chatters who never used an emote fight as a random global one, the same one every time.</p>
+          </div>
+          <div class="panel">
+            <h3>Custom themes</h3>
+            <p>A theme is a folder in <code>overlay/themes/</code> with a <code>theme.json</code>. It can be as small as one replaced picture: a class badge, the archer's arrow, or a Monument stage. Bigger themes can set a font, colours, pixel scale, comic ink and halftone, or replace drawing functions with a script.</p>
+            <p>The map and statistics panels can be dragged to any spot in a preview in the control panel, or hidden.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Release -->
+    <section class="section" id="start">
+      <div class="wrap">
+        <h2>Coming next week</h2>
+        <p class="intro">Chroma Clash is still under development. The first release comes out <b>next week</b>, free, for streamers to download and run. Until then there is nothing to install yet; this page will tell you how as soon as it is out.</p>
+        <div class="split-notes">
+          <div class="panel release">
+            <h3>What to expect</h3>
+            <ul class="ticks">
+              <li><b>100% free.</b> No price, no subscription, no premium tier. Free as in lurking.</li>
+              <li><b>Runs on the streamer's own computer.</b> No account, no central server and no bot in chat: the game reads chat, and writes in it only if the streamer switches on result announcements.</li>
+              <li><b>One download, nothing to install.</b> Start it, and a setup guide in the browser walks through the channel name, the OBS browser source and a first test battle.</li>
+            </ul>
+          </div>
+          <div class="panel">
+            <h3>Good to know</h3>
+            <ul class="ticks">
+              <li>The game scales to your chat: 5 chatters and 5,000 feel the same.</li>
+              <li>You, the streamer, and known bots earn nothing. You can shut anyone out of the game.</li>
+              <li>Subs, bits and VIPs give nothing. No pay-to-win.</li>
+              <li>Each channel has its own save file. Progress carries over between streams.</li>
+              <li>The control panel tells you when a new version is out.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Running the show -->
+    <section class="section alt" id="control">
+      <div class="wrap">
+        <h2>Running the show <span class="new">New</span></h2>
+        <p class="intro">Everything is started from the control panel, but you do not have to leave your stream to use it.</p>
+        <div class="cards three">
+          <article class="card">
+            <h3>OBS dock</h3>
+            <p class="tag">Inside OBS</p>
+            <p>Add the control panel as a Custom Browser Dock. In a narrow dock it shrinks to what you need live: what is running, the Stop button and one button per fight.</p>
+          </article>
+          <article class="card">
+            <h3>Stream Deck and hotkeys</h3>
+            <p class="tag">One button, one fight</p>
+            <p>Every fight, the background layer, endless mode and Stop have a link of their own. Put them on Stream Deck buttons (a Website action, in the background), or bind them to OBS hotkeys with the included script.</p>
+          </article>
+          <article class="card">
+            <h3>Results in chat</h3>
+            <p class="tag">Optional</p>
+            <p>With a Twitch login set, the game can post one line when a War, a Clash, Pachinko, a god fight or a season ends. It is off unless you switch it on. Chat never has to type anything.</p>
+          </article>
+          <article class="card">
+            <h3>Status page</h3>
+            <p class="tag">When something does not show up</p>
+            <p>Is chat coming in? Are BetterTTV, FrankerFaceZ and 7TV reachable? Is an overlay open, at the right size, and how long does it take to draw a frame? The Status tab shows it at a glance.</p>
+          </article>
+          <article class="card">
+            <h3>Saved games</h3>
+            <p class="tag">Export, import, reset</p>
+            <p>Export a channel's game to keep a copy or move to another computer, import it there, or start from nothing. Before an import or a reset, the old game is copied to a backup folder.</p>
+          </article>
+          <article class="card">
+            <h3>English and German</h3>
+            <p class="tag">Deutsch inklusive</p>
+            <p>The overlay, the control panel and the chat announcements speak English or German: Krieg, Gildenkampf, Götterzorn. Switch it in Settings, or pin a language per OBS scene with <code>?lang=de</code>. More languages are one file each.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- FAQ for viewers -->
+    <section class="section" id="faq">
+      <div class="wrap faq">
+        <h2>For viewers</h2>
+        <details>
+          <summary>Do I need to type anything?</summary>
+          <p>No. Just chat like always. One message every few minutes is enough to count. More messages do not help.</p>
+        </details>
+        <details>
+          <summary>How do I pick my guild?</summary>
+          <p>Your Twitch name colour picks it the first time the game sees you this season. After that it is locked until the next season.</p>
+        </details>
+        <details>
+          <summary>How do I get into a Clash or free-for-all?</summary>
+          <p>Write any message while the countdown is on screen. One message is enough. Fighters are then drawn by lot.</p>
+        </details>
+        <details>
+          <summary>What does my fighter look like?</summary>
+          <p>It is the last emote you used, on a disc with a ring in your guild's colour and your name above it. The little badge shows your class for that fight.</p>
+        </details>
+        <details>
+          <summary>Can I control my fighter?</summary>
+          <p>No. All fights are automatic. Your part is showing up in chat.</p>
+        </details>
+        <details>
+          <summary>Does spamming help my guild?</summary>
+          <p>No. You earn at most one tick per time window of a few minutes, however many messages you write. Fifty messages count the same as one, so there is nothing to gain from flooding chat. Coming back stream after stream is what helps.</p>
+        </details>
+      </div>
+    </section>
+
+    <!-- AI disclaimer -->
+    <section class="section alt" id="ai">
+      <div class="wrap ai">
+        <h2>Full AI disclosure</h2>
+        <p class="intro">Was AI used to make this? Of course AI was used. Actually, <em>only</em> AI was used. A human was involved roughly the way a cat is involved in a keyboard: present, opinionated, and occasionally pressing Enter.</p>
+
+        <div class="ai-meter" role="img" aria-label="Who made this: AI about 97 percent, human about 3 percent, coffee did not fit on the chart.">
+          <div class="ai-bar">
+            <span class="ai-part ai-machine" style="width: 97%">AI · 97%</span>
+            <span class="ai-part ai-human" style="width: 3%" title="The human">3%</span>
+          </div>
+          <p class="ai-legend">Human contribution: the idea, the coffee, and the sentence "make it bigger". Measured by a chart that an AI also drew.</p>
+        </div>
+
+        <div class="split-notes">
+          <div class="panel">
+            <h3>What actually happened</h3>
+            <p>Chroma Clash is a fun side project by a computer scientist who has a day job and should probably have been sleeping. The computer scientist had ideas. The AI had everything else: every line of code, every hexagon, every pinball bumper, every rolling barrel, and the decision at three in the morning that a fantasy war game obviously needs Pachinko.</p>
+            <p>The human's job was to look at the result and say things like "the chatters look like edgy clouds" or "there are stutters every second". The AI then fixed them, said thank you, and kept going. This disclaimer was also written by the AI, about itself, in the third person, which is a little unsettling for everyone.</p>
+            <p>Lines of code written by the human: 0. Lines of code the human scrolled past while nodding wisely: all of them.</p>
+          </div>
+          <div class="panel">
+            <h3>Frequently feared questions</h3>
+            <ul class="ticks">
+              <li><b>Were any chatters harmed?</b> No real ones. Several thousand simulated chatters were struck by lightning, set on fire and flung into bumpers, repeatedly, for testing.</li>
+              <li><b>Is the game balanced?</b> Balancing is scheduled for "one pass at the end". The end has been rescheduled several times.</li>
+              <li><b>I found a bug.</b> That is a feature the AI invented. If you found a feature, the human would like the credit.</li>
+              <li><b>Will the AI take over my stream?</b> It cannot even type in your chat unless you hand it a token. It only wants to throw barrels at your viewers.</li>
+              <li><b>Was anything made by humans?</b> Yes: the two fonts (Jersey 10 and Pirata One, by real type designers), Twitch, the emotes your chat posts, and the general concept of fun.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap">
+      <p>Chroma Clash is a fan-made overlay game. Not affiliated with Twitch, BetterTTV, FrankerFaceZ or 7TV. Made almost entirely by AI: see the <a href="#ai">AI disclosure</a>.</p>
+      <p>Fonts: Jersey 10 and Pirata One, under the SIL Open Font License (<a href="fonts/OFL-jersey-10.txt">Jersey 10</a>, <a href="fonts/OFL-pirata-one.txt">Pirata One</a>).</p>
+    </div>
+  </footer>
+
+  <!-- Class icons, shared by the class cards -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <g id="i-fighter" fill="none" stroke="#1A1E26" stroke-width="2.2" stroke-linecap="round">
+        <path d="M-6 6 L7.5 -7.5"/><path d="M-6.8 0.4 L-0.4 6.8"/><circle cx="-6.6" cy="6.6" r="1.4" fill="#1A1E26" stroke="none"/>
+      </g>
+      <g id="i-tank">
+        <path d="M-6.5 -6.8 H6.5 V0.4 Q4.8 6 0 8 Q-4.8 6 -6.5 0.4 Z" fill="#1A1E26"/>
+        <path d="M0 -4.8 V4.8" stroke="#B9C8DE" stroke-width="1.5"/>
+      </g>
+      <g id="i-thief">
+        <path d="M-7.6 7.6 Q-7.6 -4.8 0 -8 Q7.6 -4.8 7.6 7.6 Z" fill="#1A1E26"/>
+        <ellipse cx="-2.6" cy="0.4" rx="1.4" ry="0.8" transform="rotate(17 -2.6 0.4)" fill="#CDB6F5"/>
+        <ellipse cx="2.6" cy="0.4" rx="1.4" ry="0.8" transform="rotate(-17 2.6 0.4)" fill="#CDB6F5"/>
+      </g>
+      <g id="i-archer" fill="none" stroke="#1A1E26" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M-1.4 -7.4 A8.4 8.4 0 0 1 -1.4 7.4" stroke-width="2.2"/>
+        <path d="M-1.4 -7.4 L-4.4 0 L-1.4 7.4" stroke-width="1"/>
+        <path d="M-4.4 0 H6.4" stroke-width="1.5"/>
+        <path d="M8.4 0 L5.2 -2.3 L5.2 2.3 Z" fill="#1A1E26" stroke="none"/>
+      </g>
+      <g id="i-mage">
+        <path d="M-6.4 7.6 L1.6 -0.8" stroke="#1A1E26" stroke-width="2.2" stroke-linecap="round"/>
+        <path d="M3 -8 L4 -4 L8 -3 L4 -2 L3 2 L2 -2 L-2 -3 L2 -4 Z" fill="#1A1E26"/>
+      </g>
+      <g id="i-healer">
+        <path d="M0 7.6 C-10.4 0.4 -6 -8.4 0 -3.2 C6 -8.4 10.4 0.4 0 7.6 Z" fill="#1A1E26"/>
+        <path d="M0 -2 V3.6 M-2.8 0.8 H2.8" stroke="#FFF0A0" stroke-width="1.6"/>
+      </g>
+    </defs>
+  </svg>
+
+  <script src="main.js" defer></script>
+</body>
+</html>
