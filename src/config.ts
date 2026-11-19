@@ -316,10 +316,15 @@ export const config = {
    * average speed and slows down evenly to `2 - start` times it at the end, so
    * it covers the same distance as at an even speed but lands softly. The
    * god's pushes (dash, Rampage, Leap) take `pushMs` for their distance.
+   * So that a crowd hurled by one blast does not fly in lockstep, each throw
+   * by the god varies its starting speed by up to `speedVariation` and its
+   * duration by up to `durationVariation`, up or down.
    */
   flight: {
     start: 1.8,
     pushMs: 280,
+    speedVariation: 0.25,
+    durationVariation: 0.3,
   },
   obstacles: {
     chance: 0.4,

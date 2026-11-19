@@ -457,6 +457,8 @@ export class Battle {
   private readonly moveRng: Rng;
   /** For breaking out of crowds: separate, so these rolls leave every other roll of the battle as it was. */
   private readonly roamRng: Rng;
+  /** Varies each throw (see `config.flight`); its own, so the other draws of a battle stay as they were. */
+  private readonly flightRng: Rng;
   private readonly timeLimitWinner: string | null;
   private readonly field: { perSide?: number; total?: number } | null;
   private readonly endless: boolean;
@@ -488,6 +490,7 @@ export class Battle {
     const rng = createRng(setup.seed);
     this.moveRng = createRng((setup.seed ^ 0x27d4eb2f) >>> 0);
     this.roamRng = createRng((setup.seed ^ 0x6a09e667) >>> 0);
+    this.flightRng = createRng((setup.seed ^ 0x3c6ef372) >>> 0);
     this.rng = rng;
     this.unit = fighterRadius;
     this.timeLimitWinner = setup.timeLimitWinner ?? null;
@@ -1389,8 +1392,18 @@ export class Battle {
     }
     // A short throw, not a jump: it flies the distance and slows down, like a bumper's fling.
     const { pushMs } = config.flight;
+    this.toss(fighter, dx / d, dy / d, (distance * 1000) / pushMs, pushMs);
+  }
+
+  /**
+   * Throws a fighter in a direction (a unit vector) at an average speed for a
+   * time, both varied a little at random so that no two throws are alike.
+   */
+  private toss(fighter: Fighter, vx: number, vy: number, speed: number, ms: number): void {
+    const { speedVariation, durationVariation } = config.flight;
+    const vary = (share: number) => 1 + share * (this.flightRng() * 2 - 1);
     const now = this.timeMs;
-    fighter.flight = { vx: dx / d, vy: dy / d, speed: (distance * 1000) / pushMs, from: now, until: now + pushMs };
+    fighter.flight = { vx, vy, speed: speed * vary(speedVariation), from: now, until: now + Math.round(ms * vary(durationVariation)) };
   }
 
   /**
@@ -1720,13 +1733,7 @@ export class Battle {
               dy = Math.sin(angle);
               length = 1;
             }
-            enemy.flight = {
-              vx: dx / length,
-              vy: dy / length,
-              speed: skills.shockwave.launchSpeed,
-              from: now,
-              until: now + skills.shockwave.launchMs,
-            };
+            this.toss(enemy, dx / length, dy / length, skills.shockwave.launchSpeed, skills.shockwave.launchMs);
             launched.push(enemy);
           } else {
             // The rest are pushed back; those nearer the caster farther.

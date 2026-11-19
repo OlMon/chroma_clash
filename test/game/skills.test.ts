@@ -340,15 +340,28 @@ test('Shockwave hurls the five nearest fighters across the arena, bouncing off t
   const travelled = launched.map(() => 0);
   const flags = battle.frame();
   for (const index of cast.t!) assert.ok(flags[index]![3] & FLAG.flying);
-  const steps = config.skills.shockwave.launchMs / STEP_MS;
-  /** How far the first hurled fighter got in each step: it slows down. */
-  const perStep: number[] = [];
+  // No two throws alike: each varies its speed and its time in the air.
+  const { speedVariation, durationVariation } = config.flight;
+  const { launchMs, launchSpeed } = config.skills.shockwave;
+  const flights = launched.map((f) => f.flight!);
+  if (launched.length > 1) {
+    assert.ok(new Set(flights.map((f) => f.until)).size > 1, 'different times in the air');
+    assert.ok(new Set(flights.map((f) => f.speed)).size > 1, 'different speeds');
+  }
+  for (const flight of flights) {
+    assert.ok(Math.abs(flight.speed / launchSpeed - 1) <= speedVariation + 1e-9);
+    assert.ok(Math.abs((flight.until - flight.from) / launchMs - 1) <= durationVariation + 0.01);
+  }
+  const steps = Math.ceil((launchMs * (1 + durationVariation)) / STEP_MS) + 1;
+  /** How far each hurled fighter got in each step while alive in the air: it slows down. */
+  const perStep: number[][] = launched.map(() => []);
   for (let i = 0; i < steps; i++) {
     const before = launched.map((f) => ({ x: f.x, y: f.y }));
+    const inAir = launched.map((f) => f.alive && f.flight !== null);
     battle.step();
     launched.forEach((fighter, n) => {
       const moved = Math.hypot(fighter.x - before[n]!.x, fighter.y - before[n]!.y);
-      if (n === 0) perStep.push(moved);
+      if (inAir[n] && fighter.alive) perStep[n]!.push(moved);
       travelled[n]! += moved;
       assert.ok(fighter.x >= fighter.radius - 1 && fighter.x <= width - fighter.radius + 1);
       assert.ok(fighter.y >= top + fighter.radius - 1 && fighter.y <= height - fighter.radius + 1);
@@ -357,12 +370,21 @@ test('Shockwave hurls the five nearest fighters across the arena, bouncing off t
   launched.forEach((fighter, n) => {
     if (!fighter.alive) return;
     assert.equal(fighter.flight, null, 'landed');
-    // As far as at launch speed for the whole flight; a bounce turns it around without slowing it,
-    // so in a small arena it may land near where it took off.
-    assert.ok(travelled[n]! > 1_500, `flew ${Math.round(travelled[n]!)} units`);
+    // About as far as at its speed for its whole flight (a wall's bounce costs a little); a bounce
+    // turns it around, so in a small arena it may land near where it took off.
+    const flight = flights[n]!;
+    const expected = (flight.speed * (flight.until - flight.from)) / 1000;
+    assert.ok(travelled[n]! > expected * 0.75 && travelled[n]! <= expected * 1.01, `flew ${Math.round(travelled[n]!)} of ${Math.round(expected)} units`);
   });
-  // Fast at first, slow at the end: it lands softly.
-  assert.ok(perStep[0]! > 4 * perStep[perStep.length - 1]!, `from ${perStep[0]!.toFixed(0)} to ${perStep.at(-1)!.toFixed(0)} units a step`);
+  // Fast at first, slow at the end: it lands softly. Seen on the one that stayed alive longest,
+  // by the middle steps of its first and last quarter (a wall's bounce shortens single steps).
+  const longest = perStep.reduce((a, b) => (b.length > a.length ? b : a));
+  assert.ok(longest.length > 10);
+  const quarter = Math.floor(longest.length / 4);
+  const median = (values: number[]) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)]!;
+  const early = median(longest.slice(0, quarter));
+  const late = median(longest.slice(-quarter));
+  assert.ok(early > 3 * late, `from ${early.toFixed(0)} to ${late.toFixed(0)} units a step`);
   assert.ok(god.alive);
 });
 
