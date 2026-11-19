@@ -1646,21 +1646,74 @@ function outlinedText(text, x, y, maxWidth) {
 /** Emote images by id. A failed download leaves the fighter as a plain circle. */
 const emoteImages = new Map();
 
+/**
+ * An image by address, or null until it is ready to draw. "Ready" means
+ * decoded too: the browser decodes it in the background first, because an
+ * image decoded only when first drawn holds up that frame, and a battle start
+ * with dozens of new emotes would stutter.
+ */
 function loadImage(url) {
   let entry = emoteImages.get(url);
   if (!entry) {
-    entry = { image: new Image(), ready: false };
-    entry.image.onload = () => { entry.ready = true; };
-    entry.image.src = url;
+    const image = new Image();
+    entry = { image, ready: false };
+    image.src = url;
+    image.decode().then(() => { entry.ready = true; }, () => {});
     emoteImages.set(url, entry);
   }
   return entry.ready ? entry.image : null;
 }
 
-/** Decoded animations by address: { frames: [{ image, until }], total }, 'loading', or null when it failed. */
+/**
+ * Animated emotes, decoded into frames. A chat full of different animated
+ * emotes must not make the battle stutter, so:
+ * - they are decoded in a worker (emote-worker.js), away from the drawing,
+ *   one at a time, where the browser allows it;
+ * - every frame is shrunk to `size`, the largest an emote is drawn at;
+ * - at most `keep` animations stay in memory: the ones seen longest ago go,
+ *   but never one seen in the last `recentMs`, so nothing on screen is
+ *   dropped and decoded again (a battle has at most about 130 fighters).
+ */
+const ANIMATION = { size: 64, keep: 160, recentMs: 10_000 };
+
+/** Decoded animations by address: { frames: [{ image, until }], total, seenAt }, 'loading', or null when it failed. */
 const animations = new Map();
 
-/** Decodes an animated emote into frames, where the browser can (OBS's browser can). */
+/** The worker that decodes animations, or null where the browser has none. */
+const animationWorker = (() => {
+  const script = document.currentScript && document.currentScript.src;
+  if (typeof Worker === 'undefined' || !script) return null;
+  try {
+    const worker = new Worker(new URL('emote-worker.js', script));
+    worker.onmessage = ({ data }) => {
+      if (animations.get(data.key) !== 'loading') {
+        // Forgotten while it was decoded: nobody needs it.
+        if (data.frames) for (const frame of data.frames) frame.image.close();
+        return;
+      }
+      animations.set(data.key, data.frames ? { frames: data.frames, total: data.total, seenAt: performance.now() } : null);
+      forgetOldAnimations();
+    };
+    return worker;
+  } catch {
+    return null;
+  }
+})();
+
+/** Keeps at most `ANIMATION.keep` decoded animations: the ones seen longest ago are closed, if not seen lately. */
+function forgetOldAnimations() {
+  const decoded = [...animations].filter(([, entry]) => entry && entry !== 'loading');
+  if (decoded.length <= ANIMATION.keep) return;
+  const lately = performance.now() - ANIMATION.recentMs;
+  decoded.sort(([, a], [, b]) => a.seenAt - b.seenAt);
+  const old = decoded.slice(0, decoded.length - ANIMATION.keep).filter(([, entry]) => entry.seenAt < lately);
+  for (const [url, entry] of old) {
+    for (const frame of entry.frames) frame.image.close();
+    animations.delete(url);
+  }
+}
+
+/** Decodes an animated emote here, for a browser without workers (OBS's browser has them). */
 async function decodeAnimation(url) {
   if (typeof ImageDecoder === 'undefined') return null;
   try {
@@ -1675,13 +1728,21 @@ async function decodeAnimation(url) {
     let total = 0;
     for (let index = 0; index < count; index++) {
       const { image } = await decoder.decode({ frameIndex: index });
+      const scale = Math.min(1, ANIMATION.size / Math.max(image.displayWidth, image.displayHeight));
       // Durations are in microseconds; very short frames are stretched, as browsers do.
       total += Math.max(20, (image.duration || 100_000) / 1000);
-      frames.push({ image: await createImageBitmap(image), until: total });
+      frames.push({
+        image: await createImageBitmap(image, {
+          resizeWidth: Math.max(1, Math.round(image.displayWidth * scale)),
+          resizeHeight: Math.max(1, Math.round(image.displayHeight * scale)),
+          resizeQuality: 'medium',
+        }),
+        until: total,
+      });
       image.close();
     }
     decoder.close();
-    return frames.length > 0 ? { frames, total } : null;
+    return frames.length > 0 ? { frames, total, seenAt: performance.now() } : null;
   } catch {
     return null;
   }
@@ -1691,11 +1752,19 @@ function animationFrame(url) {
   const entry = animations.get(url);
   if (entry === undefined) {
     animations.set(url, 'loading');
-    decodeAnimation(url).then((result) => animations.set(url, result));
+    if (animationWorker) {
+      animationWorker.postMessage({ key: url, url: new URL(url, location.href).href, size: ANIMATION.size });
+    } else {
+      decodeAnimation(url).then((result) => {
+        animations.set(url, result);
+        forgetOldAnimations();
+      });
+    }
     return null;
   }
   if (!entry || entry === 'loading') return null;
-  const time = performance.now() % entry.total;
+  entry.seenAt = performance.now();
+  const time = entry.seenAt % entry.total;
   return (entry.frames.find((frame) => frame.until > time) || entry.frames[0]).image;
 }
 
