@@ -174,6 +174,17 @@ interface Whirlwind {
 }
 
 /** The god's move in progress between skills: a dash, or a run across the screen's edge. */
+/** A fighter breaking out of a crowd: see `config.roam`. */
+interface Roam {
+  /** When it next checks whether it has been standing still, and where it stood at the last check. */
+  checkAt: number;
+  x: number;
+  y: number;
+  /** The far enemy it goes for, until `until`; null while it goes for the nearest as usual. */
+  target: Fighter | null;
+  until: number;
+}
+
 interface Maneuver {
   kind: 'dash' | 'wrap';
   vx: number;
@@ -220,6 +231,8 @@ export interface Fighter extends FighterSpec {
   hiddenUntil: number;
   /** The god's move between skills, while it runs. */
   maneuver: Maneuver | null;
+  /** Breaking out of a crowd (`config.roam`): where it stood at the last check, and the far enemy it goes for, if any. */
+  roam: Roam | null;
   /** Battle time of the latest jump (a blink, or crossing the screen's edge): the overlay does not slide across it. */
   jumpedAt: number;
   /** Battle time until which the fighter moves slowly, or cannot be hurt. */
@@ -429,6 +442,8 @@ export class Battle {
   private readonly rng: Rng;
   /** The god's moves have random numbers of their own, so the rest of a fight rolls as it did before them. */
   private readonly moveRng: Rng;
+  /** For breaking out of crowds: separate, so these rolls leave every other roll of the battle as it was. */
+  private readonly roamRng: Rng;
   private readonly timeLimitWinner: string | null;
   private readonly field: { perSide?: number; total?: number } | null;
   private readonly endless: boolean;
@@ -459,6 +474,7 @@ export class Battle {
     const fighterRadius = radiusFor(onField);
     const rng = createRng(setup.seed);
     this.moveRng = createRng((setup.seed ^ 0x27d4eb2f) >>> 0);
+    this.roamRng = createRng((setup.seed ^ 0x6a09e667) >>> 0);
     this.rng = rng;
     this.unit = fighterRadius;
     this.timeLimitWinner = setup.timeLimitWinner ?? null;
@@ -535,6 +551,7 @@ export class Battle {
           maneuver: null,
           jumpedAt: -Infinity,
           skillState: null,
+          roam: null,
         });
       }
     });
@@ -620,6 +637,7 @@ export class Battle {
             maneuver: null,
             jumpedAt: -Infinity,
             skillState: null,
+            roam: null,
           };
           state.reserves.push(minion);
           this.fighters.push(minion);
@@ -894,6 +912,10 @@ export class Battle {
         // Everyone healthy: stay with the nearest ally. Nobody left to heal: fight, below.
         if (patient ?? nearest) return planFor((patient ?? nearest)!, true);
       }
+
+      // Stuck in a crowd for a while: now and then it goes for an enemy further away instead.
+      const far = this.roamTarget(fighter, alive, now);
+      if (far) return planFor(far, false);
 
       let target: Fighter | null = null;
       let best = Infinity;
@@ -1178,6 +1200,53 @@ export class Battle {
       ...(extra.g === undefined ? {} : { g: extra.g }),
       ...(extra.d === undefined ? {} : { d: extra.d }),
     });
+  }
+
+  /**
+   * The far enemy a fighter stuck in a crowd goes for, or null to go for the
+   * nearest as usual. See `config.roam`.
+   */
+  private roamTarget(fighter: Fighter, alive: Fighter[], now: number): Fighter | null {
+    if (fighter.holdsCenter || fighter.class === 'healer') return null;
+    const { checkMs, still, crowd, crowdRadius, chance, farShare, pick, roamMs } = config.roam;
+    const roam = (fighter.roam ??= { checkAt: now + checkMs, x: fighter.x, y: fighter.y, target: null, until: 0 });
+    const usable = (other: Fighter | null): other is Fighter =>
+      other !== null && other.alive && !other.benched && other.hiddenUntil <= now && other.team !== fighter.team;
+
+    if (roam.target) {
+      const reach = fighter.radius + roam.target.radius + 2;
+      const there = Math.hypot(roam.target.x - fighter.x, roam.target.y - fighter.y) <= reach + 0.5;
+      if (!usable(roam.target) || now >= roam.until || there) roam.target = null;
+    }
+    if (now >= roam.checkAt) {
+      const moved = Math.hypot(fighter.x - roam.x, fighter.y - roam.y);
+      roam.checkAt = now + checkMs;
+      roam.x = fighter.x;
+      roam.y = fighter.y;
+      /** How many others stand within the crowd radius of a fighter. */
+      const crowding = (of: Fighter): number => {
+        const r = crowdRadius * this.unit;
+        return alive.filter((other) => other !== of && (other.x - of.x) ** 2 + (other.y - of.y) ** 2 < r * r).length;
+      };
+      if (!roam.target && moved < still * this.unit && crowding(fighter) >= crowd && this.roamRng() < chance) {
+        const enemies = alive
+          .filter(usable)
+          .map((other) => ({ other, d: Math.hypot(other.x - fighter.x, other.y - fighter.y) }))
+          .sort((a, b) => a.d - b.d);
+        // From the farther part of the enemies, the ones standing most on their own: a walk
+        // from one crowd into the next would not help. With only one enemy there is nobody else.
+        const stragglers = enemies
+          .slice(Math.floor(enemies.length * (1 - farShare)))
+          .map((e) => ({ other: e.other, crowd: crowding(e.other) }))
+          .sort((a, b) => a.crowd - b.crowd)
+          .slice(0, pick);
+        if (enemies.length > 1 && stragglers.length > 0) {
+          roam.target = stragglers[Math.floor(this.roamRng() * stragglers.length)]!.other;
+          roam.until = now + between(this.roamRng, roamMs);
+        }
+      }
+    }
+    return roam.target;
   }
 
   /**

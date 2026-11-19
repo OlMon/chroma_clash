@@ -463,6 +463,26 @@ export const config = {
     /** The fight restarts with the chatters active at that moment this often. */
     refreshMs: 300_000,
   },
+  /**
+   * Breaking up crowds: fighters go for the nearest enemy, so one stuck in a
+   * crowd can push into it for a long time. Every `checkMs` a fighter that has
+   * moved less than `still` (in fighter radii) since the last check, with at
+   * least `crowd` others within `crowdRadius` radii, goes with a chance of
+   * `chance` for a straggler instead: one of the `pick` least crowded enemies
+   * among the farther `farShare` of them, for `roamMs` or until it reaches it.
+   * Random on purpose: it happens now and then, not every time. Not the god,
+   * which holds the middle, and not healers, which follow their allies.
+   */
+  roam: {
+    checkMs: 2_000,
+    still: 0.6,
+    crowd: 4,
+    crowdRadius: 3,
+    chance: 0.35,
+    farShare: 0.5,
+    pick: 3,
+    roamMs: [3_000, 5_000] as [number, number],
+  },
   bench: {
     /** How long after a death the next fighter steps in from the bench. */
     entryDelayMs: 700,
