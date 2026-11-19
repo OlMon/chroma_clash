@@ -557,14 +557,25 @@ const MISHAP_MS = 2600;
 const MISHAP_KINDS = ['lightning', 'fire', 'spread', 'burn', 'burntOut', 'doused', 'harvest'];
 
 /**
- * "+27" rising above a Monument when it grows: what its guild's land yielded.
- * Each guild's number comes after a small random wait, so the three do not
- * pop in step.
+ * "+6" rising above a Monument: what its guild's land yields. A Monument
+ * grows once per window, all at once; so the overlay never sits still for
+ * minutes, it shows the gain in `parts` parts (fewer for a gain smaller than
+ * that) at random moments over the next `spreadMs`, the first within
+ * `firstMs`. The Monument's bar and percentage on the overlay move with the
+ * parts: the totals are exact, only spread out in time.
  */
-const MONUMENT_POP = { ms: 2600, maxDelayMs: 3500 };
+const MONUMENT_POP = { ms: 2600, firstMs: 3500, spreadMs: 240_000, parts: 4 };
 let monumentPops = [];
 /** Each guild's Monument progress at the last state, and the season it belongs to. */
 let monumentsSeen = null;
+
+/** Splits `amount` into `parts` whole numbers of at least 1 each, at random. */
+function splitAmount(amount, parts) {
+  const cuts = new Set();
+  while (cuts.size < parts - 1) cuts.add(1 + Math.floor(Math.random() * (amount - 1)));
+  const points = [0, ...[...cuts].sort((a, b) => a - b), amount];
+  return points.slice(1).map((point, i) => point - points[i]);
+}
 
 function noteMonumentGrowth() {
   if (!state || !state.guilds) return;
@@ -573,11 +584,26 @@ function noteMonumentGrowth() {
   if (monumentsSeen && monumentsSeen.season === state.seasonId) {
     for (const guild of state.guilds) {
       const grown = progress[guild.id] - (monumentsSeen.progress[guild.id] ?? progress[guild.id]);
-      if (grown > 0) monumentPops.push({ guild: guild.id, amount: grown, start: now + Math.random() * MONUMENT_POP.maxDelayMs });
+      if (grown <= 0) continue;
+      // Whatever is still waiting from the last gain shows now, so the overlay never falls behind.
+      for (const pop of monumentPops) if (pop.guild === guild.id && pop.start > now) pop.start = now + Math.random() * 1000;
+      const parts = Math.min(MONUMENT_POP.parts, grown);
+      const times = Array.from({ length: parts }, (_, i) =>
+        i === 0 ? Math.random() * MONUMENT_POP.firstMs : Math.random() * MONUMENT_POP.spreadMs,
+      ).sort((a, b) => a - b);
+      splitAmount(grown, parts).forEach((amount, i) => monumentPops.push({ guild: guild.id, amount, start: now + times[i] }));
     }
-    ensurePanelAnimation();
+  } else {
+    monumentPops = [];
   }
   monumentsSeen = { season: state.seasonId, progress };
+}
+
+/** A guild's Monument progress as the overlay shows it: without the parts of its gain still to pop. */
+function shownProgress(guild) {
+  const now = performance.now();
+  const waiting = monumentPops.reduce((sum, pop) => sum + (pop.guild === guild.id && pop.start > now ? pop.amount : 0), 0);
+  return Math.max(0, guild.monument.progress - waiting);
 }
 
 /** The popups of one guild above its Monument at x, rising from y; `rise` is how far they float up. */
@@ -801,7 +827,9 @@ function panelNeedsAnimation() {
   const now = performance.now();
   mishapEffects = mishapEffects.filter((e) => now - e.start < MISHAP_MS);
   monumentPops = monumentPops.filter((p) => now - p.start < MONUMENT_POP.ms);
-  return mishapEffects.length > 0 || monumentPops.length > 0 || state.tiles.some((t) => t.burning);
+  // Only a number on its way up needs the animation; the ones still waiting are picked up by the next state.
+  const popping = monumentPops.some((p) => p.start <= now);
+  return mishapEffects.length > 0 || popping || state.tiles.some((t) => t.burning);
 }
 
 function ensurePanelAnimation() {
@@ -834,7 +862,7 @@ function drawGuildRows(x, y, width) {
   state.guilds.forEach((guild, index) => {
     const top = y + index * rowHeight;
     const monument = guild.monument;
-    const share = Math.min(1, monument.progress / monument.goal);
+    const share = Math.min(1, shownProgress(guild) / monument.goal);
     // Centred a little left of the column's middle: the banner flies to the right.
     drawMonument(monumentDesign(guild, index), share, x + column * 0.42, top + 94, monumentHeight, guild.color);
     drawMonumentPops(guild.id, guild.color, x + column * 0.42, top + 40, 34, 24);
@@ -4116,7 +4144,7 @@ function drawMiniMap(cx, cy, size) {
 /** One guild in the map banner: its Monument, name, tiles, land level and the Monument's progress. */
 function drawBannerGuild(guild, index, x, top, width, height) {
   const monument = guild.monument;
-  const share = Math.min(1, monument.progress / monument.goal);
+  const share = Math.min(1, shownProgress(guild) / monument.goal);
   const column = 78;
   drawMonument(monumentDesign(guild, index), share, x + column * 0.42, top + height - 14, height - 34, guild.color);
   // Inside the banner: it rises over the Monument but stays within the strip.
