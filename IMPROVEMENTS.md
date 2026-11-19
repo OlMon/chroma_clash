@@ -19,7 +19,8 @@ that pass should measure.
 6. **Obstacles with god skills (S).** Shockwave sends fighters into bumpers, and Rampage breaks walls. Most of this already works through the physics; check it and add the wall break.
 7. **A season recap (M).** When a season ends: the winning Monument, top killer, highest level, best Pachinko run and the god's record, shown on the overlay one after another, and kept in History.
 8. **Small-chat modes (M).** With 3 to 8 chatters, Wars and Guild Clash are thin. Let the god's minions or "militia" fill empty places, so a small channel gets full battles.
-9. **Bots out by default (S). Done.** Nightbot, StreamElements, Streamlabs, Moobot, Fossabot and WizeBot never take part (`config.botNames`); the streamer can exclude anyone else in Settings.
+9. **Guild changes by name colour (S). Maybe later.** Today a colour change moves a chatter only at the next season. Talked about (November 2026) and kept as is for now. Options for a future update: a hint before a new season ("change your name colour now to pick your guild for next season"); switching at the next stream, but only into a smaller guild (cannot snowball, evens out the guilds); or switching at the next stream only early in the season (while the goal still adapts). Switching every stream without a limit would let chatters jump to the leading guild and decide the Monument race early. Note: Red is the largest guild in real chats, because 7 of Twitch's 15 default colours fall in its hue range.
+10. **Bots out by default (S). Done.** Nightbot, StreamElements, Streamlabs, Moobot, Fossabot and WizeBot never take part (`config.botNames`); the streamer can exclude anyone else in Settings.
 
 ## Visuals
 
