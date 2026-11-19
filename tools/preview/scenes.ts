@@ -225,6 +225,8 @@ export function generateScenes(outDir: string, lang = 'en'): Scene[] {
   const t = (key: string, params?: Record<string, string | number>) => text(lang, key, params);
   const guild = (id: string) => guildName(lang, id);
   const stateMessage = { type: 'state', state };
+  // What the server adds for its own screens: the map banner's strip, at the bottom.
+  const withStrip = { type: 'state', state: { ...state, mapStrip: { place: 'bottom', height: config.battle.bannerHeight, width: config.battle.arena.width } } };
   // In a battle the panels are hidden, as the game does.
   const battleState = {
     type: 'state',
@@ -252,6 +254,12 @@ export function generateScenes(outDir: string, lang = 'en'): Scene[] {
       mishapEffects.push({ id: 5, kind: 'lightning', tile: '2,-1', from: 6, to: 4, start: now - 90 },
         { id: 6, kind: 'harvest', tile: '0,2', from: 2, to: 3, start: now - 700 },
         { id: 7, kind: 'doused', tile: '-1,-1', from: 3, to: 3, start: now - 900 }); }`,
+  });
+
+  // An event's closing words: the map banner along the edge instead of the corner panels.
+  page('closing', {
+    messages: [withStrip, { type: 'announce', title: t('server.war.over'), subtitle: t('server.war.tookTile', { attacker: guild('blue'), defender: guild('red') }), holdMs: 600000 }],
+    moments: [0],
   });
 
   // Announcements: a war's battle on the map, and a season's winner.

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { config } from '../../src/config.ts';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -204,4 +205,17 @@ test('a server that closes with an overlay open does not touch its closed databa
   await closed;
   // A read of the closed database would throw here, outside any handler.
   await new Promise((resolve) => setTimeout(resolve, 100));
+});
+
+test('the map banner is at the bottom by default, can move to the top or be switched off, and its strip is in the state', async () => {
+  const strip = { height: config.battle.bannerHeight, width: config.battle.arena.width };
+  assert.deepEqual((await state()).mapStrip, { place: 'bottom', ...strip });
+  const set = (place: string) =>
+    fetch(`${base}/api/map-banner`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ place }) });
+  assert.equal((await set('top')).status, 200);
+  assert.deepEqual((await state()).mapStrip, { place: 'top', ...strip });
+  assert.equal((await set('off')).status, 200);
+  assert.equal((await state()).mapStrip, null);
+  assert.equal((await set('sideways')).status, 400);
+  await set('bottom');
 });

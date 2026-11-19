@@ -116,6 +116,8 @@ function bannerPlace(setting: string | null): BannerPlace {
 
 export type ServerSnapshot = GameSnapshot & {
   mapBanner: 'top' | 'bottom' | 'off';
+  /** The map banner's strip, for the overlay's screens outside a battle (an event's closing words); null when off. */
+  mapStrip: ReturnType<typeof bannerStrip>;
   /** `withoutGpu`: open overlays that draw without the graphics card, which makes battles stutter. */
   guide: { overlays: number; testBattleRun: boolean; withoutGpu: number };
   chatAnnounce: { available: boolean; enabled: boolean };
@@ -481,6 +483,7 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
     ),
     // The setup guide's steps that the game state does not show by itself.
     mapBanner: bannerPlace(store.getSetting('map_banner')) ?? 'off',
+    mapStrip: bannerStrip(bannerPlace(store.getSetting('map_banner'))),
     guide: {
       overlays: overlayPages.size,
       testBattleRun: store.getSetting('test_battle_run') === '1',

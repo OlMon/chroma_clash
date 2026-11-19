@@ -1230,7 +1230,14 @@ function renderPanel() {
     if (banner) drawOnTop(() => drawMapBanner(banner));
     return;
   }
-  if (announcement) drawBanner(announcement.title, announcement.subtitle || '', null);
+  if (announcement) {
+    // An event's closing words have the screen to themselves, like a countdown: the map banner
+    // stands in for the corner panels, so the words never cover them wherever they were moved.
+    drawBanner(announcement.title, announcement.subtitle || '', null);
+    const strip = bannerOnScreen(state && state.mapStrip);
+    if (strip) drawOnTop(() => drawMapBanner(strip));
+    return;
+  }
   drawCorner();
 }
 
