@@ -4,6 +4,7 @@ import type { BattleResult } from '../game/battle.ts';
 import { playPachinko, type PachinkoGame } from '../game/pachinko.ts';
 import { createRng } from '../util/rng.ts';
 import type { Lineup } from './draft-engine.ts';
+import type { BannerPlace } from './battle-runner.ts';
 import type { EventEngine, EventStep } from './event-runner.ts';
 import { DEFAULT_LANGUAGE, guildName, translator } from '../i18n.ts';
 
@@ -27,7 +28,11 @@ export class PachinkoEngine implements EventEngine {
   private readonly lang: string;
   private readonly t: ReturnType<typeof translator>;
 
-  constructor(seed: number, picks: UserRow[], look: BallLook, lang = DEFAULT_LANGUAGE) {
+  /** Where the map banner is during the game, as in a battle; null for none. */
+  private readonly banner: BannerPlace;
+
+  constructor(seed: number, picks: UserRow[], look: BallLook, lang = DEFAULT_LANGUAGE, banner: BannerPlace = null) {
+    this.banner = banner;
     this.picks = picks;
     this.look = look;
     this.lang = lang;
@@ -69,6 +74,10 @@ export class PachinkoEngine implements EventEngine {
         message: {
           type: 'pachinko',
           title: this.t('mode.pachinko'),
+          // The map banner's strip, as for a battle: `height` on an arena `width` wide, the screen's width.
+          banner: this.banner
+            ? { place: this.banner, height: config.battle.bannerHeight, width: config.battle.arena.width }
+            : null,
           rows,
           slots,
           hopMs,

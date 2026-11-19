@@ -369,7 +369,10 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
         const display = store.displaySettings();
         return { emote: emotes.fighterEmote(user.emote_id, user.user_id, { sources: display.emoteSources, random: display.randomEmotes, special: false }) };
       };
-      war.start(new PachinkoEngine(seed, picks, look, languageOf(store)), countdownTitle(mode));
+      war.start(
+        new PachinkoEngine(seed, picks, look, languageOf(store), bannerPlace(store.getSetting('map_banner'))),
+        countdownTitle(mode),
+      );
     } else {
       war.start(new DraftEngine(store, now, seed, mode, picks), countdownTitle(mode));
     }

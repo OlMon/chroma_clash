@@ -369,6 +369,7 @@ export function generateScenes(outDir: string, lang = 'en'): Scene[] {
   page('pachinko', {
     messages: [stateMessage, {
       type: 'pachinko', title: t('mode.pachinko'), rows: config.pachinko.rows, slots: config.pachinko.slots, hopMs: config.pachinko.hopMs, durationMs: game.durationMs, winner: game.winner,
+      banner: { place: 'bottom', height: config.battle.bannerHeight, width: config.battle.arena.width },
       boards: game.boards.map((b) => {
         const g = config.guilds.list.find((x) => x.id === b.team);
         return {
@@ -377,7 +378,8 @@ export function generateScenes(outDir: string, lang = 'en'): Scene[] {
         };
       }),
     }],
-    moments: [2500, 9000, 16000],
+    // During the game, then the winner's celebration: the pop, the crown landing, the confetti raining.
+    moments: [2500, 9000, 16000, game.durationMs + 300, game.durationMs + 1200, game.durationMs + 3500],
   });
 
   writeFileSync(join(outDir, 'scenes.json'), JSON.stringify(scenes, null, 2));

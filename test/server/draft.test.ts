@@ -435,6 +435,8 @@ test('Pachinko: drawn like a Guild Clash, played on one board per guild, and the
     for (const board of game.boards) {
       assert.equal(board.drops.length, Math.max(config.pachinko.minBalls, ...sizes), 'every guild drops as many balls');
     }
+    // The map banner shows during Pachinko as in a battle: at the bottom unless set otherwise.
+    assert.deepEqual(game.banner, { place: 'bottom', height: config.battle.bannerHeight, width: config.battle.arena.width });
     const closing = await until((m) => m.type === 'announce' && /wins Pachinko/.test(m.title ?? ''), 'the result');
     const winner = game.boards.find((b: any) => b.team === game.winner);
     assert.ok(closing.title.startsWith(winner.name));

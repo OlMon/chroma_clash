@@ -449,8 +449,8 @@ export const config = {
     maxGapMs: 3_500,
     minBalls: 8,
     hopMs: 360,
-    /** How long the boards stay after the last ball landed. */
-    holdMs: 4_000,
+    /** How long the boards stay after the last ball landed: the winner's celebration. */
+    holdMs: 7_000,
   },
   /** Endless mode: a free-for-all that runs until switched off and changes nothing in the game. */
   endless: {

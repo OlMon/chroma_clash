@@ -2911,6 +2911,10 @@ function onPachinko(message) {
   announcement = null;
   // A page that opened during the game joins it where it has got to.
   pachinko = { ...message, shownAt: performance.now() - (message.elapsedMs || 0) };
+  // The map banner's strip, in pixels, as for a battle.
+  pachinko.banner = message.banner
+    ? { place: message.banner.place, height: (message.banner.height * canvas.width) / message.banner.width }
+    : null;
   // Who lands where, in order, so balls stack up in their slots.
   for (const board of pachinko.boards) {
     const counts = new Array(pachinko.slots.length).fill(0);
@@ -2999,45 +3003,332 @@ function drawBall(x, y, drop, color) {
   ctx.stroke();
 }
 
-/** All boards: pins, slots, falling balls, scores. */
+/**
+ * The celebration once the last ball has landed. Everything in it is worked
+ * out from the time since then, so a page that opens late, or the preview's
+ * still pictures, show the same moment.
+ */
+const PARTY = {
+  /** The winning board pops forward over this long, and the others dim. */
+  popMs: 450,
+  dimMs: 700,
+  /** Confetti: a burst from the winning board's two lower corners, then a slower rain over the screen. */
+  burst: 130,
+  rain: 90,
+  rainMs: 3500,
+  /** Falling confetti: gravity and air drag, which together give its top speed (gravity / drag). */
+  gravity: 900,
+  drag: 2.2,
+};
+
+/** 0 to 1 with a small overshoot past 1 on the way: things that pop into place. */
+function popIn(t) {
+  const x = Math.min(1, Math.max(0, t)) - 1;
+  return 1 + 2.7 * x * x * x + 1.7 * x * x;
+}
+
+/** A board's points from the balls that have landed by `elapsed`. */
+function pachinkoScore(board, elapsed) {
+  const fall = (pachinko.rows + 1) * pachinko.hopMs;
+  return board.drops.reduce((sum, d) => sum + (elapsed - d.at >= fall ? d.points : 0), 0);
+}
+
+/** Lights all around the winning board, chasing each other like on a real machine. */
+function drawMarquee(layout, color, since) {
+  const inset = -12;
+  const x0 = layout.left + inset;
+  const y0 = layout.top + inset;
+  const w = layout.width - inset * 2;
+  const h = layout.height - inset * 2;
+  const perimeter = 2 * (w + h);
+  const count = Math.round(perimeter / 30);
+  const step = Math.floor(since / 110);
+  for (let i = 0; i < count; i++) {
+    let d = (i / count) * perimeter;
+    let x;
+    let y;
+    if (d < w) [x, y] = [x0 + d, y0];
+    else if ((d -= w) < h) [x, y] = [x0 + w, y0 + d];
+    else if ((d -= h) < w) [x, y] = [x0 + w - d, y0 + h];
+    else [x, y] = [x0, y0 + h - (d - w)];
+    const lit = (i + step) % 3 === 0;
+    circle(x, y, lit ? 7 : 5);
+    ctx.fillStyle = lit ? '#FFF3B0' : color;
+    ctx.globalAlpha = lit ? 1 : 0.55;
+    ctx.fill();
+    if (lit) {
+      circle(x, y, 13);
+      ctx.fillStyle = 'rgba(255, 230, 140, 0.25)';
+      ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+/** Slow rays turning behind the winner's score. */
+function drawRays(x, y, layout, color, since) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.roundRect(layout.left, layout.top, layout.width, 170, PANEL.radius);
+  ctx.clip();
+  ctx.translate(x, y);
+  ctx.rotate(since / 2600);
+  ctx.globalAlpha = 0.22 * ease(since / 600);
+  ctx.fillStyle = color;
+  const rays = 14;
+  for (let i = 0; i < rays; i++) {
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.arc(0, 0, layout.width, (i / rays) * Math.PI * 2, ((i + 0.45) / rays) * Math.PI * 2);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+/** The "WINNER" ribbon across the board's header, with a shine passing over it. */
+function drawRibbon(x, y, width, color, since) {
+  const grow = popIn((since - 150) / 420);
+  if (grow <= 0) return;
+  const h = 46;
+  const half = width / 2;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(grow, grow);
+  ctx.rotate(-0.03);
+  // Its folded ends, darker, behind.
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(side * (half - 10), -h / 2 + 8);
+    ctx.lineTo(side * (half + 26), -h / 2 + 8);
+    ctx.lineTo(side * (half + 12), 4);
+    ctx.lineTo(side * (half + 26), h / 2 + 8);
+    ctx.lineTo(side * (half - 10), h / 2 + 8);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.beginPath();
+  ctx.roundRect(-half, -h / 2, width, h, 6);
+  inkPath();
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+  ctx.stroke();
+  // The shine: a bright band sweeping across now and then.
+  ctx.save();
+  ctx.clip();
+  const sweep = ((since - 600) % 1800) / 1800;
+  if (since > 600 && sweep < 0.45) {
+    const sx = -half - 60 + (width + 120) * (sweep / 0.45);
+    const shine = ctx.createLinearGradient(sx - 40, 0, sx + 40, 0);
+    shine.addColorStop(0, 'rgba(255, 255, 255, 0)');
+    shine.addColorStop(0.5, 'rgba(255, 255, 255, 0.55)');
+    shine.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = shine;
+    ctx.fillRect(-half, -h / 2, width, h);
+  }
+  ctx.restore();
+  ctx.font = `800 30px ${FONT}`;
+  ctx.fillStyle = '#FFFFFF';
+  outlinedText(tr('overlay.pachinko.winner'), 0, 2);
+  ctx.restore();
+}
+
+/** A big crown that drops onto the winning board and then sways a little. */
+function drawWinnerCrown(x, y, since) {
+  const land = Math.min(1, since / 520);
+  // Falls, then bounces once.
+  const bounce = land < 1 ? (1 - land) * (1 - land) * -260 : -Math.abs(Math.sin((since - 520) / 160)) * 14 * Math.max(0, 1 - (since - 520) / 700);
+  ctx.save();
+  ctx.translate(x, y + bounce);
+  ctx.rotate(Math.sin(since / 420) * 0.06);
+  ctx.scale(3.2, 3.2);
+  drawCrown(0, 0);
+  ctx.restore();
+}
+
+/** Bright sparks bursting from a point: a jackpot landing. `p` runs from 0 to 1. */
+function drawSparks(x, y, p, seed) {
+  ctx.save();
+  ctx.globalAlpha = 1 - p;
+  ctx.fillStyle = '#FFE27A';
+  ctx.strokeStyle = '#FFF6CF';
+  ctx.lineWidth = 3;
+  for (let i = 0; i < 12; i++) {
+    const angle = (i / 12) * Math.PI * 2 + hash01(seed + i) * 0.4;
+    const reach = 20 + (60 + hash01(seed + i + 50) * 50) * ease(p * 1.4);
+    const sx = x + Math.cos(angle) * reach;
+    const sy = y + Math.sin(angle) * reach * 0.8;
+    ctx.beginPath();
+    ctx.moveTo(x + Math.cos(angle) * reach * 0.6, y + Math.sin(angle) * reach * 0.48);
+    ctx.lineTo(sx, sy);
+    ctx.stroke();
+    circle(sx, sy, 4 * (1 - p) + 1.5);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+/**
+ * Confetti for the winner: one piece, `i`, `since` ms after the last ball.
+ * The first ones burst from the winning board's lower corners, the rest drift
+ * down from the top of the screen.
+ */
+function confettiPiece(i, since, layout) {
+  const r = (n) => hash01(i * 13.7 + n);
+  const { gravity, drag } = PARTY;
+  let start;
+  let x0;
+  let y0;
+  let vx;
+  let vy;
+  if (i < PARTY.burst) {
+    const left = i % 2 === 0;
+    start = r(1) * 280;
+    x0 = left ? layout.left + 10 : layout.left + layout.width - 10;
+    y0 = layout.top + layout.height - 20;
+    vx = (left ? 1 : -1) * (180 + r(2) * 620);
+    vy = -(1100 + r(3) * 900);
+  } else {
+    start = 250 + r(1) * PARTY.rainMs;
+    x0 = r(2) * canvas.width;
+    y0 = -30;
+    vx = (r(3) - 0.5) * 120;
+    vy = 60 + r(4) * 120;
+  }
+  const t = (since - start) / 1000;
+  if (t < 0) return null;
+  // Air drag slows it towards a gentle top speed: it shoots up, then flutters down.
+  const slow = (1 - Math.exp(-drag * t)) / drag;
+  const x = x0 + vx * slow + Math.sin(t * (3 + r(5) * 3) + r(6) * 6) * 26 * Math.min(1, t * 2);
+  const y = y0 + vy * slow + (gravity / drag) * (t - slow);
+  if (y > canvas.height + 30) return null;
+  return { x, y, t, spin: t * (4 + r(7) * 8) + r(8) * 6, flip: t * (6 + r(9) * 8), shape: r(10), shade: r(11) };
+}
+
+function drawConfetti(layout, color, since) {
+  const colors = [color, '#FFD34A', '#FFFFFF', color, '#FF8FC8'];
+  const total = PARTY.burst + PARTY.rain;
+  for (let i = 0; i < total; i++) {
+    const piece = confettiPiece(i, since, layout);
+    if (!piece) continue;
+    ctx.save();
+    ctx.translate(piece.x, piece.y);
+    ctx.rotate(piece.spin);
+    // Turning over in the air: it narrows and widens.
+    ctx.scale(Math.max(0.15, Math.abs(Math.cos(piece.flip))), 1);
+    ctx.fillStyle = colors[Math.floor(piece.shade * colors.length)];
+    if (piece.shape < 0.7) ctx.fillRect(-8, -4.5, 16, 9);
+    else {
+      circle(0, 0, 6);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+/** How tall the boards are drawn, the winner's crown and lights included: what has to fit beside the map banner. */
+const PACHINKO_HEIGHT = 1000;
+
+/**
+ * All boards: pins, slots, falling balls, scores, and the winner's
+ * celebration at the end. With the map banner on, the boards shrink a little
+ * to fit the rest of the screen, and the banner is drawn over everything.
+ */
 function drawPachinko(elapsed) {
+  const banner = pachinko.banner;
+  const areaTop = banner && banner.place === 'top' ? banner.height : 0;
+  const fit = Math.min(1, (canvas.height - (banner ? banner.height : 0)) / PACHINKO_HEIGHT);
+  ctx.save();
+  ctx.translate(canvas.width / 2, areaTop);
+  ctx.scale(fit, fit);
+  ctx.translate(-canvas.width / 2, 0);
+  const losers = drawBoards(elapsed);
+  ctx.restore();
+  // The other boards step back into the shade once the winner is known: over
+  // everything on them, their texts too (a theme's texts are on a layer above).
+  if (losers.length > 0) {
+    const shade = 0.5 * ease((elapsed - pachinko.durationMs) / PARTY.dimMs);
+    const onScreen = (x, y) => [canvas.width / 2 + (x - canvas.width / 2) * fit, areaTop + y * fit];
+    drawOnTop(() => {
+      ctx.save();
+      ctx.globalAlpha = shade;
+      ctx.fillStyle = '#05070B';
+      for (const layout of losers) {
+        const [x, y] = onScreen(layout.left, layout.top);
+        ctx.beginPath();
+        ctx.roundRect(x, y, layout.width * fit, layout.height * fit, PANEL.radius * fit);
+        ctx.fill();
+      }
+      ctx.restore();
+    });
+  }
+  if (banner) drawOnTop(() => drawMapBanner(banner));
+}
+
+/** Draws the boards; returns the layouts of the boards that lost, once the game is over. */
+function drawBoards(elapsed) {
   const count = pachinko.boards.length;
   const best = Math.max(...pachinko.slots);
   const finished = elapsed >= pachinko.durationMs;
+  const since = elapsed - pachinko.durationMs;
+  const fall = (pachinko.rows + 1) * pachinko.hopMs;
+  let winnerLayout = null;
+  let winnerColor = null;
+  const losers = [];
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   pachinko.boards.forEach((board, index) => {
     const layout = pachinkoLayout(index, count);
     const winner = finished && board.team === pachinko.winner;
+    ctx.save();
+    if (winner) {
+      winnerLayout = layout;
+      winnerColor = board.color;
+      // The winning board pops forward, glowing in its guild's color.
+      const grow = 1 + 0.045 * popIn(since / PARTY.popMs) + 0.006 * Math.sin(since / 300);
+      const cy = layout.top + layout.height / 2;
+      ctx.translate(layout.cx, cy);
+      ctx.scale(grow, grow);
+      ctx.translate(-layout.cx, -cy);
+      ctx.save();
+      ctx.shadowColor = board.color;
+      ctx.shadowBlur = 40 + 18 * Math.sin(since / 260);
+      ctx.fillStyle = board.color;
+      ctx.beginPath();
+      ctx.roundRect(layout.left, layout.top, layout.width, layout.height, PANEL.radius);
+      ctx.fill();
+      ctx.restore();
+    }
     drawBox(layout.left, layout.top, layout.width, layout.height, { strong: true, accent: board.color });
     if (winner) {
-      ctx.save();
-      ctx.lineWidth = 6;
-      ctx.strokeStyle = board.color;
-      ctx.globalAlpha = 0.6 + 0.4 * Math.sin(elapsed / 150);
-      ctx.strokeRect(layout.left - 6, layout.top - 6, layout.width + 12, layout.height + 12);
-      ctx.restore();
+      drawMarquee(layout, board.color, since);
+      drawRays(layout.cx, layout.top + 100, layout, board.color, since);
     }
 
     // Header: the guild and its points so far.
-    const landed = board.drops.filter((d) => elapsed - d.at >= (layout.rows + 1) * pachinko.hopMs);
-    const score = landed.reduce((sum, d) => sum + d.points, 0);
+    const landed = board.drops.filter((d) => elapsed - d.at >= fall);
+    const score = pachinkoScore(board, elapsed);
     ctx.font = `800 40px ${FONT}`;
     ctx.fillStyle = board.color;
     ctx.fillText(board.name, layout.cx, layout.top + 44, layout.width - 30);
+    ctx.save();
+    ctx.translate(layout.cx, layout.top + 100);
+    if (winner) {
+      const pulse = 1 + 0.08 * Math.max(0, Math.sin(since / 190));
+      ctx.scale(pulse, pulse);
+    }
     ctx.font = `800 54px ${FONT}`;
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillText(String(score), layout.cx, layout.top + 100);
+    ctx.fillStyle = winner ? '#FFE680' : '#FFFFFF';
+    ctx.fillText(String(score), 0, 0);
+    ctx.restore();
     const dropping = [...board.drops].reverse().find((d) => elapsed >= d.at);
     if (dropping && !finished) {
       ctx.font = `600 18px ${FONT}`;
       ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
       ctx.fillText(dropping.name, layout.cx, layout.top + 140);
-    }
-    if (winner) {
-      ctx.font = `800 22px ${FONT}`;
-      ctx.fillStyle = board.color;
-      ctx.fillText(tr('overlay.pachinko.winner'), layout.cx, layout.top + 140, layout.width - 30);
     }
 
     // Pins.
@@ -3057,7 +3348,7 @@ function drawPachinko(elapsed) {
     pachinko.slots.forEach((value, slot) => {
       const x = layout.cx + (slot - layout.rows / 2) * layout.spacing;
       const w = layout.spacing - 6;
-      const lit = landed.some((d) => d.slot === slot && elapsed - d.at - (layout.rows + 1) * pachinko.hopMs < 500);
+      const lit = landed.some((d) => d.slot === slot && elapsed - d.at - fall < 500);
       ctx.fillStyle = lit ? 'rgba(255, 240, 160, 0.5)' : value === best ? 'rgba(255, 200, 60, 0.22)' : 'rgba(255, 255, 255, 0.07)';
       ctx.fillRect(x - w / 2, layout.slotTop, w, 92);
       ctx.fillStyle = '#2A2E36';
@@ -3067,29 +3358,35 @@ function drawPachinko(elapsed) {
       ctx.fillText(String(value), x, layout.slotTop + 112);
     });
 
-    // Balls: landed ones rest in their slots, the others fall.
+    // Balls: landed ones rest in their slots, the others fall. The winner's dance in a wave.
     for (const drop of board.drops) {
       const t = elapsed - drop.at;
       if (t < 0) continue;
       const ball = ballAt(layout, drop, t);
       if (ball.landed) {
+        let hop = 0;
+        if (winner) {
+          const wave = since / 1000 * Math.PI * 2 * 1.3 - drop.slot * 0.7 - drop.stack * 0.35;
+          hop = Math.max(0, Math.sin(wave)) * 16 * ease(since / 400);
+        }
         ctx.save();
-        ctx.translate(ball.x, ball.y);
+        ctx.translate(ball.x, ball.y - hop);
         ctx.scale(0.8, 0.8);
         drawBall(0, 0, drop, board.color);
         ctx.restore();
       } else {
         drawBall(ball.x, ball.y, drop, board.color);
       }
-      if (!ball.landed && t < (layout.rows + 1) * pachinko.hopMs) {
+      if (!ball.landed && t < fall) {
         ctx.font = `600 13px ${FONT}`;
         ctx.fillStyle = '#FFFFFF';
         outlinedText(drop.name, ball.x, ball.y - BALL_RADIUS - 10);
       }
-      // Points rise from the slot as the ball lands.
-      const since = t - (layout.rows + 1) * pachinko.hopMs;
-      if (since >= 0 && since < 1200) {
-        const p = since / 1200;
+      // Points rise from the slot as the ball lands; a jackpot bursts into sparks.
+      const after = t - fall;
+      if (after >= 0 && after < 1200) {
+        const p = after / 1200;
+        if (drop.points === best && after < 800) drawSparks(ball.x, layout.slotTop + 40, after / 800, drop.at + index * 7);
         ctx.save();
         ctx.globalAlpha = 1 - p;
         ctx.font = `800 ${drop.points === best ? 40 : 28}px ${FONT}`;
@@ -3098,7 +3395,19 @@ function drawPachinko(elapsed) {
         ctx.restore();
       }
     }
+
+    if (winner) drawRibbon(layout.cx, layout.top + 148, Math.min(layout.width - 80, 300), board.color, since);
+    ctx.restore();
+
+    if (finished && !winner) losers.push(layout);
   });
+
+  if (winnerLayout) {
+    // Above the board, clear of the guild's name.
+    drawWinnerCrown(winnerLayout.cx, winnerLayout.top - 30, since);
+    drawConfetti(winnerLayout, winnerColor, since);
+  }
+  return losers;
 }
 
 // --- Obstacles ----------------------------------------------------------------
@@ -3381,15 +3690,19 @@ function renderBattle(now) {
     });
   }
   // Last of all, so nothing in the battle is ever drawn over it.
-  if (view.banner) drawOnTop(drawMapBanner);
+  if (view.banner) drawOnTop(() => drawMapBanner(view.banner));
 }
 
 // --- Map banner: the state of the map during a battle -----------------------------
 
-/** A strip across the top or the bottom of the screen: the map, and each guild's land and Monument. */
-function drawMapBanner() {
-  if (!state || !battle) return;
-  const { place, height } = battle.view.banner;
+/**
+ * A strip across the top or the bottom of the screen: the map, and each
+ * guild's land and Monument. `banner` is its place and height in pixels,
+ * during a battle or Pachinko.
+ */
+function drawMapBanner(banner) {
+  if (!state) return;
+  const { place, height } = banner;
   const top = place === 'top' ? 0 : canvas.height - height;
   drawBox(0, top, canvas.width, height, { radius: 0, strong: true });
 
