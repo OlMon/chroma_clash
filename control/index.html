@@ -129,7 +129,7 @@
   <main>
     <!-- Overview: is the game on, and how does the season stand. -->
     <div role="tabpanel" id="panel-overview" aria-labelledby="tab-overview" tabindex="0">
-      <!-- The setup guide: four steps, each ticked off when the game sees it done. -->
+      <!-- The setup guide: five steps, each ticked off when the game sees it done. -->
       <section class="card guide" id="guide" hidden>
         <div class="row">
           <h2 id="guide-title" data-i18n="control.guide.title">Getting started</h2>
@@ -150,6 +150,17 @@
             <strong data-i18n="control.guide.layer">Turn on the background layer</strong>
             <span class="muted" data-i18n="control.guide.layerText">From then on chatters earn ticks, join guilds and develop the land.</span>
             <span><button type="button" id="guide-layer" data-i18n="control.turnOn">Turn on</button></span>
+          </li>
+          <li id="step-picture">
+            <strong data-i18n="control.guide.picture">Upload your stream picture</strong>
+            <span class="muted" data-i18n="control.guide.pictureText">The god wears it when you fight chat. Your Twitch profile picture works well; without one, the god wears your latest emote.</span>
+            <span class="picture-step">
+              <img id="guide-picture" class="avatar small" alt="" hidden>
+              <label class="file-button" id="guide-picture-label">
+                <span data-i18n="control.picture.choose">Choose a picture</span>
+                <input type="file" id="guide-picture-file" accept="image/png,image/jpeg,image/webp">
+              </label>
+            </span>
           </li>
           <li id="step-test">
             <strong data-i18n="control.guide.test">Run a test battle</strong>

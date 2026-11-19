@@ -131,6 +131,9 @@ button.danger { color: var(--error); border-color: var(--error); }
 .picture-row { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); flex-wrap: nowrap; }
 .avatar { width: 72px; height: 72px; border-radius: 50%; object-fit: cover; flex: none; border: 2px solid var(--line); }
 .avatar.empty { background: var(--bg); }
+.avatar.small { width: 40px; height: 40px; }
+/* The guide's picture step: the uploaded picture beside its button. */
+.picture-step { display: flex; align-items: center; gap: 10px; margin-top: 4px; }
 .file-button {
   font-weight: 600;
   padding: 8px 16px;

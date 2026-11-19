@@ -681,7 +681,8 @@ function shrinkPicture(file) {
   });
 }
 
-$('god-picture-file').addEventListener('change', async (event) => {
+/** Uploads the god's picture from a file input, on the God tab or in the setup guide. */
+async function uploadPicture(event) {
   const file = event.target.files[0];
   event.target.value = '';
   if (!file) return;
@@ -690,7 +691,9 @@ $('god-picture-file').addEventListener('change', async (event) => {
   } catch (error) {
     showError(error.message);
   }
-});
+}
+$('god-picture-file').addEventListener('change', uploadPicture);
+$('guide-picture-file').addEventListener('change', uploadPicture);
 
 $('god-picture-remove').addEventListener('click', () => post('/api/god/picture', { image: null }));
 
@@ -910,6 +913,7 @@ function renderGuide() {
     channel: state.source.kind !== 'none',
     obs: state.guide.overlays > 0,
     layer: state.session.active,
+    picture: Boolean(state.god.picture),
     test: state.guide.testBattleRun,
   };
   for (const [step, finished] of Object.entries(done)) $(`step-${step}`).classList.toggle('done', finished);
@@ -925,6 +929,12 @@ function renderGuide() {
   $('guide-layer').hidden = done.layer;
   $('guide-test').disabled = !done.channel || state.battle !== null || state.endless.active;
   $('guide-test').hidden = done.test;
+  const picture = $('guide-picture');
+  if (state.god.picture && picture.getAttribute('src') !== state.god.picture) picture.src = state.god.picture;
+  picture.hidden = !state.god.picture;
+  picture.alt = tr('control.picture.alt');
+  // Once there is a picture, the button is for changing it; the God tab can remove it.
+  $('guide-picture-label').querySelector('span').textContent = tr(state.god.picture ? 'control.guide.pictureChange' : 'control.picture.choose');
 }
 
 $('guide-hide').addEventListener('click', () => {

@@ -39,7 +39,7 @@ that pass should measure.
 
 All nine items are built (November 2026); see SPEC.md section 13. What each became, and what is left:
 
-1. **First-start guide. Done.** Four steps on the Overview tab, each ticked off when the game sees it done: an overlay is really connected, a test battle really ran. A test battle with a quiet chat uses stand-ins, so the guide can be finished before going live.
+1. **First-start guide. Done.** Five steps on the Overview tab (the fifth: upload the stream picture the god wears), each ticked off when the game sees it done: an overlay is really connected, a test battle really ran. A test battle with a quiet chat uses stand-ins, so the guide can be finished before going live.
 2. **Control panel as an OBS dock. Done.** Below 560 pixels wide, or with `?dock`, the panel shows the running line, Stop and one button per action.
 3. **Stream Deck and hotkeys. Done.** `GET /api/action/<name>?key=…` for every fight, the layer, endless mode and Stop, listed with Copy buttons in Settings; `tools/obs/chroma-clash-hotkeys.py` turns them into OBS hotkeys. Left: a button to make a new key (today: delete `actionKey` from `data/settings.json`).
 4. **Season and data controls. Done.** Export, import and reset of the saved game, with a backup in `data/backups/` before an import or a reset. "End season" already started a new season.
