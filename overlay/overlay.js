@@ -1628,12 +1628,13 @@ function onBattleEnd(message) {
   battle.end = { ...message, shownAt: performance.now() };
 }
 
-function outlinedText(text, x, y) {
+/** Text with a dark outline; `maxWidth`, when given, squeezes a longer text to fit. */
+function outlinedText(text, x, y, maxWidth) {
   ctx.lineWidth = 4;
   ctx.strokeStyle = 'rgba(0, 0, 0, 0.75)';
   ctx.lineJoin = 'round';
-  ctx.strokeText(text, x, y);
-  ctx.fillText(text, x, y);
+  ctx.strokeText(text, x, y, maxWidth);
+  ctx.fillText(text, x, y, maxWidth);
 }
 
 /** Emote images by id. A failed download leaves the fighter as a plain circle. */
@@ -3229,6 +3230,120 @@ function drawConfetti(layout, color, since) {
   }
 }
 
+/**
+ * The players' list in a board's two upper corners, beside the narrow top of
+ * the pins: places 1 to 5 on the left, 6 to 10 on the right. It keeps clear
+ * of every ball on any path (`inner` from the board's middle) and of the
+ * header and its WINNER ribbon (`top`). A falling ball's name only shows
+ * below the list (`labelFrom`); while it falls past, the list marks its player.
+ */
+const PLAYER_LIST = { top: 186, lineHeight: 21, perColumn: 5, inner: 106, outer: 20, moveMs: 350, flashMs: 900 };
+
+/** The lowest point of the players' list, from the board's top: a ball's name shows only below it. */
+const LIST_BOTTOM = PLAYER_LIST.top + (PLAYER_LIST.perColumn - 0.5) * PLAYER_LIST.lineHeight + 3;
+
+/** Each player's points from the balls landed by `elapsed`, best first; ties keep the order they first dropped in. */
+function playerRanking(board, elapsed) {
+  const fall = (pachinko.rows + 1) * pachinko.hopMs;
+  const players = new Map();
+  board.drops.forEach((drop, order) => {
+    const entry = players.get(drop.name) ?? { name: drop.name, points: 0, landed: false, order, lastLanded: -Infinity };
+    if (elapsed - drop.at >= fall) {
+      entry.points += drop.points;
+      entry.landed = true;
+      entry.lastLanded = Math.max(entry.lastLanded, drop.at + fall);
+    }
+    players.set(drop.name, entry);
+  });
+  return [...players.values()].sort((a, b) => b.points - a.points || a.order - b.order);
+}
+
+/** The list of a board's players and their points, sliding into place when the ranking changes. */
+function drawPlayerList(layout, board, elapsed) {
+  const { top, lineHeight, perColumn, inner, outer, moveMs, flashMs } = PLAYER_LIST;
+  const fall = (pachinko.rows + 1) * pachinko.hopMs;
+  const ranking = playerRanking(board, elapsed).slice(0, perColumn * 2);
+  // The ranking before the latest landing, to slide from.
+  const lastLanding = Math.max(-Infinity, ...board.drops.map((d) => d.at + fall).filter((t) => t <= elapsed));
+  const moving = elapsed - lastLanding < moveMs;
+  const before = moving ? playerRanking(board, lastLanding - 1) : ranking;
+  const width = layout.width / 2 - inner - outer;
+  const spot = (place) => {
+    const left = place < perColumn;
+    const x = left ? layout.left + outer : layout.cx + inner;
+    return { x, y: layout.top + top + (place % perColumn) * lineHeight };
+  };
+  const leader = ranking[0] && ranking[0].points > 0 ? ranking[0].name : null;
+  // Whose balls are falling right now.
+  const falling = new Set(board.drops.filter((d) => elapsed >= d.at && elapsed - d.at < fall).map((d) => d.name));
+
+  // A faint backing for each column, so the list reads over the board.
+  for (const left of [true, false]) {
+    const count = left ? Math.min(perColumn, ranking.length) : Math.max(0, ranking.length - perColumn);
+    if (count === 0) continue;
+    const x = left ? layout.left + outer - 8 : layout.cx + inner - 8;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+    ctx.beginPath();
+    ctx.roundRect(x, layout.top + top - lineHeight / 2 - 3, width + 16, count * lineHeight + 6, 8);
+    ctx.fill();
+  }
+
+  ctx.save();
+  ctx.textBaseline = 'middle';
+  ranking.forEach((player, place) => {
+    const to = spot(place);
+    const fromPlace = before.findIndex((p) => p.name === player.name);
+    const from = fromPlace >= 0 ? spot(fromPlace) : to;
+    const p = moving ? ease((elapsed - lastLanding) / moveMs) : 1;
+    const x = from.x + (to.x - from.x) * p;
+    const y = from.y + (to.y - from.y) * p;
+    const flash = Math.max(0, 1 - (elapsed - player.lastLanded) / flashMs);
+    const top1 = player.name === leader;
+
+    const dropping = falling.has(player.name);
+    if (dropping) {
+      // A little ball in the guild's color where the place number was: this one is falling now.
+      circle(x + 8, y, 6 + Math.sin(elapsed / 90));
+      ctx.fillStyle = board.color;
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#FFFFFF';
+      ctx.stroke();
+    } else {
+      ctx.font = `700 13px ${FONT}`;
+      ctx.textAlign = 'right';
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+      ctx.fillText(`${place + 1}`, x + 14, y);
+    }
+
+    ctx.font = `${top1 || dropping ? 800 : 600} 14px ${FONT}`;
+    ctx.textAlign = 'left';
+    ctx.fillStyle = dropping ? '#FFFFFF' : top1 ? '#FFD34A' : 'rgba(255, 255, 255, 0.88)';
+    let name = player.name;
+    const room = width - 22 - 40;
+    if (textWidth(name) > room) {
+      while (name.length > 1 && textWidth(`${name}…`) > room) name = name.slice(0, -1);
+      name = `${name}…`;
+    }
+    ctx.fillText(name, x + 22, y);
+
+    ctx.font = `800 15px ${FONT}`;
+    ctx.textAlign = 'right';
+    ctx.fillStyle = flash > 0 ? `rgba(255, ${Math.round(255 - 44 * flash)}, ${Math.round(255 - 181 * flash)}, 1)` : top1 ? '#FFD34A' : '#FFFFFF';
+    ctx.save();
+    if (flash > 0) {
+      const grow = 1 + 0.35 * flash;
+      ctx.translate(x + width, y);
+      ctx.scale(grow, grow);
+      ctx.translate(-(x + width), -y);
+    }
+    ctx.fillText(player.landed ? String(player.points) : '–', x + width, y);
+    ctx.restore();
+  });
+  ctx.restore();
+  ctx.textAlign = 'center';
+}
+
 /** How tall the boards are drawn, the winner's crown and lights included: what has to fit beside the map banner. */
 const PACHINKO_HEIGHT = 1000;
 
@@ -3324,6 +3439,7 @@ function drawBoards(elapsed) {
     ctx.fillStyle = winner ? '#FFE680' : '#FFFFFF';
     ctx.fillText(String(score), 0, 0);
     ctx.restore();
+    drawPlayerList(layout, board, elapsed);
     const dropping = [...board.drops].reverse().find((d) => elapsed >= d.at);
     if (dropping && !finished) {
       ctx.font = `600 18px ${FONT}`;
@@ -3377,10 +3493,16 @@ function drawBoards(elapsed) {
       } else {
         drawBall(ball.x, ball.y, drop, board.color);
       }
-      if (!ball.landed && t < fall) {
+      // The ball's name, once it is below the players' list (the list marks it until then).
+      const labelY = ball.y - BALL_RADIUS - 10;
+      const clear = (labelY - 8 - (layout.top + LIST_BOTTOM)) / 30;
+      if (!ball.landed && t < fall && clear > 0) {
+        ctx.save();
+        ctx.globalAlpha = Math.min(1, clear);
         ctx.font = `600 13px ${FONT}`;
         ctx.fillStyle = '#FFFFFF';
-        outlinedText(drop.name, ball.x, ball.y - BALL_RADIUS - 10);
+        outlinedText(drop.name, ball.x, labelY, 140);
+        ctx.restore();
       }
       // Points rise from the slot as the ball lands; a jackpot bursts into sparks.
       const after = t - fall;
@@ -3396,7 +3518,8 @@ function drawBoards(elapsed) {
       }
     }
 
-    if (winner) drawRibbon(layout.cx, layout.top + 148, Math.min(layout.width - 80, 300), board.color, since);
+    // Where the name of the dropping chatter was, above the players' list.
+    if (winner) drawRibbon(layout.cx, layout.top + 138, Math.min(layout.width - 80, 300), board.color, since);
     ctx.restore();
 
     if (finished && !winner) losers.push(layout);
