@@ -1336,8 +1336,25 @@ function drawCountdown() {
 /**
  * A chatter's emote on a dark disc with a ring, as their fighter wears it;
  * without an emote, a disc in their name color. For line-ups and lists.
+ * `imp`, the name of one of the streamer's imps, draws that imp instead.
  */
-function drawEmoteDisc(emote, x, y, r, ring, fill) {
+function drawEmoteDisc(emote, x, y, r, ring, fill, imp = null) {
+  if (imp) {
+    // One of the streamer's imps: a small imp on a dark disc, in the guild's color.
+    circle(x, y, r);
+    ctx.fillStyle = 'rgba(17, 20, 24, 0.85)';
+    ctx.fill();
+    ctx.save();
+    circle(x, y, r);
+    ctx.clip();
+    drawImp(x, y + r * 0.12, r * 0.62, ring, impSeed(imp));
+    ctx.restore();
+    circle(x, y, r);
+    ctx.lineWidth = Math.max(2, r * 0.14);
+    ctx.strokeStyle = ring;
+    ctx.stroke();
+    return;
+  }
   const image = emoteImage(emote);
   circle(x, y, r);
   ctx.fillStyle = image ? 'rgba(17, 20, 24, 0.85)' : fill || ring;
@@ -1409,7 +1426,7 @@ function drawLineup(a) {
     const nameWidth = textWidth(member.name);
     const discR = 24;
     const left = -(nameWidth + discR * 2 + 14) / 2;
-    drawEmoteDisc(member.emote, left + discR, 0, discR, column.color, member.color);
+    drawEmoteDisc(member.emote, left + discR, 0, discR, column.color, member.color, member.imp ? member.name : null);
     ctx.textAlign = 'left';
     ctx.fillStyle = column.color;
     ctx.fillText(member.name, left + discR * 2 + 14, 0);
@@ -1453,7 +1470,7 @@ function drawLineup(a) {
         ctx.globalAlpha = 1;
       }
       // The emote the chatter fights as, so they can find themselves at a glance.
-      drawEmoteDisc(member.emote, center - 116, y, 20, column.color, member.color);
+      drawEmoteDisc(member.emote, center - 116, y, 20, column.color, member.color, member.imp ? member.name : null);
       ctx.textAlign = 'left';
       ctx.fillStyle = '#FFFFFF';
       ctx.font = `600 26px ${FONT}`;
@@ -2293,19 +2310,32 @@ function drawHolyRays(x, y, r) {
 }
 
 /**
- * One of the god's minions: not a chatter but a shadow imp. A dark, spiky
- * body that turns slowly, two small horns and glowing eyes in the god's
- * color, so nobody takes it for a player. No name, no class.
+ * One of the god's minions, or one of the streamer's imps filling an empty
+ * place in a guild: not a chatter but a shadow imp. A dark, spiky body that
+ * turns slowly, two small horns and glowing eyes in its side's color, so
+ * nobody takes it for a player. No name, no class.
  */
 function drawMinion(fighter, x, y, r, health, flags, alpha) {
   const color = battle.sideColors[fighter.side] || '#B07CFF';
-  const now = performance.now();
-  const hit = (flags & FLAG.hit) !== 0;
   // Each minion turns and blinks on its own beat.
   if (fighter.minionSeed === undefined) fighter.minionSeed = Math.random() * 6;
-  const seed = fighter.minionSeed;
   ctx.save();
   ctx.globalAlpha = alpha;
+  drawImp(x, y, r, color, fighter.minionSeed, (flags & FLAG.hit) !== 0);
+  if (health > 0 && health < 1) {
+    const width = r * 2.2;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+    ctx.fillRect(x - width / 2, y - r * 1.5 - 10, width, 5);
+    ctx.fillStyle = color;
+    ctx.fillRect(x - width / 2, y - r * 1.5 - 10, width * health, 5);
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
+/** A shadow imp's body: haze, turning spikes, horns and blinking eyes in `color`. `seed` sets its own beat. */
+function drawImp(x, y, r, color, seed = 0, hit = false) {
+  const now = performance.now();
   // A dark haze around it.
   const haze = ctx.createRadialGradient(x, y, r * 0.5, x, y, r * 1.7);
   haze.addColorStop(0, 'rgba(20, 8, 30, 0.55)');
@@ -2328,7 +2358,7 @@ function drawMinion(fighter, x, y, r, health, flags, alpha) {
   ctx.closePath();
   ctx.fillStyle = hit ? '#FFFFFF' : '#1B1024';
   ctx.fill();
-  ctx.lineWidth = Math.max(2, r * 0.12);
+  ctx.lineWidth = Math.max(1.5, r * 0.12);
   ctx.strokeStyle = color;
   ctx.stroke();
   // Horns.
@@ -2340,7 +2370,7 @@ function drawMinion(fighter, x, y, r, health, flags, alpha) {
     ctx.lineTo(x + side * r * 0.5, y - r * 0.5);
     ctx.closePath();
     ctx.fill();
-    ctx.lineWidth = Math.max(1.5, r * 0.08);
+    ctx.lineWidth = Math.max(1, r * 0.08);
     ctx.strokeStyle = color;
     ctx.stroke();
   }
@@ -2356,15 +2386,13 @@ function drawMinion(fighter, x, y, r, health, flags, alpha) {
     ctx.fillStyle = '#FFFFFF';
     ctx.fill();
   }
-  if (health > 0 && health < 1) {
-    const width = r * 2.2;
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-    ctx.fillRect(x - width / 2, y - r * 1.5 - 10, width, 5);
-    ctx.fillStyle = color;
-    ctx.fillRect(x - width / 2, y - r * 1.5 - 10, width * health, 5);
-  }
-  ctx.restore();
-  ctx.globalAlpha = 1;
+}
+
+/** A stable beat for an imp drawn by name (in a list or on a ball), so neighbours do not turn in step. */
+function impSeed(name) {
+  let hash = 0;
+  for (const char of String(name)) hash = (hash * 31 + char.charCodeAt(0)) % 997;
+  return hash / 97;
 }
 
 /**
@@ -2380,7 +2408,7 @@ const SQUASH = { perSpeed: 1 / 3500, max: 0.5 };
  */
 function drawFighter(fighter, x, y, health, flags, alpha, squash) {
   let r = fighter.radius * battle.scale;
-  if (fighter.minion) {
+  if (fighter.minion || fighter.imp) {
     drawMinion(fighter, x, y, r, health, flags, alpha);
     return;
   }
@@ -3340,9 +3368,17 @@ function drawBall(x, y, drop, color) {
   ctx.fill();
   circle(x, y, BALL_RADIUS);
   inkPath();
-  ctx.fillStyle = drop.color || color;
+  ctx.fillStyle = drop.imp ? '#2A1838' : drop.color || color;
   ctx.fill();
-  const image = emoteImage(drop.emote);
+  if (drop.imp) {
+    // One of the streamer's imps rides this ball.
+    ctx.save();
+    circle(x, y, BALL_RADIUS);
+    ctx.clip();
+    drawImp(x, y + BALL_RADIUS * 0.12, BALL_RADIUS * 0.62, color, impSeed(drop.name));
+    ctx.restore();
+  }
+  const image = drop.imp ? null : emoteImage(drop.emote);
   if (image) {
     ctx.save();
     circle(x, y, BALL_RADIUS);
@@ -3602,7 +3638,7 @@ function playerRanking(board, elapsed) {
   const fall = (pachinko.rows + 1) * pachinko.hopMs;
   const players = new Map();
   board.drops.forEach((drop, order) => {
-    const entry = players.get(drop.name) ?? { name: drop.name, emote: drop.emote, color: drop.color, points: 0, landed: false, order, lastLanded: -Infinity };
+    const entry = players.get(drop.name) ?? { name: drop.name, emote: drop.emote, color: drop.color, imp: drop.imp === true, points: 0, landed: false, order, lastLanded: -Infinity };
     if (elapsed - drop.at >= fall) {
       entry.points += drop.points;
       entry.landed = true;
@@ -3657,7 +3693,7 @@ function drawPlayerList(layout, board, elapsed) {
 
     const dropping = falling.has(player.name);
     // The player's emote, as on their ball; a pulsing white ring while their ball is falling.
-    drawEmoteDisc(player.emote, x + 8, y, 8, board.color, player.color || board.color);
+    drawEmoteDisc(player.emote, x + 8, y, 8, board.color, player.color || board.color, player.imp ? player.name : null);
     if (dropping) {
       circle(x + 8, y, 10.5 + Math.sin(elapsed / 90));
       ctx.lineWidth = 2;

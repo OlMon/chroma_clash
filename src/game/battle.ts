@@ -13,6 +13,8 @@ export interface FighterSpec {
   image?: string | null;
   /** Draws a crown on the fighter: the session's Hero Clash champion. Looks only. */
   crown?: boolean;
+  /** Drawn as one of the streamer's imps, in its side's color, without a name: a filler for an empty place. Looks only. */
+  imp?: boolean;
   /**
    * The fighter's class for this fight: its stats and how it behaves. See
    * `config.classes`. Fighters with stat overrides, such as the god, have none.

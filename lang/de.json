@@ -71,6 +71,8 @@
   "server.draft.pachinkoNeedsGuilds": "Pachinko braucht Chatter aus mindestens zwei Gilden",
   "server.draft.guildNeedsGuilds": "Ein Gildenkampf braucht Chatter aus mindestens zwei Gilden",
   "server.draft.freeNote": "{n} kämpfen gleichzeitig. Wer als Letztes steht, gewinnt.",
+  "server.imp.name": "Wicht {n}",
+  "server.imp.detail": "Wicht des Streamers",
   "server.draft.guildNote": "{n} pro Gilde kämpfen gleichzeitig, die anderen rücken nach. Die letzte Gilde, die steht, gewinnt.",
   "server.draft.freeWins": "{name} gewinnt",
   "server.draft.freeWinsSubtitle": "Als Letztes übrig bei Jeder gegen jeden",

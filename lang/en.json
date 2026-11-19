@@ -71,6 +71,8 @@
   "server.draft.pachinkoNeedsGuilds": "Pachinko needs chatters from at least two guilds",
   "server.draft.guildNeedsGuilds": "A guild fight needs chatters from at least two guilds",
   "server.draft.freeNote": "{n} fight at a time. The last one standing wins.",
+  "server.imp.name": "Imp {n}",
+  "server.imp.detail": "the streamer's imp",
   "server.draft.guildNote": "{n} per guild fight at a time; the others step in. The last guild standing wins.",
   "server.draft.freeWins": "{name} wins",
   "server.draft.freeWinsSubtitle": "The last one standing in the free-for-all",

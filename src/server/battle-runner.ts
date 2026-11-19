@@ -93,6 +93,7 @@ export class BattleRunner {
         crown: f.crown === true,
         cls: f.class ?? null,
         minion: f.minion,
+        imp: f.imp === true,
         side: f.side,
         radius: f.radius * config.battle.drawnRadiusShare,
       })),

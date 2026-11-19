@@ -1363,6 +1363,21 @@ export class Store {
       .all(since, until) as unknown as UserRow[];
   }
 
+  /**
+   * Chatters whose latest message is after `since` (up to `until`), in a
+   * guild and not excluded: those who wrote recently, by message, not by tick.
+   */
+  recentWriters(since: number, until = Number.MAX_SAFE_INTEGER): UserRow[] {
+    return this.db
+      .prepare(
+        `SELECT * FROM users
+         WHERE last_seen > ? AND last_seen <= ? AND guild_id IS NOT NULL
+           AND login NOT IN (SELECT login FROM excluded)
+         ORDER BY user_id`,
+      )
+      .all(since, until) as unknown as UserRow[];
+  }
+
   /** The ids of a guild's most active chatters of a session: its heroes. */
   heroIds(sessionId: number, guildId: GuildId, limit: number): string[] {
     const rows = this.db

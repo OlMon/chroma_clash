@@ -6,7 +6,7 @@ import { config, type GuildId } from '../../src/config.ts';
 import { Store, type UserRow } from '../../src/db/store.ts';
 import { Battle } from '../../src/game/battle.ts';
 import type { ChatMessageEvent } from '../../src/irc/events.ts';
-import { DraftEngine, drawFighters, drawProblem } from '../../src/server/draft-engine.ts';
+import { DraftEngine, drawFighters, drawProblem, impsFor } from '../../src/server/draft-engine.ts';
 import { startGameServer, type GameServer } from '../../src/server/server.ts';
 import type { GameSnapshot } from '../../src/server/state.ts';
 import { createRng } from '../../src/util/rng.ts';
@@ -73,6 +73,69 @@ test('a draw needs two guilds, or two fighters in a free-for-all', () => {
   assert.equal(drawProblem(users, 'guild'), null);
   assert.match(drawProblem(red.slice(0, 1), 'free')!, /two chatters/);
   assert.equal(drawProblem(red, 'free'), null);
+  store.close();
+});
+
+test('chatters who wrote shortly before the countdown fill the places its writers leave free', () => {
+  const { store, users } = setupStore(14);
+  const red = users.filter((u) => u.guild_id === 'red');
+  const writers = [...red.slice(0, 4), ...users.filter((u) => u.guild_id === 'green').slice(0, 12)];
+  const backups = users.filter((u) => !writers.includes(u));
+  const picks = drawFighters(writers, 'guild', createRng(2), backups);
+  const of = (guild: GuildId) => picks.filter((u) => u.guild_id === guild);
+  assert.equal(of('red').length, config.draft.perGuild, 'red: its 4 writers and 6 who wrote before');
+  for (const writer of red.slice(0, 4)) assert.ok(of('red').includes(writer), 'a writer is never left out for a backup');
+  assert.ok(of('green').every((u) => writers.includes(u)), 'green had writers enough: no backups');
+  assert.equal(of('blue').length, config.draft.perGuild, 'blue, with no writers, is filled from those who wrote before');
+  assert.equal(new Set(picks.map((u) => u.user_id)).size, picks.length, 'nobody twice');
+  assert.deepEqual(drawFighters(writers, 'guild', createRng(2), [...backups, ...writers]), picks, 'a writer among the backups changes nothing');
+
+  const free = drawFighters(writers.slice(0, 5), 'free', createRng(4), backups);
+  assert.equal(free.length, config.draft.freeForAllFighters);
+  assert.deepEqual(free.slice(0, 5).map((u) => u.user_id).sort(), writers.slice(0, 5).map((u) => u.user_id).sort(), 'writers first');
+
+  // Who counts as having written shortly before: by their latest message, not their tick.
+  const late = message('red', T0 + 50_000);
+  store.recordMessage(late);
+  assert.deepEqual(store.recentWriters(T0 + 40_000, T0 + 60_000).map((u) => u.user_id), [late.userId]);
+  store.setExcluded(late.login, true);
+  assert.deepEqual(store.recentWriters(T0 + 40_000, T0 + 60_000), [], 'not an excluded chatter');
+  store.close();
+});
+
+test('imps fill the places of guilds that drew fewer chatters; a guild nobody drew for sits out', () => {
+  const { store, users } = setupStore(6);
+  const picks = [...users.filter((u) => u.guild_id === 'red').slice(0, 5), ...users.filter((u) => u.guild_id === 'green').slice(0, 2)];
+  const imps = impsFor(picks, 3);
+  assert.deepEqual(imps.map((i) => i.guild), ['green', 'green', 'green']);
+  assert.deepEqual(imps.map((i) => [i.id, i.name]), [['imp:green:1', 'Imp 1'], ['imp:green:2', 'Imp 2'], ['imp:green:3', 'Imp 3']]);
+  assert.equal(impsFor(picks, 8).filter((i) => i.guild === 'red').length, 3, 'at least as many places as asked for');
+  assert.equal(impsFor(picks, 8, 'de')[0]!.name, 'Wicht 1');
+  store.close();
+});
+
+test('Guild Clash with imps: they fight in the guild\'s color, step in last, and never take the crown', () => {
+  const { store, users } = setupStore(6);
+  const picks = [...users.filter((u) => u.guild_id === 'red').slice(0, 6), ...users.filter((u) => u.guild_id === 'blue').slice(0, 1)];
+  const engine = new DraftEngine(store, () => T0 + 60_000, 4, 'guild', picks);
+  const step = engine.next()!;
+  const blue = engine.lineup().teams.find((t) => t.name === 'Blue')!;
+  assert.equal(blue.members.length, 6);
+  assert.deepEqual(blue.members.slice(1).map((m) => [m.name, m.imp, m.id]), [1, 2, 3, 4, 5].map((n) => [`Imp ${n}`, true, undefined]));
+  assert.equal(engine.lineup().teams.length, 2, 'green drew nobody and sits out');
+
+  const battle = new Battle(step.setup!);
+  const imps = battle.fighters.filter((f) => f.imp);
+  assert.equal(imps.length, 5);
+  assert.ok(imps.every((f) => f.side === 'blue' && f.class === null && !f.minion));
+  // Three per guild on the field: blue's chatter first, then two imps; the other three wait.
+  const blueChatter = battle.fighters.find((f) => f.side === 'blue' && !f.imp)!;
+  assert.equal(blueChatter.benched, false);
+  assert.deepEqual(imps.map((f) => f.benched), [false, false, true, true, true]);
+  const result = battle.run();
+  engine.apply(step, result);
+  // Whoever wins, an imp never gets the crown.
+  if (engine.champion) assert.ok(picks.includes(engine.champion));
   store.close();
 });
 
@@ -147,7 +210,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 let store: Store;
 let server: GameServer;
 let base: string;
-const original = { countdownMs: config.draft.countdownMs, lineupMs: config.draft.lineupMs };
+const original = { countdownMs: config.draft.countdownMs, lineupMs: config.draft.lineupMs, recentMs: config.draft.recentMs };
 
 before(async () => {
   store = Store.open(':memory:');
@@ -272,12 +335,18 @@ test('the countdown and the line-up time are settings of the control panel', asy
 
 test('a countdown nobody answers ends with a notice, not a fight', async () => {
   const { socket, until } = listen();
-  await post('/api/draft/start', { mode: 'free' });
-  const notice = await until((m) => m.type === 'announce' && /two chatters/.test(m.subtitle), 'notice');
-  assert.equal(notice.title, 'Free-for-all');
-  const state = (await (await fetch(`${base}/api/state`)).json()) as GameSnapshot;
-  assert.equal(state.battle, null);
-  socket.close();
+  // Nobody wrote shortly before it either (the test's chatters all wrote at the server's "now").
+  config.draft.recentMs = 0;
+  try {
+    await post('/api/draft/start', { mode: 'free' });
+    const notice = await until((m) => m.type === 'announce' && /two chatters/.test(m.subtitle), 'notice');
+    assert.equal(notice.title, 'Free-for-all');
+    const state = (await (await fetch(`${base}/api/state`)).json()) as GameSnapshot;
+    assert.equal(state.battle, null);
+  } finally {
+    config.draft.recentMs = original.recentMs;
+    socket.close();
+  }
 });
 
 test('endless mode: an ambient free-for-all that leaves the game alone and yields to real events', async () => {
@@ -423,6 +492,8 @@ test('the god can be started three ways; the history is served', async () => {
 test('Pachinko: drawn like a Guild Clash, played on one board per guild, and the most points win', async () => {
   const saved = { ...config.pachinko };
   Object.assign(config.pachinko, { targetMs: 600, minGapMs: 10, maxGapMs: 40, hopMs: 15, holdMs: 60 });
+  // Only this test's chatters: nobody else wrote shortly before.
+  config.draft.recentMs = 0;
   try {
     const { socket, until } = listen();
     await until((m) => m.type === 'state', 'state');
@@ -435,12 +506,21 @@ test('Pachinko: drawn like a Guild Clash, played on one board per guild, and the
       server.onChat(event);
     }
     const lineup = await until((m) => m.type === 'announce' && m.lineup && m.title?.startsWith('Pachinko'), 'line-up');
-    const sizes = lineup.lineup.teams.map((t: any) => t.members.length);
-    assert.equal(sizes.reduce((a: number, b: number) => a + b, 0), 5);
+    const chatters = lineup.lineup.teams.map((t: any) => t.members.filter((m: any) => !m.imp).length);
+    assert.equal(chatters.reduce((a: number, b: number) => a + b, 0), 5);
+    // The streamer's imps fill the empty places, so every guild in the game has as many.
+    const balls = Math.max(config.pachinko.minBalls, ...chatters);
+    for (const team of lineup.lineup.teams) {
+      assert.equal(team.members.length, balls);
+      assert.ok(team.members.filter((m: any) => m.imp).every((m: any) => /^Imp \d+$/.test(m.name) && !m.id));
+    }
     const game = await until((m) => m.type === 'pachinko', 'the boards');
-    assert.equal(game.boards.length, sizes.length, 'a board per guild with players');
+    assert.equal(game.boards.length, chatters.length, 'a board per guild with players');
     for (const board of game.boards) {
-      assert.equal(board.drops.length, Math.max(config.pachinko.minBalls, ...sizes), 'every guild drops as many balls');
+      assert.equal(board.drops.length, balls, 'every guild drops as many balls');
+      const names = board.drops.filter((d: any) => !d.imp).map((d: any) => d.name);
+      assert.equal(new Set(names).size, names.length, 'each chatter drops once; imps take the other balls');
+      for (const drop of board.drops.filter((d: any) => d.imp)) assert.deepEqual([drop.color, drop.emote], [board.color, null]);
     }
     // The map banner shows during Pachinko as in a battle: at the bottom unless set otherwise.
     assert.deepEqual(game.banner, { place: 'bottom', height: config.battle.bannerHeight, width: config.battle.arena.width });
@@ -451,6 +531,7 @@ test('Pachinko: drawn like a Guild Clash, played on one board per guild, and the
     socket.close();
   } finally {
     Object.assign(config.pachinko, saved);
+    config.draft.recentMs = original.recentMs;
   }
 });
 
@@ -459,7 +540,10 @@ test('every message during a countdown counts, also from chatters who already ea
   // Three chatters write before the countdown: they get their one tick of this 5-minute window.
   const early = (['red', 'green', 'blue'] as const).map((guild) => message(guild, T0 + 60_000));
   for (const event of early) assert.equal(store.recordMessage(event)!.tickAwarded, true);
+  // Only these three: nobody else wrote shortly before (the recent writers have a test of their own).
+  config.draft.recentMs = 0;
   await post('/api/draft/start', { mode: 'pachinko' });
+  config.draft.recentMs = original.recentMs;
   // During the countdown, in the same window, they write again: no tick, but they join.
   for (const event of early) {
     const again = { ...event, sentAt: T0 + 61_000 };

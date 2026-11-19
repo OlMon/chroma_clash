@@ -3,7 +3,7 @@ import type { UserRow } from '../db/store.ts';
 import type { BattleResult } from '../game/battle.ts';
 import { playPachinko, type PachinkoGame } from '../game/pachinko.ts';
 import { createRng } from '../util/rng.ts';
-import type { Lineup } from './draft-engine.ts';
+import { impsFor, type Imp, type Lineup, type LineupMember } from './draft-engine.ts';
 import { bannerStrip, type BannerPlace } from './battle-runner.ts';
 import type { EventEngine, EventStep } from './event-runner.ts';
 import { DEFAULT_LANGUAGE, guildName, translator } from '../i18n.ts';
@@ -19,9 +19,15 @@ export type BallLook = (user: UserRow) => { emote: unknown };
  * The whole game is played when it starts; the overlay shows it ball by ball.
  * It changes nothing in the game.
  */
+/** Who drops a ball: a drawn chatter, or one of the streamer's imps filling an empty place. */
+type Player = UserRow | Imp;
+const isImp = (player: Player): player is Imp => 'guild' in player;
+
 export class PachinkoEngine implements EventEngine {
   readonly picks: UserRow[];
-  readonly game: PachinkoGame<UserRow>;
+  /** The imps that fill the boards of guilds that drew fewer chatters, so every board drops as many balls. */
+  readonly imps: Imp[];
+  readonly game: PachinkoGame<Player>;
   private readonly look: BallLook;
   private started = false;
   /** The texts of this game, in the language chosen when it started. */
@@ -37,9 +43,13 @@ export class PachinkoEngine implements EventEngine {
     this.look = look;
     this.lang = lang;
     this.t = translator(lang);
+    this.imps = impsFor(picks, config.pachinko.minBalls, lang);
     const teams = config.guilds.list.map((guild) => ({
       team: guild.id,
-      players: picks.filter((user) => user.guild_id === guild.id),
+      players: [
+        ...picks.filter((user) => user.guild_id === guild.id),
+        ...this.imps.filter((imp) => imp.guild === guild.id),
+      ] as Player[],
     }));
     this.game = playPachinko(teams, createRng(seed));
   }
@@ -51,9 +61,14 @@ export class PachinkoEngine implements EventEngine {
         .map((guild) => ({
           name: guildName(this.lang, guild.id),
           color: guild.color,
-          members: this.picks
-            .filter((user) => user.guild_id === guild.id)
-            .map((user) => ({ name: user.display_name, detail: '', id: user.user_id })),
+          members: [
+            ...this.picks
+              .filter((user) => user.guild_id === guild.id)
+              .map((user): LineupMember => ({ name: user.display_name, detail: '', id: user.user_id })),
+            ...this.imps
+              .filter((imp) => imp.guild === guild.id)
+              .map((imp): LineupMember => ({ name: imp.name, detail: this.t('server.imp.detail'), imp: true })),
+          ],
         }))
         .filter((team) => team.members.length > 0),
       note: this.t('server.pachinko.note', { count: balls }),
@@ -91,9 +106,9 @@ export class PachinkoEngine implements EventEngine {
               color: guild.color,
               total: board.total,
               drops: board.drops.map((drop) => ({
-                name: drop.player.display_name,
-                color: drop.player.color,
-                emote: this.look(drop.player).emote,
+                ...(isImp(drop.player)
+                  ? { name: drop.player.name, color: guild.color, emote: null, imp: true }
+                  : { name: drop.player.display_name, color: drop.player.color, emote: this.look(drop.player).emote }),
                 path: drop.path,
                 slot: drop.slot,
                 points: drop.points,

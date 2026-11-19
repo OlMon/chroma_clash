@@ -187,7 +187,7 @@ function recordBattle(
     type: 'battle-start', title, durationMs: battle.durationMs, arena: config.battle.arena, enrageGrow: config.skills.enrage.grow, ambient: false, sides,
     fighters: battle.fighters.map((f) => ({
       name: f.name, color: f.color, emote: emotes.get(f.id) ?? null, image: null, cls: f.class ?? null, crown: false,
-      minion: f.minion, side: f.side, radius: f.radius * config.battle.drawnRadiusShare,
+      minion: f.minion, imp: f.imp === true, side: f.side, radius: f.radius * config.battle.drawnRadiusShare,
     })),
   };
   const frames: BattleFrameMessage[] = [];
@@ -298,6 +298,15 @@ export function generateScenes(outDir: string, lang = 'en'): Scene[] {
     moments: [250],
   });
 
+  // A Guild Clash in which Blue drew few chatters: the streamer's imps fight in its color.
+  const fewBlue = [...fighters.filter((f) => f.side === 'red').slice(0, 8), ...fighters.filter((f) => f.side === 'blue').slice(0, 3)];
+  const blueImps: FighterSpec[] = Array.from({ length: 5 }, (_, i) => ({ id: `imp:blue:${i + 1}`, name: t('server.imp.name', { n: i + 1 }), color: null, class: null, side: 'blue', level: 0, imp: true }));
+  page('imps', {
+    messages: [battleState, ...recordBattle(t('mode.guildClash'), { seed: 5, sides: teamSides(), fighters: [...fewBlue, ...blueImps], sizeBalance: false }, twoSides, emotes,
+      (_frames, i) => (i === 60 ? 1 : 0))],
+    moments: [250],
+  });
+
   // The streamer against chat: no classes or emotes, only the god's skills, and steady timing.
   const crowd: FighterSpec[] = chatters.map((c) => ({ id: c.userId, name: c.displayName, color: c.color, side: assignGuild(c.color, c.userId), level: 2, class: null }));
   const r = radiusFor(crowd.length + 1);
@@ -381,8 +390,12 @@ export function generateScenes(outDir: string, lang = 'en'): Scene[] {
         teams: config.guilds.list.map((g) => ({
           name: guild(g.id), color: g.color,
           // With the emote each fights as and their name color, as the server adds them.
-          members: drawn.filter((f) => f.side === g.id).slice(0, 10)
-            .map((f) => ({ name: f.name, detail: t(`class.${f.class}`), emote: emotes.get(f.id) ?? null, color: f.color })),
+          // Blue drew only four: the streamer's imps fill its other places.
+          members: [
+            ...drawn.filter((f) => f.side === g.id).slice(0, g.id === 'blue' ? 4 : 10)
+              .map((f) => ({ name: f.name, detail: t(`class.${f.class}`), emote: emotes.get(f.id) ?? null, color: f.color })),
+            ...(g.id === 'blue' ? Array.from({ length: 6 }, (_, i) => ({ name: t('server.imp.name', { n: i + 1 }), detail: t('server.imp.detail'), imp: true })) : []),
+          ],
         })),
         note: t('server.draft.guildNote', { n: config.draft.onFieldPerGuild }),
       },
@@ -412,7 +425,11 @@ export function generateScenes(outDir: string, lang = 'en'): Scene[] {
   const emoteIds = ['25', '1902', '305954156', '88', '354', '86', '41', '9', '58765', '1'];
   const teams = config.guilds.list.map((g, gi) => ({
     team: g.id,
-    players: Array.from({ length: gi === 2 ? 7 : 10 }, (_, i) => ({ name: `${g.name}Hero${i}`, emote: { url: `/emotes/twitch/${emoteIds[(i + gi) % emoteIds.length]}?animated=0` } })),
+    // Blue drew seven: three of the streamer's imps take its other balls.
+    players: Array.from({ length: 10 }, (_, i) =>
+      gi === 2 && i >= 7
+        ? { name: t('server.imp.name', { n: i - 6 }), emote: null, imp: true }
+        : { name: `${g.name}Hero${i}`, emote: { url: `/emotes/twitch/${emoteIds[(i + gi) % emoteIds.length]}?animated=0` }, imp: false }),
   }));
   const game = playPachinko(teams, createRng(4));
   page('pachinko', {
@@ -423,7 +440,7 @@ export function generateScenes(outDir: string, lang = 'en'): Scene[] {
         const g = config.guilds.list.find((x) => x.id === b.team);
         return {
           team: b.team, name: guild(b.team), color: g?.color ?? null, total: b.total,
-          drops: b.drops.map((d) => ({ name: d.player.name, color: null, emote: d.player.emote, path: d.path, slot: d.slot, points: d.points, at: d.at })),
+          drops: b.drops.map((d) => ({ name: d.player.name, color: d.player.imp ? g?.color ?? null : null, emote: d.player.emote, imp: d.player.imp, path: d.path, slot: d.slot, points: d.points, at: d.at })),
         };
       }),
     }],

@@ -329,6 +329,8 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
     mode: DraftMode;
     endsAt: number;
     writers: Map<string, UserRow>;
+    /** Chatters who wrote shortly before the countdown started: they fill the places writers leave free. */
+    backups: Map<string, UserRow>;
     recent: string[];
     timer: ReturnType<typeof setInterval>;
   } | null = null;
@@ -343,7 +345,8 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
       title: countdownTitle(countdown.mode),
       subtitle: tr('server.countdown.subtitle'),
       remainingMs: Math.max(0, countdown.endsAt - Date.now()),
-      joined: countdown.writers.size,
+      // Everyone in the draw: the countdown's writers and those who wrote just before it.
+      joined: countdown.writers.size + [...countdown.backups.keys()].filter((id) => !countdown!.writers.has(id)).length,
       recent: countdown.recent,
       // During a countdown the overlay shows the map banner instead of the corner panels.
       banner: bannerStrip(bannerPlace(store.getSetting('map_banner'))),
@@ -357,6 +360,7 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
       mode,
       endsAt: Date.now() + config.draft.countdownMs,
       writers: new Map(),
+      backups: new Map(store.recentWriters(now() - config.draft.recentMs, now()).map((user) => [user.user_id, user])),
       recent: [],
       timer: setInterval(() => {
         if (countdown && Date.now() >= countdown.endsAt) finishCountdown();
@@ -376,15 +380,16 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 
   function finishCountdown(): void {
     if (!countdown) return;
-    const { mode, writers } = countdown;
+    const { mode, writers, backups } = countdown;
     cancelCountdown();
     const seed = newSeed();
     // Chatters excluded or reassigned during the countdown drop out here.
-    const eligible = [...writers.keys()]
-      .map((id) => store.getUser(id))
-      .filter((user): user is UserRow => user !== null && user.guild_id !== null)
-      .filter((user) => !store.excludedLogins().includes(user.login));
-    const picks = drawFighters(eligible, mode, createRng(seed));
+    const eligible = (ids: Iterable<string>) =>
+      [...ids]
+        .map((id) => store.getUser(id))
+        .filter((user): user is UserRow => user !== null && user.guild_id !== null)
+        .filter((user) => !store.excludedLogins().includes(user.login));
+    const picks = drawFighters(eligible(writers.keys()), mode, createRng(seed), eligible(backups.keys()));
     const problem = drawProblem(picks, mode, languageOf(store));
     if (problem) {
       send({ type: 'announce', title: countdownTitle(mode), subtitle: problem, holdMs: config.war.summaryHoldMs });

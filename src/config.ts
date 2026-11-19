@@ -476,6 +476,13 @@ export const config = {
    */
   draft: {
     countdownMs: 30_000,
+    /**
+     * Chatters who wrote within this long before a countdown started are in
+     * the draw too, but only for places the countdown's writers leave free:
+     * in a chat where most people write every few minutes, 30 seconds
+     * catch only a few of them.
+     */
+    recentMs: 3 * 60_000,
     /** How long the line-up stays on screen before the fight; time to place bets in chat. */
     lineupMs: 15_000,
     /** Guild mode: fighters drawn per guild, and how many of them are on the field at once. */
