@@ -174,6 +174,19 @@ interface Whirlwind {
 }
 
 /** The god's move in progress between skills: a dash, or a run across the screen's edge. */
+/**
+ * A fighter thrown through the air (see `config.flight`): its direction, its
+ * average speed in arena units per second, and when the throw began and ends.
+ * It slows down along the way.
+ */
+interface Flight {
+  vx: number;
+  vy: number;
+  speed: number;
+  from: number;
+  until: number;
+}
+
 /** A fighter breaking out of a crowd: see `config.roam`. */
 interface Roam {
   /** When it next checks whether it has been standing still, and where it stood at the last check. */
@@ -241,7 +254,7 @@ export interface Fighter extends FighterSpec {
   /** Battle time until which the fighter shows the marks of a lightning strike. Looks only. */
   scorchedUntil: number;
   /** Set while the fighter is hurled through the air: direction and the time it lands. */
-  flight: { vx: number; vy: number; until: number } | null;
+  flight: Flight | null;
   /** True while a whirlwind carries the fighter. */
   spinning: boolean;
   /** Waiting on the bench: not on the field, but not beaten. `enterAt` is the earliest time to step in. */
@@ -798,14 +811,22 @@ export class Battle {
     /** Attacker, target, and optionally a factor on the attacker's damage. */
     const attacks: [Fighter, Fighter, number?][] = [];
 
-    // Fighters hurled through the air fly in a straight line and bounce off the walls.
+    // Fighters hurled through the air fly in a straight line, slowing down, and bounce off the walls.
     for (const fighter of alive) {
       const flight = fighter.flight;
       if (!flight) continue;
+      const length = Math.max(1, flight.until - flight.from);
+      const { start } = config.flight;
+      /** How far along the throw is, from 0 to 1, at a time. */
+      const along = (time: number): number => clamp((time - flight.from) / length, 0, 1);
+      /** The distance covered between two points of the throw, in multiples of its whole length at even speed. */
+      const covered = (p1: number, p2: number): number => start * (p2 - p1) - (start - 1) * (p2 * p2 - p1 * p1);
       // Two half-steps, so the bounce happens at the wall and not beyond it.
       for (let half = 0; half < 2; half++) {
-        fighter.x += (flight.vx * config.skills.shockwave.launchSpeed * dt) / 2;
-        fighter.y += (flight.vy * config.skills.shockwave.launchSpeed * dt) / 2;
+        const t1 = now + (half * dt * 1000) / 2;
+        const distance = covered(along(t1), along(t1 + (dt * 1000) / 2)) * flight.speed * (length / 1000);
+        fighter.x += flight.vx * distance;
+        fighter.y += flight.vy * distance;
         const limits = this.limits(fighter);
         if (fighter.x < limits.minX || fighter.x > limits.maxX) flight.vx = -flight.vx;
         if (fighter.y < limits.minY || fighter.y > limits.maxY) flight.vy = -flight.vy;
@@ -846,7 +867,7 @@ export class Battle {
     this.obstacles?.update(now, dt, alive, {
       hurt: (fighter, amount) => this.hurt(null, fighter, amount * this.toughness, now),
       fling: (fighter, vx, vy, ms) => {
-        fighter.flight = { vx, vy, until: now + ms };
+        fighter.flight = { vx, vy, speed: config.skills.shockwave.launchSpeed, from: now, until: now + ms };
       },
       settle: (fighter) => this.keepInArena(fighter),
     });
@@ -1366,9 +1387,10 @@ export class Battle {
       dy = 0;
       d = 1;
     }
-    fighter.x += (dx / d) * distance;
-    fighter.y += (dy / d) * distance;
-    this.keepInArena(fighter);
+    // A short throw, not a jump: it flies the distance and slows down, like a bumper's fling.
+    const { pushMs } = config.flight;
+    const now = this.timeMs;
+    fighter.flight = { vx: dx / d, vy: dy / d, speed: (distance * 1000) / pushMs, from: now, until: now + pushMs };
   }
 
   /**
@@ -1698,7 +1720,13 @@ export class Battle {
               dy = Math.sin(angle);
               length = 1;
             }
-            enemy.flight = { vx: dx / length, vy: dy / length, until: now + skills.shockwave.launchMs };
+            enemy.flight = {
+              vx: dx / length,
+              vy: dy / length,
+              speed: skills.shockwave.launchSpeed,
+              from: now,
+              until: now + skills.shockwave.launchMs,
+            };
             launched.push(enemy);
           } else {
             // The rest are pushed back; those nearer the caster farther.

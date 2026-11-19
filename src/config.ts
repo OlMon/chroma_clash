@@ -273,6 +273,17 @@ export const config = {
    * pinball; barrels roll across, knock fighters aside and hurt them; spike
    * traps strike everyone on them every `periodMs`, after a warning.
    */
+  /**
+   * Fighters thrown through the air: hurled by Shockwave, flung by a bumper or
+   * a barrel, pushed aside by the god. A throw starts at `start` times its
+   * average speed and slows down evenly to `2 - start` times it at the end, so
+   * it covers the same distance as at an even speed but lands softly. The
+   * god's pushes (dash, Rampage, Leap) take `pushMs` for their distance.
+   */
+  flight: {
+    start: 1.8,
+    pushMs: 280,
+  },
   obstacles: {
     chance: 0.4,
     wall: { count: [2, 3] as [number, number], length: [4, 7] as [number, number], thickness: 0.8 },

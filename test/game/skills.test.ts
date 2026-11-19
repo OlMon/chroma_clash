@@ -331,8 +331,8 @@ test('Shockwave hurls the five nearest fighters across the arena, bouncing off t
   assert.ok(launched.length >= 1 && launched.length <= config.skills.shockwave.launchCount);
   for (const fighter of launched) assert.ok(fighter.flight, 'in the air');
 
-  // Nobody who stayed on the ground stood nearer to the god than those who were hurled.
-  const grounded = chatOf(battle).filter((f) => f.alive && !f.flight && f.slowUntil > battle.timeMs);
+  // The others nearby were only pushed back (a short throw of their own) and slowed.
+  const grounded = chatOf(battle).filter((f) => f.alive && !launched.includes(f) && f.slowUntil > battle.timeMs);
   assert.ok(grounded.length > 0, 'others were only pushed back and slowed');
 
   const { width, height, top } = config.battle.arena;
@@ -341,11 +341,15 @@ test('Shockwave hurls the five nearest fighters across the arena, bouncing off t
   const flags = battle.frame();
   for (const index of cast.t!) assert.ok(flags[index]![3] & FLAG.flying);
   const steps = config.skills.shockwave.launchMs / STEP_MS;
+  /** How far the first hurled fighter got in each step: it slows down. */
+  const perStep: number[] = [];
   for (let i = 0; i < steps; i++) {
     const before = launched.map((f) => ({ x: f.x, y: f.y }));
     battle.step();
     launched.forEach((fighter, n) => {
-      travelled[n]! += Math.hypot(fighter.x - before[n]!.x, fighter.y - before[n]!.y);
+      const moved = Math.hypot(fighter.x - before[n]!.x, fighter.y - before[n]!.y);
+      if (n === 0) perStep.push(moved);
+      travelled[n]! += moved;
       assert.ok(fighter.x >= fighter.radius - 1 && fighter.x <= width - fighter.radius + 1);
       assert.ok(fighter.y >= top + fighter.radius - 1 && fighter.y <= height - fighter.radius + 1);
     });
@@ -353,10 +357,12 @@ test('Shockwave hurls the five nearest fighters across the arena, bouncing off t
   launched.forEach((fighter, n) => {
     if (!fighter.alive) return;
     assert.equal(fighter.flight, null, 'landed');
-    // At launch speed for the whole flight; a bounce turns it around without slowing it,
+    // As far as at launch speed for the whole flight; a bounce turns it around without slowing it,
     // so in a small arena it may land near where it took off.
     assert.ok(travelled[n]! > 1_500, `flew ${Math.round(travelled[n]!)} units`);
   });
+  // Fast at first, slow at the end: it lands softly.
+  assert.ok(perStep[0]! > 4 * perStep[perStep.length - 1]!, `from ${perStep[0]!.toFixed(0)} to ${perStep.at(-1)!.toFixed(0)} units a step`);
   assert.ok(god.alive);
 });
 

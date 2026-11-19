@@ -2242,7 +2242,18 @@ function drawMinion(fighter, x, y, r, health, flags, alpha) {
   ctx.globalAlpha = 1;
 }
 
-function drawFighter(fighter, x, y, health, flags, alpha) {
+/**
+ * How much a thrown fighter is squashed: stretched along its flight and
+ * narrowed across it, by its speed (pixels a second). Its area stays the same.
+ */
+const SQUASH = { perSpeed: 1 / 3500, max: 0.5 };
+
+/**
+ * One fighter. `squash`, when given, is { angle, stretch }: the fighter is
+ * thrown and drawn as an oval along `angle`; its name, badge and health bar
+ * stay upright.
+ */
+function drawFighter(fighter, x, y, health, flags, alpha, squash) {
   let r = fighter.radius * battle.scale;
   if (fighter.minion) {
     drawMinion(fighter, x, y, r, health, flags, alpha);
@@ -2257,6 +2268,15 @@ function drawFighter(fighter, x, y, health, flags, alpha) {
   // An uploaded picture (the god's) comes before the emote.
   const picture = fighter.image ? loadImage(fighter.image) : null;
   const emote = picture ? null : emoteImage(fighter.emote);
+  const squashed = squash && squash.stretch > 1.01;
+  if (squashed) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(squash.angle);
+    ctx.scale(squash.stretch, 1 / squash.stretch);
+    ctx.rotate(-squash.angle);
+    ctx.translate(-x, -y);
+  }
   const ink = inkOf();
   if (ink) {
     // A comic's ink: a hard shadow and a bold black rim behind the fighter.
@@ -2335,14 +2355,6 @@ function drawFighter(fighter, x, y, health, flags, alpha) {
   ctx.arc(x, y, r + 2.5, 0, Math.PI * 2);
   ctx.stroke();
 
-  if (health > 0 && health < 1) {
-    const width = r * 2.2;
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-    ctx.fillRect(x - width / 2, y - r - 12, width, 5);
-    ctx.fillStyle = health > 0.35 ? '#5BD66E' : '#FF6B5E';
-    ctx.fillRect(x - width / 2, y - r - 12, width * health, 5);
-  }
-
   // Enraged: a red veil over the fighter that beats with its pulse.
   if (enraged) {
     ctx.beginPath();
@@ -2387,6 +2399,18 @@ function drawFighter(fighter, x, y, health, flags, alpha) {
     ctx.lineWidth = 3;
     ctx.strokeStyle = '#7FD4FF';
     ctx.stroke();
+  }
+  if (squashed) {
+    ctx.restore();
+    ctx.globalAlpha = alpha;
+  }
+
+  if (health > 0 && health < 1) {
+    const width = r * 2.2;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+    ctx.fillRect(x - width / 2, y - r - 12, width, 5);
+    ctx.fillStyle = health > 0.35 ? '#5BD66E' : '#FF6B5E';
+    ctx.fillRect(x - width / 2, y - r - 12, width * health, 5);
   }
 
   if (fighter.name) {
@@ -3913,6 +3937,13 @@ function drawTrap(x, y, r, state, now) {
   }
 }
 
+/** The squash of a fighter that moved `dx`, `dy` pixels in `ms` milliseconds; null when it barely moves. */
+function squashFor(dx, dy, ms) {
+  const speed = (Math.hypot(dx, dy) * 1000) / ms;
+  if (speed < 1) return null;
+  return { angle: Math.atan2(dy, dx), stretch: 1 + Math.min(SQUASH.max, speed * SQUASH.perSpeed) };
+}
+
 function renderBattle(now) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   const latest = battle.latest;
@@ -3937,6 +3968,8 @@ function renderBattle(now) {
       y: (y1 + (y2 - y1) * mix) * battle.scale,
       fromX: x1 * battle.scale,
       fromY: y1 * battle.scale,
+      // Thrown through the air: squashed along the flight, by how fast it goes between the two frames.
+      squash: flags & FLAG.flying && !jumped ? squashFor((x2 - x1) * battle.scale, (y2 - y1) * battle.scale, interval) : null,
       r: fighter.radius * battle.scale,
       health,
       flags,
@@ -3995,7 +4028,7 @@ function renderBattle(now) {
       ctx.fillStyle = haze;
       ctx.fill();
     }
-    drawFighter(d.fighter, d.x, d.y, d.health, d.flags, d.flags & FLAG.hidden ? 0.3 : 1);
+    drawFighter(d.fighter, d.x, d.y, d.health, d.flags, d.flags & FLAG.hidden ? 0.3 : 1, d.squash);
     // The god running across the screen's edge shows on both sides while it crosses.
     if (d.x - d.r < 0) drawFighter(d.fighter, d.x + canvas.width, d.y, d.health, d.flags, 1);
     else if (d.x + d.r > canvas.width) drawFighter(d.fighter, d.x - canvas.width, d.y, d.health, d.flags, 1);

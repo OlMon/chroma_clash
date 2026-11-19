@@ -323,6 +323,13 @@ export function generateScenes(outDir: string, lang = 'en'): Scene[] {
     moments: [1500],
   });
 
+  // Shockwave: picked just after it hurled the nearest chatters, who fly off squashed by their speed.
+  page('shockwave', {
+    messages: [battleState, ...recordBattle(versusTitle, godSetup(13, { ...god, skills: ['shockwave'] }), godSides, noEmotes,
+      (frames, i) => (castAt(frames[i - 2], 'shockwave') ? 100 - i / 100 : -1))],
+    moments: [0, 300],
+  });
+
   // Obstacles: a few team battles, each forced to get a layout, picked where barrels and traps are busy.
   const obstacleChance = config.obstacles.chance;
   config.obstacles.chance = 1;
