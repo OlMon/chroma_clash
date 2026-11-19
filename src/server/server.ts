@@ -116,7 +116,8 @@ function bannerPlace(setting: string | null): BannerPlace {
 
 export type ServerSnapshot = GameSnapshot & {
   mapBanner: 'top' | 'bottom' | 'off';
-  guide: { overlays: number; testBattleRun: boolean };
+  /** `withoutGpu`: open overlays that draw without the graphics card, which makes battles stutter. */
+  guide: { overlays: number; testBattleRun: boolean; withoutGpu: number };
   chatAnnounce: { available: boolean; enabled: boolean };
   /** Expected runtime of each event from the click, shortest and longest, in ms. */
   runtimes: Record<RuntimeKind, Runtime>;
@@ -480,7 +481,11 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
     ),
     // The setup guide's steps that the game state does not show by itself.
     mapBanner: bannerPlace(store.getSetting('map_banner')) ?? 'off',
-    guide: { overlays: overlayPages.size, testBattleRun: store.getSetting('test_battle_run') === '1' },
+    guide: {
+      overlays: overlayPages.size,
+      testBattleRun: store.getSetting('test_battle_run') === '1',
+      withoutGpu: [...overlayPages.values()].filter((page) => page.gpu === false).length,
+    },
     chatAnnounce: { available: options.chat?.canSay() ?? false, enabled: store.getSetting('chat_announce') === '1' },
     runtimes: estimatedRuntimes(),
     data: { resettable: Boolean(options.onDatabase) && Boolean(databaseSize(options.databasePath)) },
@@ -1034,7 +1039,10 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
         if (typeof message !== 'object' || message === null || (message as { type?: unknown }).type !== 'overlay-stats') return;
         const report = readOverlayReport(message as Record<string, unknown>);
         const info = overlayPages.get(socket);
-        if (report && info) overlayPages.set(socket, { ...info, ...report, reportedAt: Date.now() });
+        if (!report || !info) return;
+        overlayPages.set(socket, { ...info, ...report, reportedAt: Date.now() });
+        // The panel warns as soon as an overlay turns out to draw without the graphics card.
+        if (report.gpu === false && info.gpu !== false) broadcast();
       });
       socket.on('close', () => {
         overlayPages.delete(socket);

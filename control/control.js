@@ -1044,6 +1044,9 @@ function renderExtras() {
     if (version.latest.notes) update.append(` · ${version.latest.notes}`);
   }
 
+  // An overlay drawing without the graphics card stutters: say how to fix it, on every tab.
+  $('no-gpu').hidden = !(state.guide.withoutGpu > 0);
+
   const announce = state.chatAnnounce;
   $('chat-announce').disabled = !announce.available;
   $('chat-announce').checked = announce.enabled;
@@ -1205,7 +1208,7 @@ function renderStatus(status) {
     cell(row, ago(overlay.connectedAt));
     if (overlay.reportedAt === null) {
       const waiting = cell(row, tr('control.status.waitingReport'));
-      waiting.colSpan = 5;
+      waiting.colSpan = 6;
     } else {
       const wrongSize = overlay.width !== 1920 || overlay.height !== 1080;
       const size = cell(row, tr(wrongSize ? 'control.status.wrongSize' : 'control.status.sizeValue', overlay));
@@ -1215,6 +1218,8 @@ function renderStatus(status) {
       if (overlay.frameMs > 16) frame.className = 'num warn';
       cell(row, `${overlay.slowMs.toFixed(0)} ms`, 'num');
       cell(row, overlay.fps.toFixed(0), 'num');
+      const gpu = cell(row, tr(overlay.gpu === false ? 'control.status.gpuOff' : overlay.gpu ? 'control.yes' : 'control.status.gpuUnknown'));
+      if (overlay.gpu === false) gpu.className = 'warn';
     }
     body.appendChild(row);
   }

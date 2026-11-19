@@ -121,6 +121,9 @@ FIRST TIME
   2. In OBS add a "Browser" source:
        URL     http://localhost:4747/overlay/
        Size    1920 x 1080
+     Keep OBS's browser sources on the graphics card, or battles stutter:
+       Settings > Advanced > Sources > Enable Browser Source Hardware Acceleration
+     (on by default; the control panel warns when it is off).
   3. Chat away. Control panel: http://localhost:4747/control/
 
 YOUR DATA

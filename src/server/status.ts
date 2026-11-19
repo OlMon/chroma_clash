@@ -11,6 +11,8 @@ export interface OverlayReport {
   width: number;
   height: number;
   theme: string;
+  /** Whether the page draws with the graphics card; false means software drawing (slow); null when it cannot tell. */
+  gpu: boolean | null;
 }
 
 export interface OverlayInfo extends Partial<OverlayReport> {
@@ -29,8 +31,9 @@ export function readOverlayReport(message: Record<string, unknown>): OverlayRepo
   const width = finite(message.width, 20_000);
   const height = finite(message.height, 20_000);
   const theme = typeof message.theme === 'string' ? message.theme.slice(0, 40) : '';
+  const gpu = typeof message.gpu === 'boolean' ? message.gpu : null;
   if (frameMs === null || slowMs === null || fps === null || width === null || height === null) return null;
-  return { frameMs, slowMs, fps, width, height, theme };
+  return { frameMs, slowMs, fps, width, height, theme, gpu };
 }
 
 /** The size of a database and its write-ahead log on disk; null for one in memory. */

@@ -85,6 +85,7 @@
     <h1>Chroma Clash</h1>
     <p id="source" class="muted" data-i18n="control.source.connecting">Connecting…</p>
     <p id="update" class="update" hidden></p>
+    <p id="no-gpu" class="update warn-notice" hidden data-i18n-html="control.gpu.notice"></p>
 
     <!-- What is on the overlay right now, with one Stop for everything, on every tab. -->
     <div class="running" id="running-bar">
@@ -590,7 +591,8 @@
         <table id="status-overlays" hidden>
           <thead><tr><th data-i18n="control.status.openSince">Open since</th><th data-i18n="control.status.size">Size</th>
             <th data-i18n="control.look.theme">Theme</th><th class="num" data-i18n="control.status.frameTime">Frame time</th>
-            <th class="num" data-i18n="control.status.slowest">Slowest</th><th class="num" data-i18n="control.status.fps">Frames/s</th></tr></thead>
+            <th class="num" data-i18n="control.status.slowest">Slowest</th><th class="num" data-i18n="control.status.fps">Frames/s</th>
+            <th data-i18n="control.status.gpu">Graphics card</th></tr></thead>
           <tbody></tbody>
         </table>
         <p class="muted small" data-i18n="control.status.frameNote">A frame should take well under 16 ms. Frames per second drop to near zero while nothing

@@ -286,6 +286,24 @@ function noteFrameTime(ms) {
 }
 
 /** Every few seconds: how long frames took to draw, so the streamer can see if OBS struggles. */
+/**
+ * Whether this browser draws with the graphics card: true, false (it draws
+ * on the processor, as OBS does with "Browser Source Hardware Acceleration"
+ * switched off, and battles stutter), or null when it cannot tell.
+ */
+const drawsWithGpu = (() => {
+  try {
+    const gl = document.createElement('canvas').getContext('webgl');
+    if (!gl) return false;
+    const info = gl.getExtension('WEBGL_debug_renderer_info');
+    const renderer = String(gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER));
+    gl.getExtension('WEBGL_lose_context')?.loseContext();
+    return !/swiftshader|llvmpipe|softpipe|software|basic render/i.test(renderer);
+  } catch {
+    return null;
+  }
+})();
+
 function reportFrameTimes(socket) {
   const now = performance.now();
   const seconds = (now - frameStats.since) / 1000;
@@ -299,6 +317,7 @@ function reportFrameTimes(socket) {
         width: window.innerWidth,
         height: window.innerHeight,
         theme: Theme.current.id || '',
+        gpu: drawsWithGpu,
       }),
     );
   }

@@ -304,6 +304,8 @@ button.link {
   background: var(--card); border: 1px solid var(--accent);
 }
 .update a { color: var(--accent); font-weight: 600; }
+/* A notice about something to fix outside the game, like OBS's hardware acceleration. */
+.update.warn-notice { border-color: var(--error); }
 .warning { color: var(--error); font-size: 14px; }
 .warn { color: var(--error); font-weight: 600; }
 a.button {

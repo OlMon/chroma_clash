@@ -110,6 +110,13 @@ test('overlays are counted for the guide and report their frame times to the sta
   assert.equal(status.overlays[0]!.theme, 'pixel', 'a malformed report does not overwrite a good one');
   assert.ok(status.database.bytes > 0);
   assert.equal(status.chat.channel, 'testchannel');
+  assert.equal((await state()).guide.withoutGpu, 0, 'an overlay that did not say is not counted as drawing without the graphics card');
+
+  // An overlay that draws without the graphics card (OBS's hardware acceleration off) makes the panel warn.
+  overlay.send(JSON.stringify({ type: 'overlay-stats', frameMs: 30, slowMs: 90, fps: 30, width: 1920, height: 1080, theme: 'comic', gpu: false }));
+  await until(async () => (await state()).guide.withoutGpu === 1);
+  overlay.send(JSON.stringify({ type: 'overlay-stats', frameMs: 4, slowMs: 9, fps: 60, width: 1920, height: 1080, theme: 'comic', gpu: true }));
+  await until(async () => (await state()).guide.withoutGpu === 0);
   overlay.close();
   await until(async () => (await state()).guide.overlays === 0);
 });
