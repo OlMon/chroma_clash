@@ -143,16 +143,24 @@ export const config = {
     fire: { chance: 0.1, douse: 2, spreadChance: 0.3, maxWindows: 3 },
     harvest: { chance: 0.07 },
     /** How many recent mishaps the overlay and the control panel are told about. */
-    remember: 6,
+    remember: 12,
+    /**
+     * Lightning leaves a scorch mark on its tile, a fire that burnt out or was
+     * put out leaves ash, for this many windows (the one it happened in included).
+     */
+    markWindows: 3,
   },
   /**
    * The Monument: the season's finish line. In every window in which a guild
-   * is active, its Monument grows by `baseIncome` plus the levels of all its
-   * tiles. The first guild to reach `goal` wins the season.
+   * is active, its Monument grows by `baseIncome`, plus `perTile` for each
+   * tile it holds (its city aside), plus the levels of those tiles: an owned
+   * tile always yields something, even at level 0. The first guild to reach
+   * `goal` wins the season.
    */
   monument: {
     goal: 6_000,
     baseIncome: 1,
+    perTile: 1,
     /** When the god wins the first Streamer vs Chat of a session, every Monument loses this share. */
     setback: 0.15,
   },

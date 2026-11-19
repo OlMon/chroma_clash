@@ -49,6 +49,7 @@ function connect() {
     if (message.type === 'state') {
       state = message.state;
       noteMishaps();
+      noteMonumentGrowth();
       if (!pinnedTheme && state.display && state.display.theme) Theme.use(state.display.theme);
       // The language chosen in the control panel; `?lang=` in the address wins, like `?theme=`.
       I18n.follow(state.display && state.display.language);
@@ -537,6 +538,7 @@ function drawMap(guildColors, originX, originY) {
       drawCastle(0, 0);
       ctx.restore();
     }
+    drawTileMark(tile, x, y, HEX_SIZE - 3);
     if (tile.burning) drawTileFlames(x, y, HEX_SIZE - 3, performance.now(), tile.q * 7 + tile.r * 3);
     if (isGodTile(tile)) drawGodTile(tile, x, y, HEX_SIZE - 3, 16);
     drawTileLevel(tile, x, y, 19);
@@ -554,6 +556,51 @@ const MISHAP_MS = 2600;
 /** The words floating up from a tile, by mishap kind: overlay.mishap.<kind> in the language files. */
 const MISHAP_KINDS = ['lightning', 'fire', 'spread', 'burn', 'burntOut', 'doused', 'harvest'];
 
+/**
+ * "+27" rising above a Monument when it grows: what its guild's land yielded.
+ * Each guild's number comes after a small random wait, so the three do not
+ * pop in step.
+ */
+const MONUMENT_POP = { ms: 2600, maxDelayMs: 3500 };
+let monumentPops = [];
+/** Each guild's Monument progress at the last state, and the season it belongs to. */
+let monumentsSeen = null;
+
+function noteMonumentGrowth() {
+  if (!state || !state.guilds) return;
+  const now = performance.now();
+  const progress = Object.fromEntries(state.guilds.map((g) => [g.id, g.monument.progress]));
+  if (monumentsSeen && monumentsSeen.season === state.seasonId) {
+    for (const guild of state.guilds) {
+      const grown = progress[guild.id] - (monumentsSeen.progress[guild.id] ?? progress[guild.id]);
+      if (grown > 0) monumentPops.push({ guild: guild.id, amount: grown, start: now + Math.random() * MONUMENT_POP.maxDelayMs });
+    }
+    ensurePanelAnimation();
+  }
+  monumentsSeen = { season: state.seasonId, progress };
+}
+
+/** The popups of one guild above its Monument at x, rising from y; `rise` is how far they float up. */
+function drawMonumentPops(guildId, color, x, y, rise, size) {
+  const now = performance.now();
+  for (const pop of monumentPops) {
+    if (pop.guild !== guildId || now < pop.start) continue;
+    const t = (now - pop.start) / MONUMENT_POP.ms;
+    if (t >= 1) continue;
+    ctx.save();
+    ctx.globalAlpha = t < 0.7 ? 1 : 1 - (t - 0.7) / 0.3;
+    const grow = popIn(t / 0.18);
+    ctx.translate(x, y - rise * ease(t * 1.4));
+    ctx.scale(grow, grow);
+    ctx.font = `800 ${size}px ${FONT}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = color;
+    outlinedText(`+${pop.amount}`, 0, 0);
+    ctx.restore();
+  }
+}
+
 /** Picks up mishaps that are new in the state, to animate them one after another. */
 function noteMishaps() {
   const list = (state && state.mishaps) || [];
@@ -565,6 +612,71 @@ function noteMishaps() {
     list.filter((m) => m.id > mishapSeen).forEach((m, i) => mishapEffects.push({ ...m, start: now + i * 600 }));
   }
   mishapSeen = Math.max(mishapSeen ?? 0, newest);
+}
+
+/**
+ * What a recent mishap left on a tile, fading over a few windows: lightning a
+ * burnt patch with cracks running out from where it struck, a fire grey ash
+ * with charred spots and a last few embers. Drawn the same each time (seeded
+ * by the tile), so it does not flicker.
+ */
+function drawTileMark(tile, x, y, size) {
+  const mark = tile.mark;
+  if (!mark) return;
+  const strength = 1 - mark.age * 0.6;
+  const fresh = 1 - mark.age;
+  const seed = tile.q * 31 + tile.r * 17 + 5;
+  ctx.save();
+  hexPath(x, y, size);
+  ctx.clip();
+  if (mark.kind === 'lightning') {
+    const burn = ctx.createRadialGradient(x, y, 0, x, y, size * 0.85);
+    burn.addColorStop(0, `rgba(18, 10, 6, ${0.8 * strength})`);
+    burn.addColorStop(0.55, `rgba(30, 18, 10, ${0.45 * strength})`);
+    burn.addColorStop(1, 'rgba(30, 18, 10, 0)');
+    ctx.fillStyle = burn;
+    ctx.fillRect(x - size, y - size, size * 2, size * 2);
+    // Cracks, each a jagged line out from the middle; a fresh one still glows inside.
+    for (const [color, width] of [[`rgba(12, 7, 4, ${0.9 * strength})`, 0.09], [`rgba(255, 214, 120, ${0.55 * fresh})`, 0.035]]) {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = Math.max(1, size * width);
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      for (let c = 0; c < 4; c++) {
+        let angle = hash01(seed + c) * Math.PI * 2;
+        let px = x;
+        let py = y;
+        ctx.beginPath();
+        ctx.moveTo(px, py);
+        for (let step = 0; step < 3; step++) {
+          angle += (hash01(seed + c * 7 + step) - 0.5) * 1.2;
+          const reach = size * (0.22 + hash01(seed + c * 3 + step * 11) * 0.12);
+          px += Math.cos(angle) * reach;
+          py += Math.sin(angle) * reach;
+          ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+      }
+    }
+  } else {
+    ctx.fillStyle = `rgba(72, 68, 64, ${0.55 * strength})`;
+    ctx.fillRect(x - size, y - size, size * 2, size * 2);
+    for (let i = 0; i < 6; i++) {
+      const angle = hash01(seed + i) * Math.PI * 2;
+      const reach = hash01(seed + i + 40) * size * 0.6;
+      circle(x + Math.cos(angle) * reach, y + Math.sin(angle) * reach, size * (0.12 + hash01(seed + i + 80) * 0.14));
+      ctx.fillStyle = `rgba(22, 18, 16, ${0.6 * strength})`;
+      ctx.fill();
+    }
+    for (let i = 0; i < 4; i++) {
+      const angle = hash01(seed + i + 120) * Math.PI * 2;
+      const reach = hash01(seed + i + 160) * size * 0.65;
+      circle(x + Math.cos(angle) * reach, y + Math.sin(angle) * reach, Math.max(1, size * 0.05));
+      ctx.fillStyle = `rgba(255, 128, 40, ${0.8 * fresh})`;
+      ctx.fill();
+    }
+  }
+  ctx.restore();
 }
 
 /** Small flames licking up from the lower part of a burning tile. */
@@ -681,14 +793,15 @@ let panelAnimating = false;
 let panelDrawnAt = 0;
 
 function panelBlocked() {
-  return Boolean(pachinko || battle || countdown || (announcement && (announcement.map || announcement.lineup || announcement.celebrate)));
+  return Boolean(pachinko || battle || (announcement && (announcement.map || announcement.lineup || announcement.celebrate)));
 }
 
 function panelNeedsAnimation() {
   if (!state || !state.session.active || !state.overlay.map.visible) return false;
   const now = performance.now();
   mishapEffects = mishapEffects.filter((e) => now - e.start < MISHAP_MS);
-  return mishapEffects.length > 0 || state.tiles.some((t) => t.burning);
+  monumentPops = monumentPops.filter((p) => now - p.start < MONUMENT_POP.ms);
+  return mishapEffects.length > 0 || monumentPops.length > 0 || state.tiles.some((t) => t.burning);
 }
 
 function ensurePanelAnimation() {
@@ -724,6 +837,7 @@ function drawGuildRows(x, y, width) {
     const share = Math.min(1, monument.progress / monument.goal);
     // Centred a little left of the column's middle: the banner flies to the right.
     drawMonument(monumentDesign(guild, index), share, x + column * 0.42, top + 94, monumentHeight, guild.color);
+    drawMonumentPops(guild.id, guild.color, x + column * 0.42, top + 40, 34, 24);
 
     const tx = x + column;
     const tw = width - column;
@@ -749,7 +863,7 @@ function drawGuildRows(x, y, width) {
     ctx.textAlign = 'left';
     ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
     ctx.font = `400 16px ${FONT}`;
-    ctx.fillText(tr('overlay.guild.monument', { level: guild.development }), tx, top + 54, tw - 60);
+    ctx.fillText(tr('overlay.guild.monument', { income: guild.monument.income }), tx, top + 54, tw - 60);
     ctx.textAlign = 'right';
     ctx.fillStyle = '#FFFFFF';
     ctx.font = `600 16px ${FONT}`;
@@ -928,6 +1042,7 @@ function drawEventMap(elapsed) {
     ctx.fill();
     ctx.globalAlpha = 1;
     if (!owner && tile.scorched && !changed) drawScorch(x, y, BIG_HEX - 5, 0.55);
+    if (!changed) drawTileMark(tile, x, y, BIG_HEX - 5);
 
     if (changed && change > 0) {
       hexPath(x, y, (BIG_HEX - 4) * change);
@@ -3958,6 +4073,7 @@ function drawMiniMap(cx, cy, size) {
       drawCastle(0, 0);
       ctx.restore();
     }
+    drawTileMark(tile, x, y, size - 1);
     if (tile.burning) drawTileFlames(x, y, size - 1, now, tile.q * 7 + tile.r * 3);
     if (isGodTile(tile)) drawGodTile(tile, x, y, size - 1, Math.round(size * 0.75));
     drawTileLevel(tile, x, y, Math.round(size * 0.95));
@@ -3970,6 +4086,8 @@ function drawBannerGuild(guild, index, x, top, width, height) {
   const share = Math.min(1, monument.progress / monument.goal);
   const column = 78;
   drawMonument(monumentDesign(guild, index), share, x + column * 0.42, top + height - 14, height - 34, guild.color);
+  // Inside the banner: it rises over the Monument but stays within the strip.
+  drawMonumentPops(guild.id, guild.color, x + column * 0.42, top + height * 0.5, height * 0.3, 22);
 
   const tx = x + column;
   const tw = width - column;
@@ -3987,7 +4105,7 @@ function drawBannerGuild(guild, index, x, top, width, height) {
 
   ctx.textAlign = 'left';
   ctx.font = `400 17px ${FONT}`;
-  ctx.fillText(tr('overlay.guild.monument', { level: guild.development }), tx, top + height * 0.56, tw - 64);
+  ctx.fillText(tr('overlay.guild.monument', { income: guild.monument.income }), tx, top + height * 0.56, tw - 64);
   ctx.textAlign = 'right';
   ctx.fillStyle = '#FFFFFF';
   ctx.font = `600 18px ${FONT}`;

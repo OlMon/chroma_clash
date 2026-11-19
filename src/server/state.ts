@@ -119,6 +119,8 @@ export interface GameSnapshot {
     level: number;
     /** A fire burns on the tile. */
     burning: boolean;
+    /** What a recent mishap left on the tile: a scorch mark or ash, and how old (0 new, toward 1 fading); null for none. */
+    mark: { kind: 'lightning' | 'fire'; age: number } | null;
   }[];
   /** The latest lightning strikes, fires and harvests, oldest first; `id` tells new ones from old. */
   mishaps: MishapRecord[];
@@ -178,6 +180,7 @@ export function buildSnapshot(
   const sizes = store.guildSizes();
   const active = store.activeByGuild(now - config.server.activeWindowMs, now);
   const tiles = store.tiles();
+  const marks = store.tileMarks();
   const scale = store.channelScale();
   const lastSeason = store.lastSeason();
   const seasonId = store.currentSeasonId(now);
@@ -317,6 +320,7 @@ export function buildSnapshot(
       scorched: t.scorched === 1,
       level: t.level,
       burning: t.burning > 0,
+      mark: marks.get(t.tile_id) ?? null,
     })),
     mishaps: store.recentMishaps(),
     topChatters: session

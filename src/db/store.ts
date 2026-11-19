@@ -60,6 +60,8 @@ export interface TileRow {
 /** A mishap as the pages show it: what happened, where, and a number to tell new ones from old. */
 export interface MishapRecord extends Mishap {
   id: number;
+  /** The start of the window it happened in; missing in records from before it was kept. */
+  at?: number;
 }
 
 export interface BattleRecord {
@@ -812,11 +814,32 @@ export class Store {
     for (const [id, tile] of changed) update.run(tile.level, tile.burning, id);
     if (events.length > 0) {
       let next = Number(this.getSetting('mishap_seq') ?? 0);
-      const added = events.map((event) => ({ ...event, id: ++next }));
+      const added = events.map((event) => ({ ...event, id: ++next, at: windowStart }));
       this.setSetting('mishap_seq', String(next));
       this.setSetting('mishaps', JSON.stringify([...this.recentMishaps(), ...added].slice(-config.mishaps.remember)));
     }
     return events;
+  }
+
+  /**
+   * The marks mishaps left on tiles, by tile: a scorch mark from lightning,
+   * ash from a fire that burnt out or was put out, for `mishaps.markWindows`
+   * windows. `age` runs from 0 (this window) toward 1 (about to fade). The
+   * newest mark of a tile wins. Counted in the windows the mishaps are rolled
+   * in, so a sped-up simulation keeps up.
+   */
+  tileMarks(): Map<string, { kind: 'lightning' | 'fire'; age: number }> {
+    const marks = new Map<string, { kind: 'lightning' | 'fire'; age: number }>();
+    const latest = Number(this.getSetting('mishap_window') ?? 0);
+    const { markWindows } = config.mishaps;
+    for (const mishap of this.recentMishaps()) {
+      const kind = mishap.kind === 'lightning' ? 'lightning' : mishap.kind === 'burntOut' || mishap.kind === 'doused' ? 'fire' : null;
+      if (!kind || mishap.at === undefined) continue;
+      const windows = Math.round((latest - mishap.at) / config.ticks.windowMs);
+      if (windows < 0 || windows >= markWindows) continue;
+      marks.set(mishap.tile, { kind, age: windows / markWindows });
+    }
+    return marks;
   }
 
   /** The latest mishaps of the season, oldest first. */

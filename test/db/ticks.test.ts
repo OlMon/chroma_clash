@@ -73,8 +73,9 @@ test('one tick per chatter per window: XP, a development point, and Monument gro
       .filter((t) => t.owner_guild_id !== 'red' && t.tile_id !== config.land.center.id)
       .every((t) => t.points === 0 && t.level === 0),
   );
-  // Two windows: the Monument grew twice by the base income, as the land has no level yet.
-  assert.deepEqual(store.monuments(), { red: 2 * config.monument.baseIncome, green: 0, blue: 0 });
+  // Two windows: the Monument grew twice by the base income and the five tiles, which have no level yet.
+  const income = config.monument.baseIncome + 5 * config.monument.perTile;
+  assert.deepEqual(store.monuments(), { red: 2 * income, green: 0, blue: 0 });
   store.close();
 });
 
@@ -86,10 +87,10 @@ test('the Monument grows once per window, however many members chat, by what the
   store.recordMessage(message(T0 + 1, { userId: '43', login: 'bob', displayName: 'Bob' }));
   store.recordMessage(message(T0 + 2, { userId: '44', login: 'cy', displayName: 'Cy' }));
   // The balancing of tiny channels spreads the three over the guilds; only red has developed land.
-  assert.equal(store.monuments().red, 1 + 5 * 3);
-  assert.equal(store.monuments().green, 1);
+  assert.equal(store.monuments().red, 1 + 5 * (1 + 3));
+  assert.equal(store.monuments().green, 1 + 5);
   store.recordMessage(message(T0 + 5 * MIN));
-  assert.equal(store.monuments().red, 2 * (1 + 5 * 3));
+  assert.equal(store.monuments().red, 2 * (1 + 5 * (1 + 3)));
   store.close();
 });
 
@@ -252,4 +253,38 @@ test('activity counts only the activity window, whatever else the ticks table ho
   // The simulator carries on from the latest activity instead of going back in time.
   assert.ok(store.latestActivity()! > now + 29 * 86_400_000);
   store.close();
+});
+
+test('lightning leaves a mark on its tile for a few windows, fading', () => {
+  const { mishaps } = config;
+  const saved = structuredClone(mishaps);
+  // Lightning in every window, and nothing else.
+  mishaps.lightning.chance = 1;
+  mishaps.fire.chance = mishaps.harvest.chance = 0;
+  try {
+    const store = openStore();
+    store.startSession(T0);
+    const tall = redTiles(store)[0]!;
+    store.setTileLevel(tall.tile_id, 8);
+    store.recordMessage(message(T0));
+    const strike = store.recentMishaps().find((m) => m.kind === 'lightning')!;
+    assert.ok(strike, 'lightning struck');
+    assert.equal(strike.at, T0, 'kept with the window it happened in');
+    assert.deepEqual(store.tileMarks().get(strike.tile), { kind: 'lightning', age: 0 });
+
+    // No more lightning: the mark fades over the next windows, then is gone.
+    mishaps.lightning.chance = 0;
+    const { markWindows } = config.mishaps;
+    for (let window = 1; window < markWindows; window++) {
+      store.recordMessage(message(T0 + window * 5 * MIN));
+      assert.deepEqual(store.tileMarks().get(strike.tile), { kind: 'lightning', age: window / markWindows });
+    }
+    store.recordMessage(message(T0 + markWindows * 5 * MIN));
+    assert.equal(store.tileMarks().has(strike.tile), false);
+    store.close();
+  } finally {
+    Object.assign(mishaps.lightning, saved.lightning);
+    Object.assign(mishaps.fire, saved.fire);
+    Object.assign(mishaps.harvest, saved.harvest);
+  }
 });

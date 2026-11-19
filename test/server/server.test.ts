@@ -61,7 +61,8 @@ test('the state has the map with one city and five tiles per guild, and no sessi
   assert.equal(state.session.active, false);
   assert.deepEqual(state.guilds.map((g) => g.id), ['red', 'green', 'blue']);
   const { design, ...monument } = state.guilds[0]!.monument;
-  assert.deepEqual(monument, { progress: 0, goal: 6000, income: 1 });
+  // The base income and one for each of the five tiles, all still at level 0.
+  assert.deepEqual(monument, { progress: 0, goal: 6000, income: 1 + 5 });
   assert.ok([0, 1, 2].includes(design));
   assert.deepEqual(state.guilds.map((g) => g.monument.design).sort(), [0, 1, 2], 'a different design for each guild');
   assert.equal(state.seasonStart, 'equal');

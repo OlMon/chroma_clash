@@ -234,12 +234,21 @@ export function generateScenes(outDir: string, lang = 'en'): Scene[] {
   // Panels: the map and the season stats.
   page('panels', { messages: [stateMessage], moments: [0] });
 
-  // Mishaps on the map: two burning tiles, a lightning strike, a harvest, a fire put out.
+  // Mishaps on the map: two burning tiles, a lightning strike, a harvest, a fire put out,
+  // marks left by earlier ones (scorch marks from lightning, ash from fires, one fading),
+  // and a Monument growing.
   const burning = new Set(['1,0', '-2,1']);
+  const marks: Record<string, { kind: 'lightning' | 'fire'; age: number }> = {
+    '2,-1': { kind: 'lightning', age: 0 },
+    '-1,0': { kind: 'lightning', age: 0.67 },
+    '-1,-1': { kind: 'fire', age: 0 },
+    '1,1': { kind: 'fire', age: 0.33 },
+  };
   page('mishaps', {
-    messages: [{ type: 'state', state: { ...state, tiles: state.tiles.map((t) => ({ ...t, burning: burning.has(t.id) })) } }],
+    messages: [{ type: 'state', state: { ...state, tiles: state.tiles.map((t) => ({ ...t, burning: burning.has(t.id), mark: marks[t.id] ?? null })) } }],
     moments: [0],
     tweak: `if (state && !window.__mishaps) { window.__mishaps = 1; const now = performance.now();
+      monumentPops.push({ guild: 'red', amount: 27, start: now - 500 }, { guild: 'blue', amount: 14, start: now - 1200 });
       mishapEffects.push({ id: 5, kind: 'lightning', tile: '2,-1', from: 6, to: 4, start: now - 90 },
         { id: 6, kind: 'harvest', tile: '0,2', from: 2, to: 3, start: now - 700 },
         { id: 7, kind: 'doused', tile: '-1,-1', from: 3, to: 3, start: now - 900 }); }`,

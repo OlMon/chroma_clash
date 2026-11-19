@@ -218,9 +218,13 @@ export function isCenter(tileIdValue: string): boolean {
   return tileIdValue === config.land.center.id;
 }
 
-/** How much a guild's Monument grows in one window, from the levels of the tiles it holds. */
+/**
+ * How much a guild's Monument grows in one window, from the tiles it holds
+ * (their levels): every tile yields `perTile` and its level on top.
+ */
 export function monumentIncome(tileLevels: readonly number[]): number {
-  return config.monument.baseIncome + tileLevels.reduce((sum, level) => sum + level, 0);
+  const { baseIncome, perTile } = config.monument;
+  return baseIncome + tileLevels.reduce((sum, level) => sum + perTile + level, 0);
 }
 
 /** The level a tile keeps when it is captured or scorched. */

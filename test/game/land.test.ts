@@ -100,10 +100,12 @@ test('a guild develops its least developed tile first, so its land grows evenly'
   assert.equal(developTarget([]), null);
 });
 
-test('the Monument grows by the levels of the land, plus a little for a guild with nothing', () => {
+test('the Monument grows by every tile held, its level on top, plus a little for a guild with nothing', () => {
   assert.equal(monumentIncome([]), 1);
-  assert.equal(monumentIncome([0, 0, 0]), 1);
-  assert.equal(monumentIncome([3, 4, 5]), 13);
+  // Land at level 0 still yields: five empty tiles are worth more than one at level 1.
+  assert.equal(monumentIncome([0, 0, 0]), 4);
+  assert.ok(monumentIncome([0, 0, 0, 0, 0]) > monumentIncome([1]));
+  assert.equal(monumentIncome([3, 4, 5]), 16);
 });
 
 test('developed land defends better, and loses half its level when taken', () => {

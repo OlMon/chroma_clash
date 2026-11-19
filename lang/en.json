@@ -198,7 +198,7 @@
     "other": "{count} active"
   },
   "overlay.guild.xpBoost": "XP boost",
-  "overlay.guild.monument": "Monument · land level {level}",
+  "overlay.guild.monument": "Monument · grows +{income}",
   "overlay.countdown.joined": {
     "one": "{count} chatter is in",
     "other": "{count} chatters are in"

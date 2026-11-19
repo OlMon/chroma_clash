@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { after, test } from 'node:test';
 import { config } from '../../src/config.ts';
 import { Store } from '../../src/db/store.ts';
-import { startingLand } from '../../src/game/land.ts';
+import { monumentIncome, startingLand } from '../../src/game/land.ts';
 import type { ChatMessageEvent } from '../../src/irc/events.ts';
 import { applyTuning, setTuning, tuningValues } from '../../src/server/tuning.ts';
 
@@ -261,7 +261,9 @@ test('the center is the god\'s tile: held for 30 minutes of stream time, then ta
   // While held it feeds red's Monument like a level 5 tile, and it is never developed.
   const before = store.monuments().red;
   store.recordMessage(message(T0 + WINDOW, '1', '#FF0000'));
-  assert.equal(store.monuments().red - before, 1 + level);
+  const levels = store.tiles().filter((t) => t.owner_guild_id === 'red' && t.is_city === 0).map((t) => t.level);
+  assert.equal(store.monuments().red - before, monumentIncome(levels));
+  assert.ok(levels.includes(level), 'the center counts with its fixed level');
   assert.equal(store.tiles().find((t) => t.tile_id === id)!.points, 0);
   assert.equal(store.center().windowsLeft, holdWindows - 1);
 
@@ -328,7 +330,8 @@ test('the history keeps what a season looked like when it ended', () => {
   assert.deepEqual(summary.champion, { displayName: 'bob', wins: 2 });
   assert.equal(summary.players, 2);
   assert.equal(summary.monumentGoal, config.monument.goal);
-  assert.equal(summary.guilds.blue.monument, 3001, '3000 given, 1 from its window');
+  // 3000 given, and its window's income from five tiles at level 0.
+  assert.equal(summary.guilds.blue.monument, 3000 + monumentIncome([0, 0, 0, 0, 0]));
   assert.deepEqual(
     [summary.guilds.red.tiles, summary.guilds.red.development, summary.guilds.red.members],
     [5, 15, 1],
