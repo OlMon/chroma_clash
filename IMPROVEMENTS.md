@@ -10,7 +10,7 @@ that pass should measure.
 
 1. **The balancing pass (M).** Run it with the simulator (`src/cli/simulate.ts`) for 12, 60 and 200 chatters, and set targets first, then numbers:
    - **Season length.** In a 4-hour simulation the Monuments reached only 4 to 7% of the goal (then 6,000; now 60,000, as Monument points are counted in tens). At that pace a season takes 60 or more hours of stream. Pick a target, for example 8 to 12 stream hours. Then tune `monument.goal`, `land.costPerLevel` and the fertility range together.
-   - **Monument pace.** Every held tile now yields 1 on top of its level (before, land at level 0 yielded nothing), so Monuments grow a little faster than when the goal was set; check the season length.
+   - **Monument pace.** Every held tile now yields 10 on top of 10 per level (before, land at level 0 yielded nothing), so Monuments grow a little faster than when the goal was set; check the season length.
    - **Mishaps against growth.** With levels still low, lightning (about 10 strikes in 4 hours) takes back a large part of what chat builds. Consider scaling the chances with the total land level, or starting lightning only above level 3.
    - **Done (November 2026): fight length and god strength.** Every kind of fight lasts 60 to 90 seconds (medians 62 to 82), Pachinko 75, and the god wins about half its fights at every chat size (`node src/cli/fight-durations.ts`).
    - **Still open:** god strength per skill (the factors date from before Vortex was reworked), **class numbers**, **obstacle damage**, and **Pachinko slot values**.
@@ -21,18 +21,18 @@ that pass should measure.
 6. **Obstacles with god skills (S).** Shockwave sends fighters into bumpers, and Rampage breaks walls. Most of this already works through the physics; check it and add the wall break.
 7. **A season recap (M).** When a season ends: the winning Monument, top killer, highest level, best Pachinko run and the god's record, shown on the overlay one after another, and kept in History.
 8. **Small-chat modes (M).** With 3 to 8 chatters, Wars and Guild Clash are thin. Let the god's minions or "militia" fill empty places, so a small channel gets full battles.
-9. **Bots out by default (S).** Pre-fill the exclusion list with common bots (Nightbot, StreamElements, Streamlabs, Moobot, Fossabot), so they never join a guild.
+9. **Bots out by default (S). Done.** Nightbot, StreamElements, Streamlabs, Moobot, Fossabot and WizeBot never take part (`config.botNames`); the streamer can exclude anyone else in Settings.
 
 ## Visuals
 
-1. **Sound (M).** Nothing on screen makes a sound yet, but sound carries a large share of a streaming game's energy. Add short effects for skill casts, lightning, a bumper, the Pachinko jackpot and a season win. Give them a volume setting and a mute switch; OBS browser sources can play audio.
+1. **Sound (M). Not now.** The streamer decided against sound for the time being (November 2026); maybe later. Ideas kept for then: short effects for skill casts, lightning, a bumper, the Pachinko jackpot and a season win, with a volume setting and a mute switch (OBS browser sources can play audio).
 2. **Finish the comic theme's own art (M).**
    - **Effects:** "POW" and "KRAK" bursts on heavy hits and kills. Inked outlines on obstacles, monuments and mage circles. A hard-edged celebration with flat rays instead of soft gradients.
    - **Halftone:** heavier shading on the dark side of shapes.
 3. **Pixel sprites for the new elements (S).** Pixel-style obstacles, pixel flames for burning tiles, and a pixel Pachinko board. Today these are drawn the plain way and only pixelated.
 4. **Readable crowds (M).** Above about 60 fighters, names overlap. Show names only for heroes, the crown and the god's current target, and fade the rest in on hits.
 5. **Transitions (S).** The panels vanish at the start of a battle and pop back after it. Slide them out and in, and fade the arena in.
-6. **Pachinko polish (S).** Pins light up when hit, balls leave a short trail, and the jackpot gets confetti. When all balls are in, the winning board's total counts up.
+6. **Pachinko polish (S).** Done: a jackpot bursts into sparks, the winner is celebrated (marquee lights, crown, confetti), and each board lists its players with their points and emotes. Left: pins light up when hit, balls leave a short trail, and the winning board's total counts up.
 7. **Show the land's nature (S).** Let fertile tiles look lush and barren ones dry, with a small grass or stone texture. Then fertility is something viewers can see.
 8. **A kill feed and damage numbers (S).** A small corner list ("Archer TinyMoth4 felled SaltyOtter23") and floating numbers on big hits. Both can be switched off.
 
