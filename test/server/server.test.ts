@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { dirname, join } from 'node:path';
 import { after, before, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { config } from '../../src/config.ts';
 import { Store } from '../../src/db/store.ts';
 import { hexDistance, hexNeighbors, mapTiles } from '../../src/game/hex.ts';
 import { startGameServer, type GameServer } from '../../src/server/server.ts';
@@ -62,7 +63,7 @@ test('the state has the map with one city and five tiles per guild, and no sessi
   assert.deepEqual(state.guilds.map((g) => g.id), ['red', 'green', 'blue']);
   const { design, ...monument } = state.guilds[0]!.monument;
   // The base income and 10 for each of the five tiles, all still at level 0.
-  assert.deepEqual(monument, { progress: 0, goal: 60_000, income: 10 + 5 * 10 });
+  assert.deepEqual(monument, { progress: 0, goal: config.season.expectedPerHour * config.season.hours, income: 10 + 5 * 10 });
   assert.ok([0, 1, 2].includes(design));
   assert.deepEqual(state.guilds.map((g) => g.monument.design).sort(), [0, 1, 2], 'a different design for each guild');
   assert.equal(state.seasonStart, 'equal');

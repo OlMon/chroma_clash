@@ -39,12 +39,12 @@ const TUNABLES: Tunable[] = [
     set: (v) => (config.land.costPerLevel = v),
   },
   {
-    key: 'monument.goal',
+    key: 'season.hours',
     group: 'land',
-    min: 500,
-    max: 10_000_000,
-    get: () => config.monument.goal,
-    set: (v) => (config.monument.goal = v),
+    min: 1,
+    max: 100,
+    get: () => config.season.hours,
+    set: (v) => (config.season.hours = v),
   },
   {
     key: 'god.winsToWinSeason',
@@ -131,13 +131,17 @@ function readOverrides(store: Store): Record<string, number> {
   }
 }
 
-/** Puts the stored overrides into the running config. Call once at startup. */
+/**
+ * Puts the stored overrides into the running config. Call once at startup.
+ * A season length that differs from the running season's works its goal out anew.
+ */
 export function applyTuning(store: Store): void {
   const overrides = readOverrides(store);
   for (const tunable of TUNABLES) {
     const value = overrides[tunable.key];
     tunable.set(typeof value === 'number' && Number.isFinite(value) ? value : DEFAULTS.get(tunable.key)!);
   }
+  store.retargetSeason(config.season.hours);
 }
 
 /** The editable values as the control panel shows them, section by section. */

@@ -44,10 +44,10 @@ console.log(
 const sizes = store.guildSizes();
 const monuments = store.monuments();
 for (const guild of config.guilds.list) {
-  const share = ((monuments[guild.id] / config.monument.goal) * 100).toFixed(1);
+  const share = ((monuments[guild.id] / store.monumentGoal()) * 100).toFixed(1);
   console.log(
     `${guild.name.padEnd(6)} ${String(sizes[guild.id]).padStart(3)} members, ${store.ownedTiles(guild.id)} tiles, ` +
-      `development ${store.development(guild.id)}, Monument ${Math.round(monuments[guild.id])} of ${config.monument.goal} (${share}%)`,
+      `development ${store.development(guild.id)}, Monument ${Math.round(monuments[guild.id])} of ${store.monumentGoal()} (${share}%)`,
   );
 }
 

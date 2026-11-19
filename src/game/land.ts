@@ -130,13 +130,15 @@ function pickWeighted<T>(items: readonly T[], weight: (item: T) => number, rng: 
 /**
  * One window's mishaps. `activeBefore` counts each guild's members who were
  * active in the window before: enough of them put out a fire on their land.
- * Returns the tiles that changed (their new level and fire) and what happened,
- * in order. The tiles given are not changed.
+ * `strength` (0 to 1) scales the chances of new lightning and fires; see
+ * `config.mishaps.ramp`. Returns the tiles that changed (their new level and
+ * fire) and what happened, in order. The tiles given are not changed.
  */
 export function rollMishaps(
   tiles: readonly MishapTile[],
   activeBefore: Partial<Record<GuildId, number>>,
   rng: Rng,
+  strength = 1,
 ): { changed: Map<string, { level: number; burning: number }>; events: Mishap[] } {
   const { lightning, fire, harvest } = config.mishaps;
   const state = new Map(tiles.map((t) => [t.id, { ...t }]));
@@ -180,7 +182,7 @@ export function rollMishaps(
   }
 
   // A new fire, on a developed tile that is not burning yet; higher tiles catch fire more easily.
-  if (rng() < fire.chance) {
+  if (rng() < fire.chance * strength) {
     const target = pickWeighted(land().filter((t) => t.burning === 0 && t.level > 0), (t) => t.level, rng);
     if (target) {
       const from = target.level;
@@ -190,7 +192,7 @@ export function rollMishaps(
   }
 
   // Lightning seeks the tallest structures.
-  if (rng() < lightning.chance) {
+  if (rng() < lightning.chance * strength) {
     const target = pickWeighted(land().filter((t) => t.level > 0), (t) => t.level * t.level, rng);
     if (target) {
       const from = target.level;

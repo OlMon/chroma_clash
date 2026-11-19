@@ -139,6 +139,15 @@ export const config = {
    * - A harvest raises a random tile by one level with `chance`.
    */
   mishaps: {
+    /**
+     * Lightning and fire start rare and grow with the season, so a young
+     * season's land is not taken back as fast as it grows: their chances are
+     * multiplied by `startStrength` at the start, rising to full strength
+     * after `fullAfterHours` of the season's stream time. (By stream time,
+     * not by Monument progress: then the land settles at the same time in a
+     * short season as in a long one, before the goal stops adapting.)
+     */
+    ramp: { startStrength: 0.3, fullAfterHours: 2 },
     lightning: { chance: 0.14, levels: 1, extraChance: 0.35 },
     fire: { chance: 0.1, douse: 2, spreadChance: 0.3, maxWindows: 3 },
     harvest: { chance: 0.07 },
@@ -156,17 +165,41 @@ export const config = {
    * tile it holds (its city aside), plus `perLevel` for each level of those
    * tiles: an owned tile always yields something, even at level 0. A
    * development point with no tile left to go to adds `perPoint`. The first
-   * guild to reach `goal` wins the season. The numbers are in tens so that a
-   * window's gain splits into many small pops on the overlay.
+   * guild to reach the season's goal (see `season`) wins the season. The
+   * numbers are in tens so that a window's gain splits into many small pops
+   * on the overlay.
    */
   monument: {
-    goal: 60_000,
     baseIncome: 10,
     perTile: 10,
     perLevel: 10,
     perPoint: 10,
     /** When the god wins the first Streamer vs Chat of a session, every Monument loses this share. */
     setback: 0.15,
+  },
+  /**
+   * How long a season lasts: the streamer's one balance setting. The
+   * Monument goal is worked out from `hours` of stream time (time with the
+   * background layer on and chat writing; time between streams does not
+   * count):
+   * - Before anything is measured, the goal is `expectedPerHour * hours`:
+   *   what the leading Monument grows in an hour of stream, measured with
+   *   `node src/cli/season-pace.ts` (about the same for 12 or 200 chatters,
+   *   as costs follow the channel size).
+   * - For the first `adaptShare` of the season (at most `adaptHours`), the
+   *   goal moves toward what the chat's own pace projects, measured over the
+   *   last `paceWindows` windows; then it stays put, so a Monument's share
+   *   never jumps back later.
+   */
+  season: {
+    hours: 10,
+    expectedPerHour: 2_000,
+    adaptShare: 0.3,
+    adaptHours: 6,
+    paceWindows: 12,
+    /** Goals are rounded to this, and never set below `minGoal`. */
+    roundTo: 100,
+    minGoal: 500,
   },
   /**
    * How long fights last. Every kind of fight should take 60 to 90 seconds:

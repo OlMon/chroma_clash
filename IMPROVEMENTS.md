@@ -9,9 +9,7 @@ that pass should measure.
 ## Gameplay
 
 1. **The balancing pass (M).** Run it with the simulator (`src/cli/simulate.ts`) for 12, 60 and 200 chatters, and set targets first, then numbers:
-   - **Season length.** In a 4-hour simulation the Monuments reached only 4 to 7% of the goal (then 6,000; now 60,000, as Monument points are counted in tens). At that pace a season takes 60 or more hours of stream. Pick a target, for example 8 to 12 stream hours. Then tune `monument.goal`, `land.costPerLevel` and the fertility range together.
-   - **Monument pace.** Every held tile now yields 10 on top of 10 per level (before, land at level 0 yielded nothing), so Monuments grow a little faster than when the goal was set; check the season length.
-   - **Mishaps against growth.** With levels still low, lightning (about 10 strikes in 4 hours) takes back a large part of what chat builds. Consider scaling the chances with the total land level, or starting lightning only above level 3.
+   - **Done (November 2026): season length.** The streamer sets one thing, the season length in stream hours (default 10). The Monument goal is derived from it, adapts to the chat's pace for the first 30% of the season, then locks; the control panel forecasts the end. Lightning and fire ramp up over the first 2 stream hours. Seasons set to 10 hours end after 9 to 11 hours at 12 to 200 chatters (`node src/cli/season-pace.ts`). Further balance settings were decided against: the game should be click and forget.
    - **Done (November 2026): fight length and god strength.** Every kind of fight lasts 60 to 90 seconds (medians 62 to 82), Pachinko 75, and the god wins about half its fights at every chat size (`node src/cli/fight-durations.ts`).
    - **Still open:** god strength per skill (the factors date from before Vortex was reworked), **class numbers**, **obstacle damage**, and **Pachinko slot values**.
 2. **Make uneven land matter in Wars (S).** A captured tile keeps half its level, so a guild's level-8 tile is now a prize. Let an attacker go for the defender's highest-level border tile instead of the current choice. Show the stake on the War map ("Red attacks Blue's level 8").

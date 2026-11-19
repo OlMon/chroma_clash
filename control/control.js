@@ -142,6 +142,26 @@ function renderGuilds() {
   }
 }
 
+/** How far the season is, in stream hours, and when it should end at the chat's pace. */
+function paceText() {
+  const pace = state.pace;
+  const guild = state.guilds.find((g) => g.id === pace.leader);
+  const values = {
+    played: number(pace.played, 1),
+    hours: number(pace.hours, 0),
+    goal: pace.goal.toLocaleString(I18n.language),
+    until: number(pace.adaptUntil, Number.isInteger(pace.adaptUntil) ? 0 : 1),
+    guild: guild ? guild.name : '',
+    remaining: pace.remaining === null ? '' : number(Math.max(1, Math.round(pace.remaining)), 0),
+  };
+  const parts = [tr('control.pace.played', values)];
+  if (pace.adapting) parts.push(tr('control.pace.adapting', values));
+  if (guild && pace.remaining !== null) {
+    parts.push(tr(pace.remaining < 1.5 ? 'control.pace.soon' : 'control.pace.forecast', values));
+  }
+  return parts.join(' ');
+}
+
 function renderTop() {
   const body = $('top').querySelector('tbody');
   body.replaceChildren();
@@ -456,7 +476,8 @@ function render(next) {
         winner: state.lastSeason.winner === 'god' ? state.god.name : guildNames[state.lastSeason.winner] || tr('control.nobody'),
       })
     : '';
-  $('season-status').textContent = [tr('control.season.running', { season: state.seasonId }), last, tr('control.season.rules')]
+  $('season-pace').textContent = paceText();
+  $('season-status').textContent = [tr('control.season.running', { season: state.seasonId }), paceText(), last, tr('control.season.rules')]
     .filter(Boolean)
     .join(' ');
   const start = $('season-start');

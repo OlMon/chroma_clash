@@ -1,6 +1,7 @@
 import { config, type GuildId, type SeasonStart, type SkillId, type StatId } from '../config.ts';
 import type { GodRecord, MishapRecord, SeasonWinner, Store } from '../db/store.ts';
 import { monumentIncome } from '../game/land.ts';
+import type { SeasonForecast } from '../game/season.ts';
 import { activeTheme, type ThemeInfo } from './themes.ts';
 import { guildName, languageList, languageOf, translator } from '../i18n.ts';
 import { tuningValues, type TuningValue } from './tuning.ts';
@@ -70,6 +71,8 @@ export interface GameSnapshot {
   /** Battles get walls, bumpers, barrels and traps now and then. */
   obstacles: boolean;
   channelSize: { measured: number | null; manual: number | null; scale: number };
+  /** The season's length, its goal and when it should end at the measured pace. */
+  pace: SeasonForecast;
   /** The running session's Hero Clash champion. */
   champion: { displayName: string; guild: GuildId } | null;
   god: GodRecord & {
@@ -203,7 +206,8 @@ export function buildSnapshot(
     .sort((a, b) => b.progress - a.progress);
   const leader = race[0]!;
   const leadTied = race.filter((entry) => entry.progress === leader.progress).length > 1;
-  const percent = (progress: number): number => Math.min(100, Math.floor((progress / config.monument.goal) * 100));
+  const goal = store.monumentGoal();
+  const percent = (progress: number): number => Math.min(100, Math.floor((progress / goal) * 100));
   const topKiller = store.seasonTopKiller();
   const topLevel = store.seasonTopLevel();
   const line = (label: string, value: string, color: string | null = null) => ({ label, value, color });
@@ -295,6 +299,7 @@ export function buildSnapshot(
     warCommand: store.getSetting('war_command') === '1',
     obstacles: store.getSetting('obstacles') !== '0',
     channelSize: { measured: store.measuredChatters(), manual: store.manualChatters(), scale },
+    pace: store.seasonForecast(),
     guilds: config.guilds.list.map((guild) => {
       const own = tiles.filter((t) => t.owner_guild_id === guild.id && !t.is_city);
       return {
@@ -309,7 +314,7 @@ export function buildSnapshot(
         ticks: ticks[guild.id],
         monument: {
           progress: Math.round(monuments[guild.id]),
-          goal: config.monument.goal,
+          goal,
           income: monumentIncome(own.map((t) => t.level)),
           design: designs[guild.id],
         },

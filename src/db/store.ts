@@ -17,6 +17,7 @@ import {
 } from '../game/land.ts';
 import { createRng, hashString, type Rng } from '../util/rng.ts';
 import { THIRD_PARTY_SOURCES, type ThirdPartySource } from '../emotes/sources.ts';
+import { countWindow, forecast, freshPace, mishapStrength, retarget, type SeasonForecast, type SeasonPace } from '../game/season.ts';
 import { scaleFor } from '../game/scaling.ts';
 import { levelForXp, tickXp, windowStartOf } from '../game/ticks.ts';
 import type { ChatMessageEvent } from '../irc/events.ts';
@@ -305,7 +306,7 @@ export class Store {
       topKiller: this.seasonTopKiller(),
       champion: champion ? { ...champion } : null,
       players: this.seasonPlayers(),
-      monumentGoal: config.monument.goal,
+      monumentGoal: this.monumentGoal(),
       guilds,
     };
   }
@@ -438,6 +439,7 @@ export class Store {
       this.db.exec(`
         UPDATE tiles SET owner_guild_id = NULL, scorched = 0, level = 0, points = 0, burning = 0 WHERE is_city = 0;
         DELETE FROM settings WHERE key = 'mishaps';
+        DELETE FROM settings WHERE key = 'season_pace';
         DELETE FROM guild_windows;
         UPDATE guilds SET monument = 0, xp_boost_until = NULL;
         UPDATE users SET xp = 0, level = 0, season_kills = 0, guild_id = NULL;
@@ -811,7 +813,7 @@ export class Store {
       developable: t.is_city === 0 && !isCenter(t.tile_id),
     }));
     const rng = createRng(hashString(`mishaps:${seasonId}:${windowStart}`));
-    const { changed, events } = rollMishaps(tiles, activeBefore, rng);
+    const { changed, events } = rollMishaps(tiles, activeBefore, rng, mishapStrength(this.seasonPace()));
     const update = this.db.prepare('UPDATE tiles SET level = ?, burning = ?, points = 0 WHERE tile_id = ?');
     for (const [id, tile] of changed) update.run(tile.level, tile.burning, id);
     if (events.length > 0) {
@@ -875,6 +877,49 @@ export class Store {
     if (!target) return null;
     this.db.prepare('UPDATE tiles SET level = level + 1 WHERE tile_id = ?').run(target.id);
     return target.id;
+  }
+
+  // --- Season pace -----------------------------------------------------------
+
+  /** The running season's pace record (see `src/game/season.ts`), started afresh for a new season. */
+  seasonPace(): SeasonPace {
+    const seasonId = this.currentSeasonId(Date.now());
+    try {
+      const stored = JSON.parse(this.getSetting('season_pace') ?? 'null') as SeasonPace | null;
+      if (stored && stored.seasonId === seasonId && Array.isArray(stored.history)) return stored;
+    } catch {
+      // A broken record starts over.
+    }
+    return freshPace(seasonId);
+  }
+
+  private saveSeasonPace(pace: SeasonPace): void {
+    this.setSetting('season_pace', JSON.stringify(pace));
+  }
+
+  /** The Monument progress that wins the running season. */
+  monumentGoal(): number {
+    return this.seasonPace().goal;
+  }
+
+  /** Counts a window of stream time for the season's pace, once per window, on its first tick. */
+  private countSeasonWindow(windowStart: number, seasonId: number): void {
+    const pace = this.seasonPace();
+    const current = pace.seasonId === seasonId ? pace : freshPace(seasonId);
+    const next = countWindow(current, windowStart, this.monuments());
+    if (next !== current) this.saveSeasonPace(next);
+  }
+
+  /** The streamer set a new season length: the goal is worked out again for it. */
+  retargetSeason(hours: number): void {
+    const pace = this.seasonPace();
+    if (pace.hours === hours) return;
+    this.saveSeasonPace(retarget(pace, hours, this.monuments()));
+  }
+
+  /** When the running season will end at the measured pace. */
+  seasonForecast(): SeasonForecast {
+    return forecast(this.seasonPace(), this.monuments());
   }
 
   /** Each guild's Monument progress. */
@@ -1263,6 +1308,7 @@ export class Store {
         .run(xp, levelForXp(xp), user.user_id);
       if (this.measuredWindows() < config.scaling.warmupWindows) this.refreshChannelSize(event.sentAt);
       const seasonId = this.currentSeasonId(event.sentAt);
+      this.countSeasonWindow(windowStartOf(event.sentAt), seasonId);
       this.windowMishaps(windowStartOf(event.sentAt), seasonId);
       this.develop(user.guild_id, user.user_id, hashString(`tick:${user.user_id}:${event.sentAt}`) / 0x1_0000_0000, seasonId);
       const centerReclaimed = this.countCenterWindow(windowStartOf(event.sentAt));
@@ -1280,7 +1326,7 @@ export class Store {
       this.ticksAwarded[user.guild_id]++;
 
       // A finished Monument wins the season at once; the chatter is then assigned anew.
-      if (this.monuments()[user.guild_id] >= config.monument.goal) {
+      if (this.monuments()[user.guild_id] >= this.monumentGoal()) {
         const winner = user.guild_id;
         this.endSeason(event.sentAt, (event.sentAt % 1000) / 1000, winner);
         return { user: this.upsertUser(event)!, tickAwarded: true, seasonWonBy: winner };

@@ -75,10 +75,10 @@ test('ties go to the guild with more tiles, then to the seed', () => {
 test('a finished Monument wins the season at once', () => {
   const store = openStore();
   store.recordMessage(message(T0, '1', '#FF0000'));
-  store.addMonument('red', config.monument.goal - 5);
+  store.addMonument('red', store.monumentGoal() - 5);
   assert.equal(store.currentSeasonId(T0), 1);
 
-  // The next window's income takes red over the goal.
+  // The next window's income takes red over the goal (which only keeps ahead of red as it stands).
   for (const tile of store.tiles().filter((t) => t.owner_guild_id === 'red')) store.setTileLevel(tile.tile_id, 2);
   const result = store.recordMessage(message(T0 + WINDOW, '1', '#FF0000'))!;
   assert.equal(result.seasonWonBy, 'red');
@@ -171,7 +171,7 @@ test('tuning values can be changed, are kept in the database, and can be reset',
   const store = openStore();
   after(() => {
     // The config is shared by all tests in this process: put the defaults back.
-    for (const key of ['ticks.xpPerTick', 'battle.durationMs', 'monument.goal']) setTuning(store, key, null);
+    for (const key of ['ticks.xpPerTick', 'battle.durationMs', 'season.hours']) setTuning(store, key, null);
     store.close();
   });
 
@@ -184,8 +184,9 @@ test('tuning values can be changed, are kept in the database, and can be reset',
   const shown = tuningValues().find((t) => t.key === 'battle.durationMs')!;
   assert.deepEqual([shown.value, shown.default], [75, 90]);
 
-  setTuning(store, 'monument.goal', 500);
-  assert.equal(config.monument.goal, 500, 'a shorter season');
+  setTuning(store, 'season.hours', 5);
+  assert.equal(config.season.hours, 5);
+  assert.equal(store.monumentGoal(), 5 * config.season.expectedPerHour, 'a shorter season, a smaller Monument');
   assert.deepEqual(
     [...new Set(tuningValues().map((t) => t.group))],
     ['Experience', 'Land and Monument', 'Battles', 'Countdown fights'],
@@ -329,7 +330,7 @@ test('the history keeps what a season looked like when it ended', () => {
   assert.deepEqual(summary.topKiller, { displayName: 'bob', kills: 7 });
   assert.deepEqual(summary.champion, { displayName: 'bob', wins: 2 });
   assert.equal(summary.players, 2);
-  assert.equal(summary.monumentGoal, config.monument.goal);
+  assert.equal(summary.monumentGoal, config.season.expectedPerHour * config.season.hours, 'the goal before any pace is measured');
   // 3000 given, and its window's income from five tiles at level 0.
   assert.equal(summary.guilds.blue.monument, 3000 + monumentIncome([0, 0, 0, 0, 0]));
   assert.deepEqual(
@@ -349,7 +350,7 @@ test('the history keeps what a season looked like when it ended', () => {
   store.endSeason(T0 + 5 * WINDOW, 0, 'god');
   assert.equal(store.seasonHistory()[0]!.summary!.endedBy, 'god');
   store.recordMessage(message(T0 + 6 * WINDOW, '1', '#FF0000', 'alice'));
-  store.addMonument('red', config.monument.goal);
+  store.addMonument('red', store.monumentGoal());
   assert.equal(store.recordMessage(message(T0 + 7 * WINDOW, '1', '#FF0000', 'alice'))!.seasonWonBy, 'red');
   assert.equal(store.seasonHistory()[0]!.summary!.endedBy, 'monument');
   store.close();
@@ -393,5 +394,17 @@ test('display settings: everything on by default, each switch stored on its own'
     randomEmotes: true,
     emoteSources: { bttv: true, ffz: false, '7tv': false },
   });
+  store.close();
+});
+
+test('a season counts its windows of stream time, and the next season starts its pace afresh', () => {
+  const store = openStore();
+  for (let w = 0; w < 5; w++) store.recordMessage(message(T0 + w * WINDOW, '1', '#FF0000'));
+  store.recordMessage(message(T0 + 4 * WINDOW + 1000, '2', '#0000FF'));
+  assert.equal(store.seasonPace().windows, 5, 'a window counts once, however many write in it');
+  assert.equal(store.seasonForecast().played, 5 / 12);
+  store.endSeason(T0 + 5 * WINDOW, 0);
+  assert.equal(store.seasonPace().windows, 0);
+  assert.equal(store.monumentGoal(), config.season.expectedPerHour * config.season.hours);
   store.close();
 });

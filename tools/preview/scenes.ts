@@ -125,7 +125,7 @@ function seasonState(lang: string) {
   const guild = (id: string, color: string, progress: number, design: number, tileCount: number, dev: number) => ({
     id, name: guildName(lang, id), color, xpBoost: id === 'blue', members: 18, active: 14, tiles: tileCount, development: dev,
     // As the server works it out: the base income, and per tile its share plus its levels.
-    monument: { progress: progress * 10, goal: config.monument.goal, design,
+    monument: { progress: progress * 10, goal: config.season.expectedPerHour * config.season.hours, design,
       income: config.monument.baseIncome + tileCount * config.monument.perTile + dev * config.monument.perLevel },
     ticks: 0,
   });
