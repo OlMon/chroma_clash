@@ -453,3 +453,20 @@ test('Pachinko: drawn like a Guild Clash, played on one board per guild, and the
     Object.assign(config.pachinko, saved);
   }
 });
+
+test('every message during a countdown counts, also from chatters who already earned this window\'s tick', async () => {
+  const { socket, until } = listen();
+  // Three chatters write before the countdown: they get their one tick of this 5-minute window.
+  const early = (['red', 'green', 'blue'] as const).map((guild) => message(guild, T0 + 60_000));
+  for (const event of early) assert.equal(store.recordMessage(event)!.tickAwarded, true);
+  await post('/api/draft/start', { mode: 'pachinko' });
+  // During the countdown, in the same window, they write again: no tick, but they join.
+  for (const event of early) {
+    const again = { ...event, sentAt: T0 + 61_000 };
+    assert.equal(store.recordMessage(again)!.tickAwarded, false, 'one tick per window');
+    server.onChat(again);
+  }
+  await until((m) => m.type === 'countdown' && m.joined === 3, 'all three joined');
+  await post('/api/battle/stop', {});
+  socket.close();
+});
