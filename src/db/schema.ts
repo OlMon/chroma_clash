@@ -204,6 +204,15 @@ const MIGRATIONS: string[] = [
   INSERT INTO session_ticks (session_id, user_id, ticks)
     SELECT session_id, user_id, COUNT(*) FROM ticks GROUP BY session_id, user_id;
   `,
+  `
+  -- Monument points are ten times what they were (goal 60,000), so a window's
+  -- gain splits into many small numbers on the overlay. A running season keeps
+  -- its share; a goal set in the control panel is converted too. Finished
+  -- seasons keep their numbers with the goal they had.
+  UPDATE guilds SET monument = monument * 10;
+  UPDATE settings SET value = json_set(value, '$."monument.goal"', json_extract(value, '$."monument.goal"') * 10)
+    WHERE key = 'tuning' AND json_valid(value) AND json_type(value, '$."monument.goal"') IN ('integer', 'real');
+  `,
 ];
 
 /** Opens (and if needed creates and migrates) a channel database. Use `:memory:` in tests. */

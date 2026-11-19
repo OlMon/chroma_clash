@@ -153,14 +153,18 @@ export const config = {
   /**
    * The Monument: the season's finish line. In every window in which a guild
    * is active, its Monument grows by `baseIncome`, plus `perTile` for each
-   * tile it holds (its city aside), plus the levels of those tiles: an owned
-   * tile always yields something, even at level 0. The first guild to reach
-   * `goal` wins the season.
+   * tile it holds (its city aside), plus `perLevel` for each level of those
+   * tiles: an owned tile always yields something, even at level 0. A
+   * development point with no tile left to go to adds `perPoint`. The first
+   * guild to reach `goal` wins the season. The numbers are in tens so that a
+   * window's gain splits into many small pops on the overlay.
    */
   monument: {
-    goal: 6_000,
-    baseIncome: 1,
-    perTile: 1,
+    goal: 60_000,
+    baseIncome: 10,
+    perTile: 10,
+    perLevel: 10,
+    perPoint: 10,
     /** When the god wins the first Streamer vs Chat of a session, every Monument loses this share. */
     setback: 0.15,
   },

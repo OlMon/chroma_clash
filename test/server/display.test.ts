@@ -161,13 +161,36 @@ test('an old database: plain emote ids become Twitch ids', () => {
     // Roll the database back to before the migration, with a plain id as it was stored then.
     const db = new DatabaseSync(file);
     const version = (db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version;
-    // Back before the emote migration and the one after it (the tiles' fires).
+    // Back before the emote migration and the ones after it (the tiles' fires, the session
+    // ticks, Monument points in tens; that last one only multiplies, so it can simply run again).
     db.exec(
-      `UPDATE users SET emote_id = '25' WHERE user_id = '21'; DROP TABLE session_ticks; ALTER TABLE tiles DROP COLUMN burning; PRAGMA user_version = ${version - 3};`,
+      `UPDATE users SET emote_id = '25' WHERE user_id = '21'; DROP TABLE session_ticks; ALTER TABLE tiles DROP COLUMN burning; PRAGMA user_version = ${version - 4};`,
     );
     db.close();
     const reopened = Store.open(file);
     assert.equal(reopened.getUser('21')!.emote_id, 'twitch:25');
+    reopened.close();
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('an old database: Monument points and a tuned goal are converted to tens', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'legacy-monument-'));
+  try {
+    const file = join(dir, 'old.sqlite');
+    const first = Store.open(file);
+    first.close();
+    // Roll back to before the conversion, with numbers as they were stored then.
+    const db = new DatabaseSync(file);
+    const version = (db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version;
+    db.exec(`UPDATE guilds SET monument = 3000 WHERE guild_id = 'red';
+      INSERT OR REPLACE INTO settings (key, value) VALUES ('tuning', '{"monument.goal":8000,"war.participationXp":30}');
+      PRAGMA user_version = ${version - 1};`);
+    db.close();
+    const reopened = Store.open(file);
+    assert.equal(reopened.monuments().red, 30_000, 'the same share of a goal ten times as large');
+    assert.deepEqual(JSON.parse(reopened.getSetting('tuning')!), { 'monument.goal': 80_000, 'war.participationXp': 30 });
     reopened.close();
   } finally {
     rmSync(dir, { recursive: true, force: true });

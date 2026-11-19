@@ -87,10 +87,11 @@ test('the Monument grows once per window, however many members chat, by what the
   store.recordMessage(message(T0 + 1, { userId: '43', login: 'bob', displayName: 'Bob' }));
   store.recordMessage(message(T0 + 2, { userId: '44', login: 'cy', displayName: 'Cy' }));
   // The balancing of tiny channels spreads the three over the guilds; only red has developed land.
-  assert.equal(store.monuments().red, 1 + 5 * (1 + 3));
-  assert.equal(store.monuments().green, 1 + 5);
+  // 10 for the guild, and for each of its five tiles 10 plus 10 per level.
+  assert.equal(store.monuments().red, 10 + 5 * (10 + 10 * 3));
+  assert.equal(store.monuments().green, 10 + 5 * 10);
   store.recordMessage(message(T0 + 5 * MIN));
-  assert.equal(store.monuments().red, 2 * (1 + 5 * (1 + 3)));
+  assert.equal(store.monuments().red, 2 * (10 + 5 * (10 + 10 * 3)));
   store.close();
 });
 
@@ -126,7 +127,7 @@ test('a guild without land puts its ticks straight into the Monument', () => {
   for (const tile of redTiles(store)) store.setTileOwner(tile.tile_id, 'blue');
   const result = store.recordMessage(message(T0))!;
   assert.equal(result.user.xp, 10, 'no tile bonus');
-  assert.equal(store.monuments().red, 1 + config.monument.baseIncome, 'the tick itself, and the window');
+  assert.equal(store.monuments().red, config.monument.perPoint + config.monument.baseIncome, 'the tick itself, and the window');
   store.close();
 });
 

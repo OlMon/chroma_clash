@@ -192,6 +192,8 @@ export type SeasonWinner = GuildId | 'god';
 /** All database access for one channel. Time is always passed in, never read from the clock. */
 export class Store {
   readonly db: DatabaseSync;
+  /** Ticks awarded per guild since this store was opened: the overlay pops a "+1" for each. */
+  private readonly ticksAwarded: Record<GuildId, number> = { red: 0, green: 0, blue: 0 };
 
   constructor(db: DatabaseSync) {
     this.db = db;
@@ -773,7 +775,7 @@ export class Store {
       .map((t) => ({ id: t.tile_id, level: t.level, points: t.points }));
     const target = userId === undefined ? developTarget(own) : homeTile(userId, own);
     if (!target) {
-      this.addMonument(guildId, 1);
+      this.addMonument(guildId, config.monument.perPoint);
       return;
     }
     const amount = userId === undefined ? 1 : tickPoints(fertility(seasonId, target.id), roll);
@@ -840,6 +842,11 @@ export class Store {
       marks.set(mishap.tile, { kind, age: windows / markWindows });
     }
     return marks;
+  }
+
+  /** How many ticks each guild earned since the store was opened (not stored: it only feeds the overlay's "+1"s). */
+  ticksSinceOpen(): Record<GuildId, number> {
+    return { ...this.ticksAwarded };
   }
 
   /** The latest mishaps of the season, oldest first. */
@@ -1270,6 +1277,7 @@ export class Store {
           .map((t) => t.level);
         this.addMonument(user.guild_id, monumentIncome(levels));
       }
+      this.ticksAwarded[user.guild_id]++;
 
       // A finished Monument wins the season at once; the chatter is then assigned anew.
       if (this.monuments()[user.guild_id] >= config.monument.goal) {

@@ -557,14 +557,17 @@ const MISHAP_MS = 2600;
 const MISHAP_KINDS = ['lightning', 'fire', 'spread', 'burn', 'burntOut', 'doused', 'harvest'];
 
 /**
- * "+6" rising above a Monument: what its guild's land yields. A Monument
- * grows once per window, all at once; so the overlay never sits still for
- * minutes, it shows the gain in `parts` parts (fewer for a gain smaller than
- * that) at random moments over the next `spreadMs`, the first within
- * `firstMs`. The Monument's bar and percentage on the overlay move with the
- * parts: the totals are exact, only spread out in time.
+ * Numbers rising at a Monument. Two kinds:
+ * - "+3" in the guild's color, above it: what its land yields. A Monument
+ *   grows once per window, all at once; so the overlay never sits still for
+ *   minutes, it shows the gain in `parts` parts (fewer for a smaller gain) at
+ *   random moments over the next `spreadMs`, the first within `firstMs`: with
+ *   three guilds about one every 4 seconds. The Monument's bar and percentage
+ *   on the overlay move with the parts; the totals are exact, only spread out.
+ * - a small "+1" with a speech bubble beside it: a chatter of the guild just
+ *   earned a tick by chatting. At most `maxTicks` at once, spread over a second.
  */
-const MONUMENT_POP = { ms: 2600, firstMs: 3500, spreadMs: 240_000, parts: 4 };
+const MONUMENT_POP = { ms: 2600, firstMs: 3500, spreadMs: 240_000, parts: 20, tickMs: 1600, maxTicks: 8 };
 let monumentPops = [];
 /** Each guild's Monument progress at the last state, and the season it belongs to. */
 let monumentsSeen = null;
@@ -581,36 +584,52 @@ function noteMonumentGrowth() {
   if (!state || !state.guilds) return;
   const now = performance.now();
   const progress = Object.fromEntries(state.guilds.map((g) => [g.id, g.monument.progress]));
+  const ticks = Object.fromEntries(state.guilds.map((g) => [g.id, g.ticks || 0]));
   if (monumentsSeen && monumentsSeen.season === state.seasonId) {
+    for (const guild of state.guilds) {
+      // Chat ticks since the last state (the count starts again when the server does).
+      const earned = Math.min(MONUMENT_POP.maxTicks, ticks[guild.id] - (monumentsSeen.ticks[guild.id] ?? ticks[guild.id]));
+      for (let i = 0; i < earned; i++) monumentPops.push({ guild: guild.id, tick: true, amount: 1, start: now + Math.random() * 1000 });
+    }
     for (const guild of state.guilds) {
       const grown = progress[guild.id] - (monumentsSeen.progress[guild.id] ?? progress[guild.id]);
       if (grown <= 0) continue;
-      // Whatever is still waiting from the last gain shows now, so the overlay never falls behind.
-      for (const pop of monumentPops) if (pop.guild === guild.id && pop.start > now) pop.start = now + Math.random() * 1000;
-      const parts = Math.min(MONUMENT_POP.parts, grown);
+      // What still waits from the last gain joins the new one, and the whole is spread out
+      // again: two gains close together never show as a burst.
+      const waiting = monumentPops.filter((pop) => pop.guild === guild.id && !pop.tick && pop.start > now);
+      monumentPops = monumentPops.filter((pop) => !waiting.includes(pop));
+      const total = grown + waiting.reduce((sum, pop) => sum + pop.amount, 0);
+      const parts = Math.min(MONUMENT_POP.parts, total);
       const times = Array.from({ length: parts }, (_, i) =>
         i === 0 ? Math.random() * MONUMENT_POP.firstMs : Math.random() * MONUMENT_POP.spreadMs,
       ).sort((a, b) => a - b);
-      splitAmount(grown, parts).forEach((amount, i) => monumentPops.push({ guild: guild.id, amount, start: now + times[i] }));
+      splitAmount(total, parts).forEach((amount, i) => monumentPops.push({ guild: guild.id, amount, start: now + times[i] }));
     }
   } else {
     monumentPops = [];
   }
-  monumentsSeen = { season: state.seasonId, progress };
+  monumentsSeen = { season: state.seasonId, progress, ticks };
 }
 
 /** A guild's Monument progress as the overlay shows it: without the parts of its gain still to pop. */
 function shownProgress(guild) {
   const now = performance.now();
-  const waiting = monumentPops.reduce((sum, pop) => sum + (pop.guild === guild.id && pop.start > now ? pop.amount : 0), 0);
+  const waiting = monumentPops.reduce((sum, pop) => sum + (pop.guild === guild.id && !pop.tick && pop.start > now ? pop.amount : 0), 0);
   return Math.max(0, guild.monument.progress - waiting);
 }
 
-/** The popups of one guild above its Monument at x, rising from y; `rise` is how far they float up. */
-function drawMonumentPops(guildId, color, x, y, rise, size) {
+/**
+ * The popups of one guild at its Monument: its gains rising from x, y by
+ * `rise`; its chat ticks smaller, from beside it at `tickX`, `tickY`.
+ */
+function drawMonumentPops(guildId, color, x, y, rise, size, tickX, tickY) {
   const now = performance.now();
   for (const pop of monumentPops) {
     if (pop.guild !== guildId || now < pop.start) continue;
+    if (pop.tick) {
+      drawTickPop(pop, tickX, tickY, rise, size * 0.62, now);
+      continue;
+    }
     const t = (now - pop.start) / MONUMENT_POP.ms;
     if (t >= 1) continue;
     ctx.save();
@@ -625,6 +644,35 @@ function drawMonumentPops(guildId, color, x, y, rise, size) {
     outlinedText(`+${pop.amount}`, 0, 0);
     ctx.restore();
   }
+}
+
+/** A chat tick: "+1" with a little speech bubble, rising and fading, a little to one side at random. */
+function drawTickPop(pop, x, y, rise, size, now) {
+  const t = (now - pop.start) / MONUMENT_POP.tickMs;
+  if (t >= 1) return;
+  pop.dx ??= (Math.random() - 0.5) * size * 0.8;
+  ctx.save();
+  ctx.globalAlpha = 0.9 * (t < 0.6 ? 1 : 1 - (t - 0.6) / 0.4);
+  ctx.translate(x + pop.dx, y - rise * 0.8 * ease(t * 1.3));
+  // The bubble: a rounded box with a tail, then the number beside it.
+  const w = size * 1.1;
+  const h = size * 0.8;
+  ctx.beginPath();
+  ctx.roundRect(-w - 2, -h / 2, w, h, h * 0.3);
+  ctx.moveTo(-w * 0.75, h / 2 - 1);
+  ctx.lineTo(-w * 0.85, h / 2 + h * 0.35);
+  ctx.lineTo(-w * 0.5, h / 2 - 1);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fill();
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
+  ctx.stroke();
+  ctx.font = `800 ${size}px ${FONT}`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#FFFFFF';
+  outlinedText('+1', 2, 0);
+  ctx.restore();
 }
 
 /** Picks up mishaps that are new in the state, to animate them one after another. */
@@ -826,7 +874,7 @@ function panelNeedsAnimation() {
   if (!state || !state.session.active || !state.overlay.map.visible) return false;
   const now = performance.now();
   mishapEffects = mishapEffects.filter((e) => now - e.start < MISHAP_MS);
-  monumentPops = monumentPops.filter((p) => now - p.start < MONUMENT_POP.ms);
+  monumentPops = monumentPops.filter((p) => now - p.start < (p.tick ? MONUMENT_POP.tickMs : MONUMENT_POP.ms));
   // Only a number on its way up needs the animation; the ones still waiting are picked up by the next state.
   const popping = monumentPops.some((p) => p.start <= now);
   return mishapEffects.length > 0 || popping || state.tiles.some((t) => t.burning);
@@ -865,7 +913,8 @@ function drawGuildRows(x, y, width) {
     const share = Math.min(1, shownProgress(guild) / monument.goal);
     // Centred a little left of the column's middle: the banner flies to the right.
     drawMonument(monumentDesign(guild, index), share, x + column * 0.42, top + 94, monumentHeight, guild.color);
-    drawMonumentPops(guild.id, guild.color, x + column * 0.42, top + 40, 34, 24);
+    // The ticks beside the Monument, clear of the guild's texts to the right.
+    drawMonumentPops(guild.id, guild.color, x + column * 0.42, top + 40, 34, 24, x + column * 0.7, top + 70);
 
     const tx = x + column;
     const tw = width - column;
@@ -4190,7 +4239,7 @@ function drawBannerGuild(guild, index, x, top, width, height) {
   const column = 78;
   drawMonument(monumentDesign(guild, index), share, x + column * 0.42, top + height - 14, height - 34, guild.color);
   // Inside the banner: it rises over the Monument but stays within the strip.
-  drawMonumentPops(guild.id, guild.color, x + column * 0.42, top + height * 0.5, height * 0.3, 22);
+  drawMonumentPops(guild.id, guild.color, x + column * 0.42, top + height * 0.5, height * 0.3, 22, x + column * 0.66, top + height * 0.62);
 
   const tx = x + column;
   const tw = width - column;

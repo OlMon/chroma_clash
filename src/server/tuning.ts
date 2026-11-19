@@ -41,8 +41,8 @@ const TUNABLES: Tunable[] = [
   {
     key: 'monument.goal',
     group: 'land',
-    min: 50,
-    max: 1_000_000,
+    min: 500,
+    max: 10_000_000,
     get: () => config.monument.goal,
     set: (v) => (config.monument.goal = v),
   },

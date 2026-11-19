@@ -124,7 +124,10 @@ function seasonState(lang: string) {
   if (greenTile) greenTile.owner = 'green';
   const guild = (id: string, color: string, progress: number, design: number, tileCount: number, dev: number) => ({
     id, name: guildName(lang, id), color, xpBoost: id === 'blue', members: 18, active: 14, tiles: tileCount, development: dev,
-    monument: { progress, goal: 6000, income: dev + 1, design },
+    // As the server works it out: the base income, and per tile its share plus its levels.
+    monument: { progress: progress * 10, goal: config.monument.goal, design,
+      income: config.monument.baseIncome + tileCount * config.monument.perTile + dev * config.monument.perLevel },
+    ticks: 0,
   });
   return {
     session: { active: true, startedAt: 0 },
@@ -250,7 +253,8 @@ export function generateScenes(outDir: string, lang = 'en'): Scene[] {
     messages: [{ type: 'state', state: { ...state, tiles: state.tiles.map((t) => ({ ...t, burning: burning.has(t.id), mark: marks[t.id] ?? null })) } }],
     moments: [0],
     tweak: `if (state && !window.__mishaps) { window.__mishaps = 1; const now = performance.now();
-      monumentPops.push({ guild: 'red', amount: 27, start: now - 500 }, { guild: 'blue', amount: 14, start: now - 1200 });
+      monumentPops.push({ guild: 'red', amount: 3, start: now - 500 }, { guild: 'blue', amount: 2, start: now - 1200 },
+        { guild: 'red', tick: true, amount: 1, start: now - 300, dx: 4 }, { guild: 'green', tick: true, amount: 1, start: now - 700, dx: -5 }, { guild: 'blue', tick: true, amount: 1, start: now - 200, dx: 0 });
       mishapEffects.push({ id: 5, kind: 'lightning', tile: '2,-1', from: 6, to: 4, start: now - 90 },
         { id: 6, kind: 'harvest', tile: '0,2', from: 2, to: 3, start: now - 700 },
         { id: 7, kind: 'doused', tile: '-1,-1', from: 3, to: 3, start: now - 900 }); }`,

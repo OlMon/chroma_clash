@@ -99,6 +99,8 @@ export interface GameSnapshot {
     tiles: number;
     /** The sum of the levels of the guild's tiles. */
     development: number;
+    /** Ticks the guild's chatters earned since the server started: a "+1" pops on the overlay for each new one. */
+    ticks: number;
     /** Progress toward the Monument that wins the season, and what one window adds to it now. */
     monument: {
       progress: number;
@@ -181,6 +183,7 @@ export function buildSnapshot(
   const active = store.activeByGuild(now - config.server.activeWindowMs, now);
   const tiles = store.tiles();
   const marks = store.tileMarks();
+  const ticks = store.ticksSinceOpen();
   const scale = store.channelScale();
   const lastSeason = store.lastSeason();
   const seasonId = store.currentSeasonId(now);
@@ -303,6 +306,7 @@ export function buildSnapshot(
         active: active[guild.id],
         tiles: own.length,
         development: own.reduce((sum, t) => sum + t.level, 0),
+        ticks: ticks[guild.id],
         monument: {
           progress: Math.round(monuments[guild.id]),
           goal: config.monument.goal,

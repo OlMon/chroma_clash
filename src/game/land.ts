@@ -223,8 +223,8 @@ export function isCenter(tileIdValue: string): boolean {
  * (their levels): every tile yields `perTile` and its level on top.
  */
 export function monumentIncome(tileLevels: readonly number[]): number {
-  const { baseIncome, perTile } = config.monument;
-  return baseIncome + tileLevels.reduce((sum, level) => sum + perTile + level, 0);
+  const { baseIncome, perTile, perLevel } = config.monument;
+  return baseIncome + tileLevels.reduce((sum, level) => sum + perTile + perLevel * level, 0);
 }
 
 /** The level a tile keeps when it is captured or scorched. */

@@ -9,8 +9,8 @@ that pass should measure.
 ## Gameplay
 
 1. **The balancing pass (M).** Run it with the simulator (`src/cli/simulate.ts`) for 12, 60 and 200 chatters, and set targets first, then numbers:
-   - **Season length.** In a 4-hour simulation the Monuments reached only 4 to 7% of 6000. At that pace a season takes 60 or more hours of stream. Pick a target, for example 8 to 12 stream hours. Then tune `monument.goal`, `land.costPerLevel` and the fertility range together.
-   - **Monument pace.** Every held tile now yields 1 on top of its level (before, land at level 0 yielded nothing), so Monuments grow a little faster than when the goal of 6,000 was set; check the season length.
+   - **Season length.** In a 4-hour simulation the Monuments reached only 4 to 7% of the goal (then 6,000; now 60,000, as Monument points are counted in tens). At that pace a season takes 60 or more hours of stream. Pick a target, for example 8 to 12 stream hours. Then tune `monument.goal`, `land.costPerLevel` and the fertility range together.
+   - **Monument pace.** Every held tile now yields 1 on top of its level (before, land at level 0 yielded nothing), so Monuments grow a little faster than when the goal was set; check the season length.
    - **Mishaps against growth.** With levels still low, lightning (about 10 strikes in 4 hours) takes back a large part of what chat builds. Consider scaling the chances with the total land level, or starting lightning only above level 3.
    - **Done (November 2026): fight length and god strength.** Every kind of fight lasts 60 to 90 seconds (medians 62 to 82), Pachinko 75, and the god wins about half its fights at every chat size (`node src/cli/fight-durations.ts`).
    - **Still open:** god strength per skill (the factors date from before Vortex was reworked), **class numbers**, **obstacle damage**, and **Pachinko slot values**.
