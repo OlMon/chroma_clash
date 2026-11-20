@@ -1163,22 +1163,40 @@ export class Store {
 
   /** The statistics lines that are switched on, in display order. */
   statLines(): StatId[] {
-    const all = config.overlay.statLines;
-    const stored = this.getSetting('overlay_stat_lines');
-    if (stored === null) return [...all];
-    try {
-      const enabled: unknown = JSON.parse(stored);
-      return Array.isArray(enabled) ? all.filter((id) => enabled.includes(id)) : [...all];
-    } catch {
-      return [...all];
-    }
+    const off = this.statLinesOff();
+    return config.overlay.statLines.filter((id) => !off.includes(id));
+  }
+
+  /**
+   * The lines the streamer switched off. Kept as the lines that are off, so a
+   * line added in a later version is on. An older database kept the lines
+   * that were on, out of the nine there were then: converted once.
+   */
+  private statLinesOff(): string[] {
+    const parse = (value: string | null): string[] | null => {
+      try {
+        const list: unknown = JSON.parse(value ?? 'null');
+        return Array.isArray(list) ? list.filter((id): id is string => typeof id === 'string') : null;
+      } catch {
+        return null;
+      }
+    };
+    const off = parse(this.getSetting('overlay_stat_lines_off'));
+    if (off) return off;
+    const on = parse(this.getSetting('overlay_stat_lines'));
+    if (!on) return [];
+    const before = ['leading', 'champion', 'godSeason', 'godAllTime', 'wars', 'mostKills', 'highestLevel', 'players', 'started'];
+    const converted = before.filter((id) => !on.includes(id));
+    this.setSetting('overlay_stat_lines_off', JSON.stringify(converted));
+    this.setSetting('overlay_stat_lines', null);
+    return converted;
   }
 
   setStatLine(id: StatId, enabled: boolean): void {
-    const lines = new Set(this.statLines());
-    if (enabled) lines.add(id);
-    else lines.delete(id);
-    this.setSetting('overlay_stat_lines', JSON.stringify([...lines]));
+    const off = new Set(this.statLinesOff());
+    if (enabled) off.delete(id);
+    else off.add(id);
+    this.setSetting('overlay_stat_lines_off', JSON.stringify([...off]));
   }
 
   /** The chatter with the most kills in the running season, or null if nobody has one. */

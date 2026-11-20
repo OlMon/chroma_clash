@@ -136,10 +136,11 @@ function seasonState(lang: string) {
     center: { id: '0,0', owner: 'red', minutesLeft: 20 },
     overlay: {
       map: { x: 1072, y: 692, width: 820, height: 360, visible: true },
-      stats: { x: 28, y: 28, width: 440, height: 60 + 32 * 4 + 16, visible: true },
+      stats: { x: 28, y: 28, width: 440, height: 60 + 32 * 5 + 16, visible: true },
     },
     seasonStats: [
       { id: 'leading', label: text(lang, 'server.stats.leading'), value: text(lang, 'server.stats.leader', { guild: guildName(lang, 'blue'), percent: 85 }), color: '#3E8BFF', enabled: true },
+      { id: 'seasonEnd', label: text(lang, 'server.stats.seasonEnd'), value: text(lang, 'server.stats.seasonEndIn', { count: 2 }), color: '#3E8BFF', enabled: true },
       { id: 'champion', label: text(lang, 'server.stats.champion'), value: 'PixelWizard15', color: '#FFD54A', enabled: true },
       { id: 'godSeason', label: text(lang, 'server.stats.godSeason', { god: 'TheStreamer' }), value: '2 : 3', color: null, enabled: true },
       { id: 'mostKills', label: text(lang, 'server.stats.mostKills'), value: `RustyPigeon2 · ${text(lang, 'server.stats.kills', { count: 14 })}`, color: null, enabled: true },

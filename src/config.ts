@@ -8,6 +8,7 @@ export type ClassId = 'fighter' | 'tank' | 'thief' | 'archer' | 'mage' | 'healer
 /** A line of the overlay's season statistics panel. */
 export type StatId =
   | 'leading'
+  | 'seasonEnd'
   | 'champion'
   | 'godSeason'
   | 'godAllTime'
@@ -643,6 +644,7 @@ export const config = {
     /** The statistics lines, in the order shown. All are on until the streamer switches some off. */
     statLines: [
       'leading',
+      'seasonEnd',
       'champion',
       'godSeason',
       'godAllTime',

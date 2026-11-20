@@ -110,6 +110,12 @@
   "server.stats.nobodyYet": "noch niemand",
   "server.stats.tied": "Gleichstand",
   "server.stats.leader": "{guild} · Monument {percent}%",
+  "server.stats.seasonEnd": "Saisonende",
+  "server.stats.seasonEndMeasuring": "Tempo des Chats wird gemessen…",
+  "server.stats.seasonEndIn": {
+    "one": "in etwa einer Stunde",
+    "other": "in etwa {count} Streamstunden"
+  },
   "server.stats.champion": "Session-Champion",
   "server.stats.noneYet": "noch keiner",
   "server.stats.godSeason": "{god} vs Chat",

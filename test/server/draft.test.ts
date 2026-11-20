@@ -427,13 +427,15 @@ test('season statistics: every line can be switched off and on, and the panel sh
   const state = (await (await fetch(`${base}/api/state`)).json()) as GameSnapshot;
   assert.deepEqual(
     state.seasonStats.map((row) => row.id),
-    ['leading', 'champion', 'godSeason', 'godAllTime', 'wars', 'mostKills', 'highestLevel', 'players', 'started'],
+    ['leading', 'seasonEnd', 'champion', 'godSeason', 'godAllTime', 'wars', 'mostKills', 'highestLevel', 'players', 'started'],
   );
   assert.ok(state.seasonStats.every((row) => row.enabled), 'all lines are on at first');
   const value = (id: string) => state.seasonStats.find((row) => row.id === id)!.value;
   // The Monuments have barely begun and stand level.
   assert.ok(['nobody yet', 'tied'].includes(value('leading')), value('leading'));
   assert.equal(value('mostKills'), 'nobody yet');
+  // A few windows of stream time are needed before the season's end can be forecast.
+  assert.match(value('seasonEnd'), /^(measuring chat's pace…|in about .+)$/);
   assert.equal(value('godAllTime'), '0 : 0');
   assert.match(value('started'), /^\d{4}-\d{2}-\d{2}$/);
   assert.ok(Number(value('players')) >= 12);

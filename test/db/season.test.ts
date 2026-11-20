@@ -412,3 +412,22 @@ test('a season counts its windows of stream time, and the next season starts its
   assert.equal(store.monumentGoal(), config.season.expectedPerHour * config.season.hours);
   store.close();
 });
+
+test('the season panel\'s line switches: a line added later is on; an older database is converted once', () => {
+  const store = openStore();
+  assert.ok(store.statLines().includes('seasonEnd'));
+  store.setStatLine('wars', false);
+  assert.ok(!store.statLines().includes('wars'));
+  store.setStatLine('wars', true);
+  assert.deepEqual(store.statLines(), config.overlay.statLines);
+
+  // Before, the lines that were on were kept: here every line but "players".
+  store.setSetting('overlay_stat_lines_off', null);
+  store.setSetting('overlay_stat_lines', JSON.stringify(['leading', 'champion', 'godSeason', 'godAllTime', 'wars', 'mostKills', 'highestLevel', 'started']));
+  const lines = store.statLines();
+  assert.ok(!lines.includes('players'), 'still off');
+  assert.ok(lines.includes('seasonEnd'), 'the new line is on');
+  assert.equal(store.getSetting('overlay_stat_lines'), null, 'converted');
+  assert.deepEqual(JSON.parse(store.getSetting('overlay_stat_lines_off')!), ['players']);
+  store.close();
+});

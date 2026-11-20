@@ -214,6 +214,14 @@ export function buildSnapshot(
   const topKiller = store.seasonTopKiller();
   const topLevel = store.seasonTopLevel();
   const line = (label: string, value: string, color: string | null = null) => ({ label, value, color });
+  /** When the season should end at the chat's pace, in stream hours, in the color of the guild set to finish first; measured once a few windows have passed. */
+  const seasonEndLine = () => {
+    const forecast = store.seasonForecast();
+    const guild = config.guilds.list.find((g) => g.id === forecast.leader);
+    if (!guild || forecast.remaining === null) return line(t('server.stats.seasonEnd'), t('server.stats.seasonEndMeasuring'));
+    const count = Math.max(1, Math.round(forecast.remaining));
+    return line(t('server.stats.seasonEnd'), t('server.stats.seasonEndIn', { count }), guild.color);
+  };
   const [year, month, day] = new Date(seasonInfo.startedAt).toISOString().slice(0, 10).split('-');
   const statLine: Record<StatId, { label: string; value: string; color: string | null }> = {
     leading:
@@ -244,6 +252,7 @@ export function buildSnapshot(
     highestLevel: topLevel
       ? line(t('server.stats.highestLevel'), t('server.stats.level', { name: topLevel.displayName, level: topLevel.level }))
       : line(t('server.stats.highestLevel'), t('server.stats.nobodyYet')),
+    seasonEnd: seasonEndLine(),
     players: line(t('server.stats.players'), String(store.seasonPlayers())),
     started: line(t('server.stats.started'), t('server.date', { year: year!, month: month!, day: day! })),
   };

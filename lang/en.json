@@ -110,6 +110,12 @@
   "server.stats.nobodyYet": "nobody yet",
   "server.stats.tied": "tied",
   "server.stats.leader": "{guild} · Monument {percent}%",
+  "server.stats.seasonEnd": "Season ends",
+  "server.stats.seasonEndMeasuring": "measuring chat's pace…",
+  "server.stats.seasonEndIn": {
+    "one": "in about an hour",
+    "other": "in about {count} stream hours"
+  },
   "server.stats.champion": "Session champion",
   "server.stats.noneYet": "none yet",
   "server.stats.godSeason": "{god} vs Chat",
