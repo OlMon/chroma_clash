@@ -5,3 +5,5 @@ data/
 dist/
 tools/preview/out/
 .claude/
+__pycache__/
+*.pyc
