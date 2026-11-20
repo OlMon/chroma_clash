@@ -37,7 +37,7 @@ that pass should measure.
 
 ## Handling
 
-All nine items are built (November 2026); see SPEC.md section 13. What each became, and what is left:
+All items are built (November 2026); see SPEC.md section 13. What each became, and what is left:
 
 1. **First-start guide. Done.** Five steps on the Overview tab (the fifth: upload the stream picture the god wears), each ticked off when the game sees it done: an overlay is really connected, a test battle really ran. A test battle with a quiet chat uses stand-ins, so the guide can be finished before going live.
 2. **Control panel as an OBS dock. Done.** Below 560 pixels wide, or with `?dock`, the panel shows the running line, Stop and one button per action.
@@ -48,3 +48,4 @@ All nine items are built (November 2026); see SPEC.md section 13. What each beca
 7. **Overlay text in other languages. Done.** English and German, 513 strings each in `lang/en.json` and `lang/de.json`, for the overlay, the control panel, the server's announcements and the chat lines. Left: theme names and descriptions (they come from each theme's `theme.json`), and API errors the panel never shows.
 8. **Optional chat announcements. Done.** Off by default; needs `TWITCH_LOGIN` and a `TWITCH_TOKEN` with `chat:edit`.
 9. **Keep the preview harness. Done.** `npm run preview` renders every scene in every theme into `tools/preview/out/`.
+10. **A shorter tuning card. Done (November 2026).** Only the season length and the countdown fights' two times are shown; the other values are folded under "Advanced". The game should run without touching them.

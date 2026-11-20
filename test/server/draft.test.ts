@@ -311,6 +311,8 @@ test('the countdown and the line-up time are settings of the control panel', asy
   const state = (await (await fetch(`${base}/api/state`)).json()) as GameSnapshot;
   const keys = state.tuning.map((t) => t.key);
   assert.ok(keys.includes('draft.countdownMs') && keys.includes('draft.lineupMs'));
+  // Shown openly: the season's length and the countdown fights' times; the rest is folded under "Advanced".
+  assert.deepEqual(state.tuning.filter((t) => t.everyday).map((t) => t.key), ['season.hours', 'draft.countdownMs', 'draft.lineupMs']);
   assert.deepEqual(
     state.tuning.filter((t) => t.key.startsWith('draft.')).map((t) => t.default),
     [30, 15],

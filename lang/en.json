@@ -568,6 +568,8 @@
   "control.layout.now": "now: {value}",
   "control.tuning.title": "Tuning",
   "control.tuning.text": "Changes apply at once and are kept between starts. An empty field restores the default.",
+  "control.tuning.advanced": "Advanced",
+  "control.tuning.advancedText": "The game is tuned to run as it is. These are for tinkering; an empty field brings back the default.",
   "control.tuning.default": "default {value}",
   "control.size.title": "Channel size",
   "control.size.label": "Active chatters per 5 minutes",

@@ -568,6 +568,8 @@
   "control.layout.now": "jetzt: {value}",
   "control.tuning.title": "Feintuning",
   "control.tuning.text": "Änderungen gelten sofort und bleiben über Neustarts erhalten. Ein leeres Feld stellt den Standardwert wieder her.",
+  "control.tuning.advanced": "Erweitert",
+  "control.tuning.advancedText": "Das Spiel ist so abgestimmt, dass es ohne Zutun läuft. Diese Werte sind zum Herumprobieren; ein leeres Feld stellt den Standard wieder her.",
   "control.tuning.default": "Standard {value}",
   "control.size.title": "Kanalgröße",
   "control.size.label": "Aktive Chatter pro 5 Minuten",

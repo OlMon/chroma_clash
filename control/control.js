@@ -194,9 +194,10 @@ function renderExcluded() {
 }
 
 /** Builds the tuning rows once, then only updates values the streamer is not editing. */
+/** The tuning values: the everyday ones openly, the rest folded away under "Advanced". */
 function renderTuning() {
-  const box = $('tuning');
   for (const item of state.tuning) {
+    const box = $(item.everyday ? 'tuning' : 'tuning-advanced');
     let input = box.querySelector(`[data-key="${item.key}"]`);
     if (!input) {
       // Each section starts with its heading, added when its first value is built.

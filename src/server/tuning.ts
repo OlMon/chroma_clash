@@ -17,6 +17,8 @@ interface Tunable {
   max: number;
   /** The panel shows `config value / scale`, e.g. seconds for a value kept in ms. */
   scale?: number;
+  /** A value a streamer may want to change: shown openly. The others are folded away under "Advanced". */
+  everyday?: boolean;
   get: () => number;
   set: (value: number) => void;
 }
@@ -40,6 +42,7 @@ const TUNABLES: Tunable[] = [
   },
   {
     key: 'season.hours',
+    everyday: true,
     group: 'land',
     min: 1,
     max: 100,
@@ -81,6 +84,7 @@ const TUNABLES: Tunable[] = [
   },
   {
     key: 'draft.countdownMs',
+    everyday: true,
     group: 'countdown',
     min: 5,
     max: 600,
@@ -90,6 +94,7 @@ const TUNABLES: Tunable[] = [
   },
   {
     key: 'draft.lineupMs',
+    everyday: true,
     group: 'countdown',
     min: 5,
     max: 120,
@@ -120,6 +125,8 @@ export interface TuningValue {
   default: number;
   min: number;
   max: number;
+  /** Shown openly; the others are folded away under "Advanced". */
+  everyday: boolean;
 }
 
 function readOverrides(store: Store): Record<string, number> {
@@ -157,6 +164,7 @@ export function tuningValues(lang = DEFAULT_LANGUAGE): TuningValue[] {
       default: DEFAULTS.get(t.key)! / scale,
       min: t.min,
       max: t.max,
+      everyday: t.everyday === true,
     };
   });
 }
