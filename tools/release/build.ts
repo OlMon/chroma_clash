@@ -1,7 +1,9 @@
 /**
- * Builds the packaged release for the platform this runs on:
+ * Builds the packaged release for the platform this runs on, or for Windows
+ * from Linux:
  *
  *   npm run release [-- --notes "What's new"] [-- --url <download page>] [-- --node <node binary>]
+ *   npm run release -- --target win-x64      (a Windows build, made on Linux)
  *
  * Produces dist/chroma-clash-<version>-<platform>-<arch>/ with a single executable
  * (Node.js single executable application: the official Node binary plus the game
@@ -19,7 +21,11 @@
  * (Windows x64, macOS arm64, Linux x64, …), for example in a CI job per platform
  * with the same Node version. Building on the target system keeps it simple:
  * the right Node binary is fetched, the archive format fits, and macOS
- * executables get signed (ad hoc), which Apple silicon requires.
+ * executables get signed (ad hoc), which Apple silicon requires. Windows is
+ * the exception: `--target win-x64` builds it from Linux with the official
+ * node.exe (Node's single-executable builder writes Windows executables too),
+ * zipped with `zip`. The executable is not code-signed: SmartScreen warns
+ * once ("More info", "Run anyway").
  */
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -34,15 +40,21 @@ const { values: options } = parseArgs({
     notes: { type: 'string' },
     url: { type: 'string' },
     node: { type: 'string' },
+    /** Another platform to build for: only `win-x64` (from Linux or macOS). */
+    target: { type: 'string' },
   },
 });
+if (options.target && options.target !== 'win-x64') throw new Error(`--target ${options.target}: only win-x64 can be built from here`);
 
 const repo = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const { version } = JSON.parse(readFileSync(join(repo, 'package.json'), 'utf8')) as { version: string };
-const isWindows = process.platform === 'win32';
-const isMac = process.platform === 'darwin';
+/** Building for Windows: on Windows, or with --target win-x64 elsewhere. */
+const isWindows = process.platform === 'win32' || options.target === 'win-x64';
+const crossBuild = options.target === 'win-x64' && process.platform !== 'win32';
+const isMac = !isWindows && process.platform === 'darwin';
+const arch = crossBuild ? 'x64' : process.arch;
 const platformName = isWindows ? 'windows' : isMac ? 'macos' : process.platform;
-const name = `chroma-clash-${version}-${platformName}-${process.arch}`;
+const name = `chroma-clash-${version}-${platformName}-${arch}`;
 const dist = join(repo, 'dist');
 const out = join(dist, name);
 const work = join(dist, '.build');
@@ -67,11 +79,11 @@ async function download(url: string, file: string): Promise<void> {
 async function officialNode(): Promise<string> {
   const base = `https://nodejs.org/dist/${process.version}`;
   const nodeOs = isWindows ? 'win' : isMac ? 'darwin' : process.platform;
-  const target = join(cache, `node-${process.version}-${nodeOs}-${process.arch}${isWindows ? '.exe' : ''}`);
+  const target = join(cache, `node-${process.version}-${nodeOs}-${arch}${isWindows ? '.exe' : ''}`);
   if (existsSync(target)) return target;
   mkdirSync(cache, { recursive: true });
   // Windows has a plain node.exe to download; elsewhere it is bin/node inside the tarball.
-  const remote = isWindows ? `${nodeOs}-${process.arch}/node.exe` : `node-${process.version}-${nodeOs}-${process.arch}.tar.gz`;
+  const remote = isWindows ? `${nodeOs}-${arch}/node.exe` : `node-${process.version}-${nodeOs}-${arch}.tar.gz`;
   const downloaded = join(cache, remote.replace('/', '-'));
   console.log(`  downloading ${base}/${remote}`);
   const sums = await (await fetch(`${base}/SHASUMS256.txt`)).text();
@@ -82,7 +94,7 @@ async function officialNode(): Promise<string> {
   if (isWindows) {
     cpSync(downloaded, target);
   } else {
-    const inner = `node-${process.version}-${nodeOs}-${process.arch}/bin/node`;
+    const inner = `node-${process.version}-${nodeOs}-${arch}/bin/node`;
     const unpacked = join(cache, 'unpacked');
     rmSync(unpacked, { recursive: true, force: true });
     mkdirSync(unpacked);
@@ -138,7 +150,7 @@ OPTIONS (from a terminal)
   --no-open            do not open the browser
 `;
 
-step(`Chroma Clash ${version} for ${platformName}-${process.arch} (Node ${process.version})`);
+step(`Chroma Clash ${version} for ${platformName}-${arch} (Node ${process.version})${crossBuild ? ', built on ' + process.platform : ''}`);
 rmSync(out, { recursive: true, force: true });
 rmSync(work, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
@@ -197,6 +209,8 @@ let archive: string | null = join(dist, `${name}${isWindows || isMac ? '.zip' : 
 rmSync(archive, { force: true });
 try {
   if (isMac) execFileSync('ditto', ['-c', '-k', '--keepParent', out, archive]);
+  // Built elsewhere for Windows: zip, from inside dist/ so the folder is the archive's top level.
+  else if (crossBuild) execFileSync('zip', ['-r', '-q', '-X', archive, name], { cwd: dist });
   // Windows 10 and newer ship bsdtar, which writes zip files with -a.
   else if (isWindows) execFileSync('tar', ['-a', '-c', '-f', archive, '-C', dist, name]);
   else execFileSync('tar', ['-czf', archive, '-C', dist, name]);
