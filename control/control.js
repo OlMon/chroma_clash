@@ -607,15 +607,15 @@ function renderHistory() {
         const final = summary.guilds[guild.id];
         if (!final) continue;
         const share = Math.min(100, Math.floor((final.monument / summary.monumentGoal) * 100));
-        fact(
-          guild.name,
-          tr('control.history.guild', {
-            share,
-            tiles: tr('control.history.tiles', { count: final.tiles }),
-            development: final.development,
-            members: tr('control.history.members', { count: final.members }),
-          }),
-        );
+        const line = tr('control.history.guild', {
+          share,
+          tiles: tr('control.history.tiles', { count: final.tiles }),
+          development: final.development,
+          members: tr('control.history.members', { count: final.members }),
+        });
+        // Seasons from before Pachinko wins were counted have none.
+        const pachinko = final.pachinkoWins === undefined ? '' : `, ${tr('control.history.pachinkoWins', { count: final.pachinkoWins })}`;
+        fact(guild.name, line + pachinko);
       }
       box.appendChild(facts);
     }

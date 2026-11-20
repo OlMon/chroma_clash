@@ -153,7 +153,8 @@ export interface SeasonSummary {
   players: number;
   /** Final standings per guild: Monument progress, the goal it was measured against, tiles and land level. */
   monumentGoal: number;
-  guilds: Record<GuildId, { monument: number; tiles: number; development: number; members: number; design?: number }>;
+  /** `pachinkoWins`: the games of Pachinko the guild won; missing in seasons from before they were counted. */
+  guilds: Record<GuildId, { monument: number; tiles: number; development: number; members: number; design?: number; pachinkoWins?: number }>;
 }
 
 /** How the overlay looks: the theme, and how fighters' emotes are shown. */
@@ -296,6 +297,7 @@ export class Store {
     const monuments = this.monuments();
     const sizes = this.guildSizes();
     const designs = this.monumentDesigns();
+    const pachinko = this.pachinkoWins(seasonId);
     const guilds = {} as SeasonSummary['guilds'];
     for (const guild of config.guilds.list) {
       guilds[guild.id] = {
@@ -304,6 +306,7 @@ export class Store {
         development: this.development(guild.id),
         members: sizes[guild.id],
         design: designs[guild.id],
+        pachinkoWins: pachinko[guild.id],
       };
     }
     return {
@@ -400,9 +403,21 @@ export class Store {
   }
 
   /**
-   * Notes a chatter's points in a game of Pachinko: the season keeps its best
-   * run (the first to reach a score keeps it on a tie).
+   * Notes a game of Pachinko that was shown to its end: the season keeps its
+   * best chatter's run (the first to reach a score keeps it on a tie) and
+   * counts each guild's wins.
    */
+  notePachinkoGame(outcome: { best: { name: string; points: number } | null; winner: GuildId | null }, now: number): void {
+    const seasonId = this.currentSeasonId(now);
+    if (outcome.best) this.notePachinkoRun(outcome.best.name, outcome.best.points, now);
+    if (outcome.winner) {
+      const wins = this.pachinkoWins(seasonId);
+      wins[outcome.winner] += 1;
+      this.setSetting('pachinko_wins', JSON.stringify({ seasonId, wins }));
+    }
+  }
+
+  /** Notes a chatter's points in a game of Pachinko, if they beat the season's best run. */
   notePachinkoRun(displayName: string, points: number, now: number): void {
     const seasonId = this.currentSeasonId(now);
     const best = this.bestPachinkoRun(seasonId);
@@ -418,6 +433,20 @@ export class Store {
     } catch {
       return null;
     }
+  }
+
+  /** How many games of Pachinko each guild won this season. */
+  pachinkoWins(seasonId: number): Record<GuildId, number> {
+    const wins = Object.fromEntries(config.guilds.list.map((g) => [g.id, 0])) as Record<GuildId, number>;
+    try {
+      const stored = JSON.parse(this.getSetting('pachinko_wins') ?? 'null') as { seasonId: number; wins: Partial<Record<GuildId, number>> } | null;
+      if (stored && stored.seasonId === seasonId) {
+        for (const guild of config.guilds.list) wins[guild.id] = Number(stored.wins[guild.id]) || 0;
+      }
+    } catch {
+      // A broken record counts as none.
+    }
+    return wins;
   }
 
   /** How the tiles are handed out when the next season starts. */
@@ -473,6 +502,7 @@ export class Store {
         DELETE FROM settings WHERE key = 'mishaps';
         DELETE FROM settings WHERE key = 'season_pace';
         DELETE FROM settings WHERE key = 'pachinko_best';
+        DELETE FROM settings WHERE key = 'pachinko_wins';
         DELETE FROM guild_windows;
         UPDATE guilds SET monument = 0, xp_boost_until = NULL;
         UPDATE users SET xp = 0, level = 0, season_kills = 0, guild_id = NULL;

@@ -400,8 +400,8 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
         return { emote: emotes.fighterEmote(user.emote_id, user.user_id, { sources: display.emoteSources, random: display.randomEmotes, special: false }) };
       };
       war.start(
-        new PachinkoEngine(seed, picks, look, languageOf(store), bannerPlace(store.getSetting('map_banner')), (name, points) =>
-          store.notePachinkoRun(name, points, now()),
+        new PachinkoEngine(seed, picks, look, languageOf(store), bannerPlace(store.getSetting('map_banner')), (outcome) =>
+          store.notePachinkoGame(outcome, now()),
         ),
         countdownTitle(mode),
       );

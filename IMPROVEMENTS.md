@@ -13,7 +13,7 @@ that pass should measure.
    - **Done (November 2026): fight length and god strength.** Every kind of fight lasts 60 to 90 seconds (medians 62 to 82), Pachinko 75, and the god wins about half its fights at every chat size (`node src/cli/fight-durations.ts`).
    - **Still open:** god strength per skill (the factors date from before Vortex was reworked), **class numbers**, **obstacle damage**, and **Pachinko slot values**.
 2. **Make uneven land matter in Wars (S). Done (November 2026).** An attacker goes for the defender's highest-level border tile, and the announcement names the stake ("Red attacks Blue's level 8"), what a taken tile keeps and the defender's health bonus.
-3. **Decide what Pachinko is worth (S).** Today it changes nothing. Options: keep it for fun, which suits betting; give the Guild Clash reward; or a small Monument bonus for the winner.
+3. **Decide what Pachinko is worth (S). Decided (November 2026): for fun.** It changes nothing in the game. The season counts each guild's Pachinko wins, and History shows them.
 4. **Named arenas (S).** Turn obstacle layouts into themes shown on the scoreboard: "Pinball Hall" (bumpers only), "Fortress" (walls and traps), "Brewery" (barrel waves). It costs little and gives each battle an identity people talk about.
 5. **Chat sees fires (S).** A small line on the overlay, such as "Fire on Red's land: chat to put it out!", makes the douse rule something viewers feel without a command. It keeps chat passive.
 6. **Obstacles with god skills (S).** Shockwave sends fighters into bumpers, and Rampage breaks walls. Most of this already works through the physics; check it and add the wall break.

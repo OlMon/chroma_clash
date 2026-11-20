@@ -4,7 +4,7 @@ import { after, before, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { config } from '../../src/config.ts';
 import { Store, type SeasonRecord, type UserRow } from '../../src/db/store.ts';
-import { PachinkoEngine } from '../../src/server/pachinko-engine.ts';
+import { PachinkoEngine, type PachinkoOutcome } from '../../src/server/pachinko-engine.ts';
 import { recapMessage } from '../../src/server/recap.ts';
 import { startGameServer, type GameServer } from '../../src/server/server.ts';
 
@@ -69,38 +69,48 @@ test('a recap names the winner, the season\'s best and the god\'s score, row by 
   assert.equal(recapMessage({ ...season(), summary: null }, god, 'en'), null, 'a season from before summaries has no recap');
 });
 
-test('the season keeps its best Pachinko run, from games shown to their end', () => {
+test('the season keeps its best Pachinko run and counts the guilds\' wins, from games shown to their end', () => {
   const store = Store.open(':memory:');
   store.startSession(T0);
   const user = (id: string, guild: 'red' | 'blue'): UserRow =>
     ({ user_id: id, display_name: `U${id}`, guild_id: guild, color: null, emote_id: null }) as UserRow;
   const picks = [user('1', 'red'), user('2', 'red'), user('3', 'blue')];
   const look = () => ({ emote: null });
-  const runs: [string, number][] = [];
+  const outcomes: PachinkoOutcome[] = [];
 
-  const stopped = new PachinkoEngine(7, picks, look, 'en', null, (name, points) => runs.push([name, points]));
+  const stopped = new PachinkoEngine(7, picks, look, 'en', null, (outcome) => outcomes.push(outcome));
   stopped.next();
   stopped.finish();
-  assert.deepEqual(runs, [], 'stopped during the show: it does not count');
+  assert.deepEqual(outcomes, [], 'stopped during the show: it does not count');
 
-  const played = new PachinkoEngine(7, picks, look, 'en', null, (name, points) => store.notePachinkoRun(name, points, T0));
+  const played = new PachinkoEngine(7, picks, look, 'en', null, (outcome) => store.notePachinkoGame(outcome, T0));
   played.next();
   assert.equal(played.next(), null);
   played.finish();
+  played.finish();
   const best = played.bestRun()!;
+  const winner = played.game.winner as 'red' | 'green' | 'blue';
   assert.ok(['U1', 'U2', 'U3'].includes(best.name), 'never an imp');
   const seasonId = store.currentSeasonId(T0);
   assert.deepEqual(store.bestPachinkoRun(seasonId), { displayName: best.name, points: best.points });
+  assert.equal(store.pachinkoWins(seasonId)[winner], 1, 'counted once');
 
   store.notePachinkoRun('Lower', best.points - 1, T0);
   store.notePachinkoRun('Same', best.points, T0);
   assert.equal(store.bestPachinkoRun(seasonId)!.displayName, best.name, 'a lower or equal run does not replace it');
-  store.notePachinkoRun('Higher', best.points + 1, T0);
+  store.notePachinkoGame({ best: { name: 'Higher', points: best.points + 1 }, winner: 'green' }, T0);
   assert.equal(store.bestPachinkoRun(seasonId)!.displayName, 'Higher');
+  store.notePachinkoGame({ best: null, winner: 'green' }, T0);
+  store.notePachinkoGame({ best: null, winner: null }, T0);
 
   store.endSeason(T0 + 1000, 0);
-  assert.deepEqual(store.seasonHistory()[0]!.summary!.pachinko, { displayName: 'Higher', points: best.points + 1 });
-  assert.equal(store.bestPachinkoRun(store.currentSeasonId(T0 + 2000)), null, 'the next season starts without one');
+  const summary = store.seasonHistory()[0]!.summary!;
+  assert.deepEqual(summary.pachinko, { displayName: 'Higher', points: best.points + 1 });
+  const wins = Object.fromEntries(Object.entries(summary.guilds).map(([id, g]) => [id, g.pachinkoWins]));
+  assert.deepEqual(wins, { red: 0, green: 2, blue: 0, [winner]: winner === 'green' ? 3 : 1 });
+  const next = store.currentSeasonId(T0 + 2000);
+  assert.equal(store.bestPachinkoRun(next), null, 'the next season starts without one');
+  assert.deepEqual(store.pachinkoWins(next), { red: 0, green: 0, blue: 0 });
   store.close();
 });
 

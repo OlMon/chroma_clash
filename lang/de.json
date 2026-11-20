@@ -498,6 +498,10 @@
     "one": "1 Feld",
     "other": "{count} Felder"
   },
+  "control.history.pachinkoWins": {
+    "one": "1 Pachinko-Sieg",
+    "other": "{count} Pachinko-Siege"
+  },
   "control.history.members": {
     "one": "1 Mitglied",
     "other": "{count} Mitglieder"

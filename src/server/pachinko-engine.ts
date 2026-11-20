@@ -19,6 +19,12 @@ export type BallLook = (user: UserRow) => { emote: unknown };
  * The whole game is played when it starts; the overlay shows it ball by ball.
  * It changes nothing in the game.
  */
+/** How a game of Pachinko that was shown to its end came out: its best chatter's run and the winning guild. */
+export interface PachinkoOutcome {
+  best: { name: string; points: number } | null;
+  winner: GuildId | null;
+}
+
 /** Who drops a ball: a drawn chatter, or one of the streamer's imps filling an empty place. */
 type Player = UserRow | Imp;
 const isImp = (player: Player): player is Imp => 'guild' in player;
@@ -37,8 +43,11 @@ export class PachinkoEngine implements EventEngine {
   /** Where the map banner is during the game, as in a battle; null for none. */
   private readonly banner: BannerPlace;
 
-  /** Told the best chatter's run when the game has been shown to its end: the season keeps its best. */
-  private readonly onBest: ((name: string, points: number) => void) | null;
+  /**
+   * Told the game's outcome when it has been shown to its end: the season
+   * keeps its best chatter's run and counts the guilds' wins.
+   */
+  private readonly onPlayed: ((outcome: PachinkoOutcome) => void) | null;
   private finished = false;
   private played = false;
 
@@ -48,9 +57,9 @@ export class PachinkoEngine implements EventEngine {
     look: BallLook,
     lang = DEFAULT_LANGUAGE,
     banner: BannerPlace = null,
-    onBest: ((name: string, points: number) => void) | null = null,
+    onPlayed: ((outcome: PachinkoOutcome) => void) | null = null,
   ) {
-    this.onBest = onBest;
+    this.onPlayed = onPlayed;
     this.banner = banner;
     this.picks = picks;
     this.look = look;
@@ -158,11 +167,10 @@ export class PachinkoEngine implements EventEngine {
   }
 
   finish(): void {
-    // Pachinko changes nothing in the game; the season only remembers its best run.
+    // Pachinko changes nothing in the game; the season only remembers its best run and who won.
     if (this.finished || !this.played) return;
     this.finished = true;
-    const best = this.bestRun();
-    if (best) this.onBest?.(best.name, best.points);
+    this.onPlayed?.({ best: this.bestRun(), winner: this.game.winner as GuildId | null });
   }
 
   closing(): { title: string; subtitle: string } {

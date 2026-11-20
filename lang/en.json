@@ -498,6 +498,10 @@
     "one": "1 tile",
     "other": "{count} tiles"
   },
+  "control.history.pachinkoWins": {
+    "one": "1 Pachinko win",
+    "other": "{count} Pachinko wins"
+  },
   "control.history.members": {
     "one": "1 member",
     "other": "{count} members"
