@@ -96,6 +96,7 @@ export class BattleRunner {
         cls: f.class ?? null,
         minion: f.minion,
         imp: f.imp === true,
+        leader: f.leader === true,
         side: f.side,
         radius: f.radius * config.battle.drawnRadiusShare,
       })),
@@ -183,6 +184,8 @@ export class BattleRunner {
     } else {
       let best: { name: string; kills: number } | null = null;
       battle.fighters.forEach((f) => {
+        // The streamer's imps and the god's minions are never the best of a fight.
+        if (f.imp || f.minion) return;
         if (f.kills > 0 && (!best || f.kills > best.kills)) best = { name: f.name, kills: f.kills };
       });
       const winner = result.winner

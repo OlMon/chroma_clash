@@ -161,13 +161,15 @@ test('the defender is tougher on developed land; nobody has a damage bonus', () 
 test('statistics and XP: kills match deaths, everyone active is rewarded', () => {
   const store = setupStore({ red: 10, green: 10, blue: 10 });
   const before = new Map(store.recentlyActive(0).map((u) => [u.user_id, u.xp]));
-  const { engine } = runWar(store, 11);
+  const { engine, steps } = runWar(store, 11);
   const users = store.recentlyActive(0);
   assert.equal(users.length, 30);
 
+  // Every chatter's death is somebody's kill; a kill can also be one of the imps that filled a small guild.
   const kills = users.reduce((sum, u) => sum + u.kills, 0);
   const deaths = users.reduce((sum, u) => sum + u.deaths, 0);
-  assert.equal(kills, deaths);
+  const imps = steps.reduce((sum, step) => sum + (step.setup?.fighters.filter((f) => f.imp).length ?? 0), 0);
+  assert.ok(kills >= deaths && kills <= deaths + imps, `${kills} kills, ${deaths} deaths, ${imps} imps`);
   assert.ok(kills > 0);
   assert.ok(users.every((u) => u.battles >= 1));
 

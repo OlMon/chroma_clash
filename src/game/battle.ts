@@ -16,6 +16,14 @@ export interface FighterSpec {
   /** Drawn as one of the streamer's imps, in its side's color, without a name: a filler for an empty place. Looks only. */
   imp?: boolean;
   /**
+   * Multiplies the fighter's health and damage: the streamer's imps that fill
+   * a small fight are weaker, and the chatters who lead them a little stronger
+   * (see `config.smallChat`).
+   */
+  strength?: number;
+  /** A chatter fighting beside imps: the overlay flies a banner over their name. Looks only. */
+  leader?: boolean;
+  /**
    * The fighter's class for this fight: its stats and how it behaves. See
    * `config.classes`. Fighters with stat overrides, such as the god, have none.
    */
@@ -624,12 +632,17 @@ export class Battle {
     // Around a fighter that holds the middle, everyone else starts in a ring: surrounded from the first moment.
     // A class changes the base stats.
     for (const fighter of this.fighters) {
-      if (!fighter.class) continue;
-      const stats = config.classes[fighter.class];
-      fighter.maxHealth *= stats.health;
+      if (fighter.class) {
+        const stats = config.classes[fighter.class];
+        fighter.maxHealth *= stats.health;
+        fighter.damage *= stats.damage;
+        fighter.speed *= stats.speed;
+      }
+      if (fighter.strength !== undefined) {
+        fighter.maxHealth *= fighter.strength;
+        fighter.damage *= fighter.strength;
+      }
       fighter.health = fighter.maxHealth;
-      fighter.damage *= stats.damage;
-      fighter.speed *= stats.speed;
     }
 
     const holder = this.fighters.find((fighter) => fighter.holdsCenter);

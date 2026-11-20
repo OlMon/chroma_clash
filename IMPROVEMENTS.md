@@ -24,9 +24,16 @@ that pass should measure.
 5. **Chat sees fires (S). Done (November 2026).** While a guild's land burns, its row on the map panel reads "Fire! 1 more chatter puts it out" (pulsing) in place of its Monument line, then "Fire: chat is putting it out" once enough of the guild wrote in the window.
 6. **Obstacles with god skills (S). Done (November 2026).** Rampage breaks walls; a fighter thrown into a bumper bounces off it at full speed again, and off walls.
 7. **A season recap (M). Done (November 2026).** When a season ends, the overlay shows the winner, most kills, highest level, most Clash wins, best Pachinko run, the god's score and the number of players, one after another, beside the winning Monument. History keeps the best Pachinko run too.
-8. **Small-chat modes (M).** With 3 to 8 chatters, Wars and Guild Clash are thin. Let the god's minions or "militia" fill empty places, so a small channel gets full battles.
+8. **Small-chat modes (M). Done (November 2026).** Imps fill every guild to 6 fighters in Wars and god fights and stand in for missing heroes in Hero Clash heats; imps are weaker (70%), the chatters leading them a little stronger (115%) and under a banner; a small chat (under 10 active) draws from everyone who wrote this session.
 9. **Guild changes by name colour (S). After 1.0.** Today a colour change moves a chatter only at the next season. Talked about (November 2026) and kept as is for now. Options for a future update: a hint before a new season ("change your name colour now to pick your guild for next season"); switching at the next stream, but only into a smaller guild (cannot snowball, evens out the guilds); or switching at the next stream only early in the season (while the goal still adapts). Switching every stream without a limit would let chatters jump to the leading guild and decide the Monument race early. Note: Red is the largest guild in real chats, because 7 of Twitch's 15 default colours fall in its hue range.
 10. **Bots out by default (S). Done.** Nightbot, StreamElements, Streamlabs, Moobot, Fossabot and WizeBot never take part (`config.botNames`); the streamer can exclude anyone else in Settings.
+
+## Additional modes
+
+Modes on top of the game, for later. Each is a feature of its own.
+
+1. **Duel mode (M).** Two chatters, one on one, large on screen with their emotes, health bars and the highlight lines; works from two chatters up, so it suits small communities ("Name challenges Name"). Needs a way to challenge: a chat command or a countdown.
+2. **Intro fighter remake (?).** Named by the streamer (November 2026); to be talked through before it is planned.
 
 ## Visuals
 

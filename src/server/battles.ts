@@ -10,7 +10,7 @@ import {
 import { defenseBonus } from '../game/land.ts';
 import { createRng } from '../util/rng.ts';
 import type { BattleMeta } from './battle-runner.ts';
-import { guildName, languageOf } from '../i18n.ts';
+import { guildName, languageOf, translator } from '../i18n.ts';
 
 /**
  * How tough every fighter is in a kind of fight with this many fighters: see
@@ -39,7 +39,11 @@ export interface BattlePlan {
 export function prepareBattle(store: Store, plan: BattlePlan): { setup: BattleSetup; meta: BattleMeta } {
   const rng = createRng(plan.seed);
   const session = store.activeSession();
-  const active = store.recentlyActive(plan.now - config.server.activeWindowMs, plan.now);
+  // A small chat draws from everyone who wrote this session, not only the last half hour.
+  const since = plan.now - config.server.activeWindowMs;
+  let active = store.recentlyActive(since, plan.now);
+  if (active.length < config.smallChat.widenBelow && session) active = store.recentlyActive(Math.min(since, session.started_at), plan.now);
+  const t = translator(languageOf(store));
   const championId = store.champion()?.user_id ?? null;
   const tile = plan.tileId ? store.tiles().find((t) => t.tile_id === plan.tileId) : undefined;
 
@@ -51,6 +55,10 @@ export function prepareBattle(store: Store, plan: BattlePlan): { setup: BattleSe
       session ? store.heroIds(session.session_id, guildId, config.battle.heroesPerGuild) : [],
     );
     const picked: (UserRow & { id: string })[] = selectFighters(eligible, heroes, rng);
+    // A guild with too few chatters is filled up with the streamer's imps, weaker than chatters;
+    // the chatters lead them, a little stronger and under a banner.
+    const { floor, impStrength, leaderStrength } = config.smallChat;
+    const imps = picked.length > 0 ? Math.max(0, floor - picked.length) : 0;
     for (const user of picked) {
       fighters.push({
         id: user.user_id,
@@ -60,7 +68,11 @@ export function prepareBattle(store: Store, plan: BattlePlan): { setup: BattleSe
         crown: user.user_id === championId,
         side: guildId,
         level: user.level,
+        ...(imps > 0 ? { leader: true, strength: leaderStrength } : {}),
       });
+    }
+    for (let n = 1; n <= imps; n++) {
+      fighters.push({ id: `imp:${guildId}:${n}`, name: t('server.imp.name', { n }), color: null, class: null, side: guildId, level: 0, imp: true, strength: impStrength });
     }
 
     // A defender fights on its own land: the more developed the tile, the tougher its fighters.

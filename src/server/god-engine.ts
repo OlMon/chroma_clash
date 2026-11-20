@@ -118,15 +118,17 @@ export class GodEngine implements EventEngine<GodStep> {
       seed: Math.floor(this.rng() * 2 ** 31),
       now: this.now(),
     });
-    for (const fighter of setup.fighters) this.participants.set(fighter.id, fighter.side as GuildId);
+    for (const fighter of setup.fighters) if (!fighter.imp) this.participants.set(fighter.id, fighter.side as GuildId);
     // Chatters who were not drawn into the fight share in the reward.
     for (const user of this.store.recentlyActive(this.now() - config.server.activeWindowMs, this.now())) {
       if (guilds.includes(user.guild_id)) this.participants.set(user.user_id, user.guild_id);
     }
 
-    const opponents = setup.fighters.length;
+    // The streamer's imps that fill a small chat count by their strength.
+    const imps = setup.fighters.filter((fighter) => fighter.imp).length;
+    const opponents = setup.fighters.length - imps + imps * config.smallChat.impStrength;
     const { healthVariation, damage, radiusFactor, splashFactor, speed, weight } = config.god;
-    const radius = radiusFor(opponents + 1);
+    const radius = radiusFor(setup.fighters.length + 1);
     // Skills make the god stronger; its health is lowered to keep the fight even.
     const skills = this.store.godSkills();
     const health =

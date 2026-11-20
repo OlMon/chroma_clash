@@ -218,6 +218,16 @@ export const config = {
    * get through everyone drawn (exponent 1). Measured with
    * `node src/cli/fight-durations.ts`.
    */
+  /**
+   * Small chats. A War or a god fight fills every guild that fields at least
+   * one chatter with the streamer's imps up to `floor` fighters; a Hero Clash
+   * heat fills a guild without a hero with one imp. Imps have `impStrength` of
+   * a chatter's health and damage, and the chatters who fight beside them
+   * `leaderStrength`, so the chatters stay the heroes. With fewer than
+   * `widenBelow` chatters active, fighters are drawn from everyone who wrote
+   * this session, not only the last half hour.
+   */
+  smallChat: { floor: 6, impStrength: 0.7, leaderStrength: 1.15, widenBelow: 10 },
   pace: {
     /**
      * The shortest a fight usually lasts, for the runtimes the control panel

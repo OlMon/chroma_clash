@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import type { Lineup } from '../../src/server/draft-engine.ts';
 import { test } from 'node:test';
 import { config, type GuildId } from '../../src/config.ts';
-import { Store } from '../../src/db/store.ts';
+import { Store, type UserRow } from '../../src/db/store.ts';
 import { Battle, godHealth, skillHealthFactor, type BattleResult } from '../../src/game/battle.ts';
 import { ClashEngine } from '../../src/server/clash-engine.ts';
 import { GodEngine } from '../../src/server/god-engine.ts';
@@ -85,10 +85,11 @@ test('heroes are the most active chatters of each guild, ranked into heats', () 
 
   const engine = new ClashEngine(store, () => T0 + 3 * WINDOW, 4);
   assert.equal(engine.heats.length, 3);
-  assert.deepEqual(engine.heats[0]!.map((h) => h.user_id).sort(), [ranked.red![0], ranked.green![0], ranked.blue![0]].sort());
-  assert.deepEqual(engine.heats[1]!.map((h) => h.user_id).sort(), [ranked.red![1], ranked.green![1], ranked.blue![1]].sort());
+  const heroes = (heat: (typeof engine.heats)[number]) => heat.map((h) => h as UserRow);
+  assert.deepEqual(heroes(engine.heats[0]!).map((h) => h.user_id).sort(), [ranked.red![0], ranked.green![0], ranked.blue![0]].sort());
+  assert.deepEqual(heroes(engine.heats[1]!).map((h) => h.user_id).sort(), [ranked.red![1], ranked.green![1], ranked.blue![1]].sort());
   for (const heat of engine.heats) {
-    assert.deepEqual(heat.map((h) => h.guild_id).sort(), ['blue', 'green', 'red'], 'one hero per guild');
+    assert.deepEqual(heroes(heat).map((h) => h.guild_id).sort(), ['blue', 'green', 'red'], 'one hero per guild');
   }
   store.close();
 });
@@ -282,7 +283,8 @@ test('Streamer vs Chat: over the map once per session; a friendly fight any time
   const chatSides = step.setup!.sides.filter((s) => s.id !== 'god');
   assert.deepEqual(chatSides.map((s) => s.id).sort(), ['blue', 'green', 'red']);
   assert.ok(chatSides.every((s) => s.team === 'chat'));
-  assert.equal(step.setup!.fighters.length, 16);
+  // The god, and five chatters per guild filled up with imps to the small-chat floor.
+  assert.equal(step.setup!.fighters.length, 1 + 3 * Math.max(5, config.smallChat.floor));
   assert.equal(step.map!.targets!.length, 3, 'one tile per guild is at stake');
   assert.equal(engine.friendly, false);
   engine.apply(step, resultFor(step.setup!, 'chat'));
@@ -300,7 +302,7 @@ test('Streamer vs Chat: over the map once per session; a friendly fight any time
   const friendlyStep = friendly.next()!;
   assert.match(friendlyStep.title, /friendly/);
   assert.deepEqual(friendlyStep.map, { targets: [] }, 'no tile is marked as at stake');
-  assert.equal(friendlyStep.setup!.fighters.length, 16, 'the fight itself is the same');
+  assert.equal(friendlyStep.setup!.fighters.length, step.setup!.fighters.length, 'the fight itself is the same');
   const shown = friendly.apply(friendlyStep, resultFor(friendlyStep.setup!, 'god')).display;
   assert.match(shown.subtitle, /nothing was at stake/);
   assert.deepEqual(shown.map, {});

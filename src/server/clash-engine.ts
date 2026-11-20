@@ -5,7 +5,7 @@ import { assignClasses, type BattleResult, type FighterSpec } from '../game/batt
 import { createRng, type Rng } from '../util/rng.ts';
 import type { EventEngine, EventMap, EventStep } from './event-runner.ts';
 import { guildName, languageOf, translator } from '../i18n.ts';
-import type { Lineup } from './draft-engine.ts';
+import type { Imp, Lineup } from './draft-engine.ts';
 
 export interface ClashStep extends EventStep {
   kind: 'heat' | 'final' | 'skipped';
@@ -20,9 +20,18 @@ const guildOf = (id: GuildId) => config.guilds.list.find((g) => g.id === id)!;
  * fight three three-way heats and a final, all with equal stats. The
  * champion's guild earns boosted XP for a while.
  */
+/** In a heat: a hero, or one of the streamer's imps standing in for a guild without one. */
+type Entrant = UserRow | Imp;
+const isImp = (entrant: Entrant): entrant is Imp => 'guild' in entrant;
+/** What the lineup and the overlay need of an entrant, alike for heroes and imps. */
+const asHero = (entrant: Entrant) =>
+  isImp(entrant)
+    ? { user_id: entrant.id, display_name: entrant.name, guild_id: entrant.guild, color: null }
+    : entrant;
+
 export class ClashEngine implements EventEngine<ClashStep> {
   /** Heat by heat: the first-ranked hero of each guild, then the second, then the third. */
-  readonly heats: UserRow[][];
+  readonly heats: Entrant[][];
   champion: UserRow | null = null;
   /** The neutral tile the champion's guild took as its prize, or null if none was neutral. */
   prize: string | null = null;
@@ -62,8 +71,13 @@ export class ClashEngine implements EventEngine<ClashStep> {
     );
     this.heats = [];
     for (let rank = 0; rank < heroesPerGuild; rank++) {
-      const heat = ranked.map((heroes) => heroes[rank]).filter((hero): hero is UserRow => hero !== undefined);
-      if (heat.length > 0) this.heats.push(heat);
+      if (!ranked.some((heroes) => heroes[rank])) continue;
+      // A guild without a hero of this rank sends one of the streamer's imps: no hero wins a heat unopposed.
+      this.heats.push(
+        config.guilds.list.map((guild, g): Entrant =>
+          ranked[g]![rank] ?? { id: `imp:${guild.id}:${rank + 1}`, name: this.t('server.imp.name', { n: rank + 1 }), guild: guild.id },
+        ),
+      );
     }
     if (this.heats.length === 0) {
       throw new Error(this.t('server.clash.needsTicks'));
@@ -89,15 +103,13 @@ export class ClashEngine implements EventEngine<ClashStep> {
   }
 
   /** `title` is the announcement's and the control panel's; `battleTitle` the overlay's during the fight. */
-  private match(kind: 'heat' | 'final', title: string, battleTitle: string, heroes: UserRow[]): ClashStep {
-    const fighters: FighterSpec[] = heroes.map((hero) => ({
-      id: hero.user_id,
-      name: hero.display_name,
-      color: hero.color,
-      emote: hero.emote_id,
-      side: hero.user_id,
-      level: 0,
-    }));
+  private match(kind: 'heat' | 'final', title: string, battleTitle: string, entrants: Entrant[]): ClashStep {
+    const heroes = entrants.map(asHero);
+    const fighters: FighterSpec[] = entrants.map((entrant) =>
+      isImp(entrant)
+        ? { id: entrant.id, name: entrant.name, color: null, class: null, side: entrant.id, level: 0, imp: true, strength: config.smallChat.impStrength }
+        : { id: entrant.user_id, name: entrant.display_name, color: entrant.color, emote: entrant.emote_id, side: entrant.user_id, level: 0 },
+    );
     // A class is dealt anew for each match.
     assignClasses(fighters, this.rng);
     // The heroes presented before the match: each with their guild, class and emote.
@@ -105,13 +117,17 @@ export class ClashEngine implements EventEngine<ClashStep> {
       teams: heroes.map((hero, index) => ({
         name: guildName(this.lang, hero.guild_id),
         color: guildOf(hero.guild_id).color,
-        members: [{ name: hero.display_name, detail: this.t(`class.${fighters[index]!.class}`), id: hero.user_id }],
+        members: [
+          isImp(entrants[index]!)
+            ? { name: hero.display_name, detail: this.t('server.imp.detail'), imp: true }
+            : { name: hero.display_name, detail: this.t(`class.${fighters[index]!.class}`), id: hero.user_id },
+        ],
       })),
       note: this.t('server.clash.lineupNote'),
     };
     return {
       kind,
-      heroes,
+      heroes: entrants.filter((entrant): entrant is UserRow => !isImp(entrant)),
       title,
       subtitle: heroes.map((hero) => hero.display_name).join('  vs  '),
       lineup,

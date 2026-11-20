@@ -197,7 +197,7 @@ function recordBattle(
     place: battle.place, elapsedMs: 0,
     fighters: battle.fighters.map((f) => ({
       name: f.name, color: f.color, emote: emotes.get(f.id) ?? null, image: null, cls: f.class ?? null, crown: false,
-      minion: f.minion, imp: f.imp === true, side: f.side, radius: f.radius * config.battle.drawnRadiusShare,
+      minion: f.minion, imp: f.imp === true, leader: f.leader === true, side: f.side, radius: f.radius * config.battle.drawnRadiusShare,
     })),
   };
   const frames: BattleFrameMessage[] = [];
@@ -369,6 +369,18 @@ export function generateScenes(outDir: string, lang = 'en'): Scene[] {
   page('imps', {
     messages: [battleState, ...recordBattle(t('mode.guildClash'), { seed: 5, sides: teamSides(), fighters: [...fewBlue, ...blueImps], sizeBalance: false }, twoSides, emotes,
       (_frames, i) => (i === 60 ? 1 : 0))],
+    moments: [250],
+  });
+
+  // A small chat's War: two and three chatters, each guild filled up with imps; the chatters lead them under banners.
+  const { floor, impStrength, leaderStrength } = config.smallChat;
+  const small = (side: string, count: number): FighterSpec[] => [
+    ...fighters.filter((f) => f.side === side).slice(0, count).map((f) => ({ ...f, leader: true, strength: leaderStrength })),
+    ...Array.from({ length: floor - count }, (_, i): FighterSpec => ({ id: `imp:${side}:${i + 1}`, name: t('server.imp.name', { n: i + 1 }), color: null, class: null, side, level: 0, imp: true, strength: impStrength })),
+  ];
+  page('smallwar', {
+    messages: [battleState, ...recordBattle(redAttacksBlue, { seed: 6, sides: teamSides(), fighters: [...small('red', 2), ...small('blue', 3)] }, twoSides, emotes,
+      (_frames, i) => (i === 50 ? 1 : 0))],
     moments: [250],
   });
 

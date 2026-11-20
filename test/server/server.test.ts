@@ -193,7 +193,8 @@ test('a test battle uses stand-ins when chat is quiet, streams frames and can be
   assert.equal(((await started.json()) as GameSnapshot).battle?.title, 'Test battle');
   await seen('battle-start');
   await seen('battle-frame', 3);
-  assert.equal(roster, 6);
+  // Six chatters, two per guild: each guild filled up with imps to the small-chat floor.
+  assert.equal(roster, 3 * config.smallChat.floor);
   assert.equal((await post('/api/test-battle', {})).status, 409, 'one battle at a time');
 
   const stopped = (await (await post('/api/battle/stop', {})).json()) as GameSnapshot;

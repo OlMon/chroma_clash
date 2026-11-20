@@ -2878,16 +2878,56 @@ function drawFighter(fighter, x, y, health, flags, alpha, squash) {
     ctx.fillRect(x - width / 2, y - r - 12, width * health, 5);
   }
 
+  let nameWidth = 0;
   if (fighter.name && namesOn()) {
     ctx.font = `600 14px ${FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
     ctx.fillStyle = '#FFFFFF';
     outlinedText(fighter.name, x, y - r - 17);
+    nameWidth = textWidth(fighter.name);
   }
+  // A chatter leading the streamer's imps flies a banner at the start of their name, so viewers can follow them.
+  if (fighter.leader) drawLeaderBanner(nameWidth > 0 ? x - nameWidth / 2 - 6 : x, y - r - (nameWidth > 0 ? 16 : 14), guildColor);
   if (fighter.crown) drawCrown(x, y - r - 36);
   if (fighter.cls) drawClassBadge(fighter.cls, x + r * 0.72, y + r * 0.72, Math.max(9, r * 0.42));
   ctx.globalAlpha = 1;
+}
+
+/** A small banner on a pole whose foot is at x, y: a swallowtail pennant in the guild's color, waving. */
+function drawLeaderBanner(x, y, color) {
+  const now = performance.now();
+  ctx.save();
+  // Drawn at 1.35 times the size below, around the pole's foot.
+  ctx.translate(x, y);
+  ctx.scale(1.35, 1.35);
+  ctx.translate(-x, -y);
+  const top = y - 30;
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = '#2A2420';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x, top);
+  ctx.stroke();
+  circle(x, top - 1, 2.5);
+  ctx.fillStyle = '#F2C76B';
+  ctx.fill();
+  // The cloth, rippling along its length.
+  const wave = (t) => Math.sin(now / 180 + t * 3 + x * 0.05) * 2.2 * t;
+  ctx.beginPath();
+  ctx.moveTo(x, top + 1);
+  ctx.lineTo(x + 22, top + 2 + wave(1));
+  ctx.lineTo(x + 15, top + 8 + wave(0.7));
+  ctx.lineTo(x + 22, top + 14 + wave(1));
+  ctx.lineTo(x, top + 14);
+  ctx.closePath();
+  ctx.fillStyle = color || '#FFFFFF';
+  ctx.fill();
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
+  ctx.stroke();
+  ctx.restore();
 }
 
 // --- Skill effects -----------------------------------------------------------

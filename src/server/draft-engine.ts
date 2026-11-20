@@ -219,9 +219,11 @@ export class DraftEngine implements EventEngine<DraftStep> {
           class: this.classes.get(user.user_id),
           side: free ? user.user_id : user.guild_id,
           level: 0,
+          // A guild filled up with imps: its chatters lead them (see `config.smallChat`).
+          ...(this.imps.some((imp) => imp.guild === user.guild_id) ? { leader: true, strength: config.smallChat.leaderStrength } : {}),
         })),
-        // The imps step in last, after the guild's chatters: plain fighters without a class.
-        ...this.imps.map((imp): FighterSpec => ({ id: imp.id, name: imp.name, color: null, class: null, side: imp.guild, level: 0, imp: true })),
+        // The imps step in last, after the guild's chatters: plain fighters without a class, weaker than chatters.
+        ...this.imps.map((imp): FighterSpec => ({ id: imp.id, name: imp.name, color: null, class: null, side: imp.guild, level: 0, imp: true, strength: config.smallChat.impStrength })),
       ],
     };
     const meta: BattleMeta = {
