@@ -83,6 +83,8 @@ export class BattleRunner {
       // The map banner's strip of the screen, outside the arena.
       banner: this.bannerPlace ? { place: this.bannerPlace, height: config.battle.bannerHeight } : null,
       ambient: this.meta.ambient === true,
+      // The arena's name, for the scoreboard and the highlights; null without one.
+      place: this.battle.place,
       enrageGrow: config.skills.enrage.grow,
       sides: this.meta.sides.filter((side) => this.battle!.sides.some((s) => s.id === side.id)),
       fighters: this.battle.fighters.map((f) => ({

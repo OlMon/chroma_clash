@@ -1943,6 +1943,10 @@ function onBattleStart(message) {
     trail: { index: -1, until: 0, points: [] }, // afterimages behind a rampaging fighter
     end: null, // the battle-end message, with shownAt
     feed: { queue: [], lines: [], lastAt: -Infinity }, // the highlights: deaths waiting to be shown, and the lines shown
+    place: message.place || null, // the arena's id, or null
+    // When the battle began on this page: the arena's name is introduced then (not to a page that joins late).
+    startedAt: performance.now() - (message.elapsedMs || 0),
+    broken: new Map(), // obstacle id → when it was first seen broken, for crumbling walls
   };
   requestAnimationFrame(drawBattle);
 }
@@ -1963,6 +1967,10 @@ function onBattleFrame(message) {
     }
     if (event.k === 'cast' && event.s === 'rampage') {
       battle.trail = { index: event.i, until: now + event.ms, points: [] };
+    }
+    if (event.k === 'fx' && event.fx === 'smash') {
+      // The god breaking through a wall.
+      battle.shake = { start: now, ms: 300, power: 9 };
     }
     if (event.k === 'fx' && (event.fx === 'dash' || event.fx === 'wrap')) {
       // The god's dash leaves the same afterimages as a rampage, briefly.
@@ -2728,10 +2736,22 @@ function feedLine(event) {
   const victim = battle.fighters[event.i];
   const killer = event.b >= 0 ? battle.fighters[event.b] : null;
   const kind = !killer || event.h === 'cause' || event.h === 'kill' ? event.c : event.h;
-  let count = 0;
-  while (tr(`overlay.feed.${kind}.${count + 1}`) !== `overlay.feed.${kind}.${count + 1}`) count++;
+  /** How many variants a family of lines has. */
+  const variants = (family) => {
+    let count = 0;
+    while (tr(`${family}.${count + 1}`) !== `${family}.${count + 1}`) count++;
+    return count;
+  };
+  let family = `overlay.feed.${kind}`;
+  // In an arena, often a line of its own: a barrel in the Brewery, a plain kill in the Ruins.
+  if (battle.place) {
+    const plain = ['strike', 'arrow', 'spin', 'blast'].includes(kind);
+    const own = `overlay.feed.place.${battle.place}.${plain ? 'kill' : kind}`;
+    if (variants(own) > 0 && Math.random() < (plain ? 0.35 : 0.6) && (!plain || killer)) family = own;
+  }
+  const count = variants(family);
   if (!victim || count === 0) return null;
-  const key = `overlay.feed.${kind}.${1 + Math.floor(Math.random() * count)}`;
+  const key = `${family}.${1 + Math.floor(Math.random() * count)}`;
   const color = (fighter) => battle.sideColors[fighter.side] || '#FFFFFF';
   const names = {
     '\u0001': { text: feedName(victim), color: color(victim) },
@@ -3434,8 +3454,23 @@ function drawBattleHud(frame) {
   ctx.textAlign = 'left';
   ctx.fillStyle = '#FFFFFF';
   ctx.font = `600 20px ${FONT}`;
+  const clockWidth = textWidth('0:00');
+  // The arena's name sits left of the clock, in the place's gold; the title gets the room that is left.
+  let placeWidth = 0;
+  if (battle.place) {
+    const name = tr(`arena.${battle.place}.name`);
+    ctx.font = `600 16px ${FONT}`;
+    placeWidth = Math.min(textWidth(name), width * 0.4);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#F2C76B';
+    ctx.fillText(name, left + width - 24 - clockWidth - 18, 51, placeWidth);
+    placeWidth += 18;
+    ctx.font = `600 20px ${FONT}`;
+    ctx.fillStyle = '#FFFFFF';
+  }
+  ctx.textAlign = 'left';
   // Room is left for the clock on the right.
-  ctx.fillText(battle.title, left + 24, 50, width - 48 - 80);
+  ctx.fillText(battle.title, left + 24, 50, width - 48 - clockWidth - 24 - placeWidth);
   ctx.textAlign = 'right';
   ctx.fillText(clock, left + width - 24, 50);
 
@@ -3467,6 +3502,45 @@ function drawBattleHud(frame) {
     ctx.fillStyle = side.color;
     ctx.fillRect(x, 102, columnWidth * (total ? health / total : 0), 8);
   });
+}
+
+/** The arena's name, introduced when a battle starts: it grows in, holds a moment and fades. */
+const ARENA_INTRO = { ms: 2600, inMs: 350, outMs: 600 };
+
+function drawArenaIntro(elapsed, height) {
+  const p = Math.min(1, elapsed / ARENA_INTRO.inMs);
+  const alpha = Math.min(p, (ARENA_INTRO.ms - elapsed) / ARENA_INTRO.outMs);
+  if (alpha <= 0) return;
+  const grow = 0.85 + 0.15 * (1 - (1 - p) ** 3);
+  const x = canvas.width / 2;
+  const y = height * 0.5;
+  ctx.save();
+  ctx.globalAlpha = Math.max(0, alpha);
+  ctx.translate(x, y);
+  ctx.scale(grow, grow);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const name = tr(`arena.${battle.place}.name`);
+  const tagline = tr(`arena.${battle.place}.tagline`);
+  ctx.font = `800 72px ${FONT}`;
+  const width = Math.max(textWidth(name), 360) + 120;
+  // A dark band behind the words, fading out at its ends, so they read over any crowd.
+  const band = ctx.createLinearGradient(-width / 2, 0, width / 2, 0);
+  band.addColorStop(0, 'rgba(17, 20, 24, 0)');
+  band.addColorStop(0.2, 'rgba(17, 20, 24, 0.72)');
+  band.addColorStop(0.8, 'rgba(17, 20, 24, 0.72)');
+  band.addColorStop(1, 'rgba(17, 20, 24, 0)');
+  ctx.fillStyle = band;
+  ctx.fillRect(-width / 2, -78, width, 150);
+  ctx.lineWidth = 8;
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.55)';
+  ctx.strokeText(name, 0, -14);
+  ctx.fillStyle = '#F2C76B';
+  ctx.fillText(name, 0, -14);
+  ctx.font = `500 24px ${FONT}`;
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+  ctx.fillText(tagline, 0, 42, width - 60);
+  ctx.restore();
 }
 
 function drawBattleResult() {
@@ -4142,7 +4216,10 @@ function drawObstacles(previous, latest, blend, now) {
     const y = (old ? old[3] + (y2 - old[3]) * blend : y2) * s;
     ctx.save();
     ctx.globalAlpha = life / 100;
-    if (kind === OBSTACLE.wall) drawWall(x, y, a * s, b * s, id);
+    if (kind === OBSTACLE.wall && state === 1) {
+      if (!battle.broken.has(id)) battle.broken.set(id, now);
+      drawRubble(x, y, a * s, b * s, id, now - battle.broken.get(id));
+    } else if (kind === OBSTACLE.wall) drawWall(x, y, a * s, b * s, id);
     else if (kind === OBSTACLE.bumper) drawBumper(x, y, a * s, state === 1, now);
     else if (kind === OBSTACLE.barrel) drawBarrel(x, y, a * s, (old ? old[5] + (b - old[5]) * blend : b) / 100, state === 1, now, id);
     else if (kind === OBSTACLE.trap) drawTrap(x, y, a * s, state, now);
@@ -4189,6 +4266,46 @@ function drawWall(x, y, w, h, id) {
   ctx.lineWidth = 2;
   ctx.strokeStyle = '#2A2420';
   ctx.strokeRect(left, top, w, h);
+}
+
+/** A wall the god broke through: its bricks fly apart in a puff of dust, `ms` after it broke. */
+function drawRubble(x, y, w, h, id, ms) {
+  const p = Math.min(1, ms / 450);
+  const across = w >= h;
+  const length = across ? w : h;
+  const thick = across ? h : w;
+  // Dust.
+  ctx.save();
+  ctx.globalAlpha *= 0.45 * (1 - p);
+  ctx.fillStyle = '#B8AEA4';
+  for (let i = 0; i < 5; i++) {
+    const at = (i / 4 - 0.5) * length;
+    circle(x + (across ? at : 0), y + (across ? 0 : at), thick * (0.8 + 1.6 * p));
+    ctx.fill();
+  }
+  ctx.restore();
+  // Bricks, thrown out to both sides and turning.
+  const pieces = Math.max(6, Math.round(length / (thick * 1.1)));
+  ctx.save();
+  ctx.globalAlpha *= 1 - p * p;
+  for (let i = 0; i < pieces; i++) {
+    const along = ((i + 0.5) / pieces - 0.5) * length;
+    const side = hash01(id * 13 + i) < 0.5 ? -1 : 1;
+    const fly = thick * (0.6 + 2.4 * hash01(id * 7 + i * 3)) * p;
+    const spread = (hash01(id + i * 11) - 0.5) * thick * 2 * p;
+    const px = x + (across ? along + spread : side * fly);
+    const py = y + (across ? side * fly : along + spread);
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate((hash01(id * 3 + i) - 0.5) * 6 * p);
+    ctx.fillStyle = hash01(id * 31 + i) < 0.5 ? '#857D76' : '#6C655F';
+    ctx.fillRect(-thick * 0.45, -thick * 0.3, thick * 0.9, thick * 0.6);
+    ctx.strokeStyle = '#2A2420';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(-thick * 0.45, -thick * 0.3, thick * 0.9, thick * 0.6);
+    ctx.restore();
+  }
+  ctx.restore();
 }
 
 /** A pinball bumper: rings of red and white around a lit cap. It flashes when it flings someone. */
@@ -4407,6 +4524,14 @@ function renderBattle(now) {
     ctx.restore();
   });
   if (!battle.ambient) {
+    if (battle.place && now - battle.startedAt < ARENA_INTRO.ms) {
+      drawOnTop(() => {
+        ctx.save();
+        ctx.translate(0, view.top);
+        drawArenaIntro(now - battle.startedAt, view.height);
+        ctx.restore();
+      });
+    }
     drawOnTop(() => {
       ctx.save();
       ctx.translate(0, view.top);

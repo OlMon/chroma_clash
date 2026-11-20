@@ -337,8 +337,10 @@ export const config = {
   /**
    * Obstacles in battles, when switched on in the control panel. Sizes are
    * multiples of a fighter's radius in that battle (the unit).
-   * - A team battle gets a layout with `chance`; it stays for the whole fight,
-   *   so each battle of a War can look different.
+   * - A team battle is fought in an arena with `chance`: a named place with a
+   *   plan of its own (see ARENAS in src/game/obstacles.ts), so each battle
+   *   of a War can look different. After `arena.changeAfterMs` it changes
+   *   every `arena.changeEveryMs`: an obstacle that fits it comes or goes.
    * - A free-for-all or the endless mode has obstacles appear now and then
    *   (`changing.everyMs`) and disappear again after `changing.lifeMs`.
    * Walls stand in the way; bumpers fling whoever touches them away like a
@@ -347,10 +349,14 @@ export const config = {
    */
   obstacles: {
     chance: 0.4,
-    wall: { count: [2, 3] as [number, number], length: [4, 7] as [number, number], thickness: 0.8 },
-    bumper: { count: [3, 5] as [number, number], radius: 1.3, flingMs: 220 },
+    wall: { length: [4, 7] as [number, number], thickness: 0.8 },
+    bumper: { radius: 1.3, flingMs: 220 },
     barrel: { radius: 0.9, speed: 300, everyMs: [2_200, 4_500] as [number, number], damage: 8, knock: 2.5 },
-    trap: { count: [2, 4] as [number, number], radius: 1.4, periodMs: 3_200, warnMs: 800, strikeMs: 300, damage: 16 },
+    trap: { radius: 1.4, periodMs: 3_200, warnMs: 800, strikeMs: 300, damage: 16 },
+    /** Arenas: after `changeAfterMs` an arena changes every `changeEveryMs`. */
+    arena: { changeAfterMs: 20_000, changeEveryMs: [8_000, 14_000] as [number, number] },
+    /** Bumpers and traps do nothing for this long after a battle starts, while the teams find their feet. */
+    quietMs: 2_500,
     changing: { everyMs: [9_000, 18_000] as [number, number], lifeMs: [10_000, 18_000] as [number, number], max: 4 },
     /** How long an obstacle takes to appear and to fade away, in the overlay and before it blocks. */
     fadeMs: 600,

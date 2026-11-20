@@ -1,6 +1,6 @@
 import { config, type ClassId, type SkillId } from '../config.ts';
 import { createRng, type Rng } from '../util/rng.ts';
-import { Obstacles, type ClearZone, type FrameObstacle, type ObstacleMode } from './obstacles.ts';
+import { Obstacles, type ArenaId, type ClearZone, type FrameObstacle, type ObstacleMode } from './obstacles.ts';
 
 export interface FighterSpec {
   id: string;
@@ -105,6 +105,8 @@ export interface BattleSetup {
    * Without it, none.
    */
   obstacles?: ObstacleMode;
+  /** With `fixed` obstacles: this arena, always, instead of one by chance (for tests and previews). */
+  place?: ArenaId;
   /**
    * Multiplies every fighter's health in this battle, the god's and its
    * minions' included, and healing and obstacle damage with it: a fight
@@ -187,6 +189,8 @@ interface Flight {
   speed: number;
   from: number;
   until: number;
+  /** When it last bounced off a bumper, so one bumper sends it off only once. */
+  bumpedAt?: number;
 }
 
 /** A fighter breaking out of a crowd: see `config.roam`. */
@@ -729,7 +733,7 @@ export class Battle {
         this.teams.forEach((team, index) => {
           const [sx, sy] = spawns[index] ?? [0.5, 0.5];
           const spread = fighterRadius * (1 + 1.4 * Math.sqrt(teamSizes.get(team) ?? 1));
-          zones.push({ x: sx * arena.width, y: sy * arena.height, r: spread + 2 * fighterRadius });
+          zones.push({ x: sx * arena.width, y: sy * arena.height, r: spread + 2 * fighterRadius, soft: true });
         });
       }
       if (holder) {
@@ -737,7 +741,7 @@ export class Battle {
         zones.push({ x: middle.x, y: middle.y, r: holder.radius + 4 * fighterRadius });
       }
       const bounds = { left: arena.margin, top: arena.top, right: arena.width - arena.margin, bottom: arena.height - arena.margin };
-      this.obstacles = Obstacles.create(setup.obstacles, createRng((setup.seed ^ 0x5bd1e995) >>> 0), fighterRadius, bounds, zones);
+      this.obstacles = Obstacles.create(setup.obstacles, createRng((setup.seed ^ 0x5bd1e995) >>> 0), fighterRadius, bounds, zones, setup.place);
     }
 
     // Wherever a fighter was placed above, it starts inside the arena's limits.
@@ -862,6 +866,17 @@ export class Battle {
         const limits = this.limits(fighter);
         if (fighter.x < limits.minX || fighter.x > limits.maxX) flight.vx = -flight.vx;
         if (fighter.y < limits.minY || fighter.y > limits.maxY) flight.vy = -flight.vy;
+        // Into a bumper or a wall: it bounces off, and a bumper sends it off again at full speed, like a pinball.
+        const bounce = this.obstacles?.deflect(fighter.x, fighter.y, fighter.radius, flight.vx, flight.vy, now);
+        if (bounce) {
+          flight.vx = bounce.vx;
+          flight.vy = bounce.vy;
+          if (bounce.bumper && now - (flight.bumpedAt ?? -Infinity) > 150) {
+            flight.bumpedAt = now;
+            flight.from = now;
+            flight.until = Math.max(flight.until, now + config.obstacles.bumper.flingMs * 2);
+          }
+        }
         this.keepInArena(fighter);
       }
       if (now + dt * 1000 >= flight.until) fighter.flight = null;
@@ -1445,6 +1460,11 @@ export class Battle {
     fighter.y = clamp(fighter.y, limits.minY, limits.maxY);
   }
 
+  /** The arena the battle is fought in, or null for none (no obstacles, or ones that come and go). */
+  get place(): ArenaId | null {
+    return this.obstacles?.arena ?? null;
+  }
+
   /** The obstacles for the overlay, or null when the battle has none. */
   obstacleFrame(): FrameObstacle[] | null {
     if (!this.obstacles || this.obstacles.empty) return null;
@@ -1639,6 +1659,8 @@ export class Battle {
           }
           if (active.bounces <= 0) active.returning = true;
         }
+        // Walls in its way break.
+        if (this.obstacles && this.obstacles.smash(caster.x, caster.y, caster.radius, now) > 0) this.fx('smash', caster);
         this.keepInArena(caster);
         for (const enemy of enemies) {
           if (!enemy.alive) continue;

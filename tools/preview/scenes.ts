@@ -16,7 +16,7 @@ import { Battle, assignClasses, godHealth, radiusFor, type BattleEvent, type Bat
 import { assignGuild } from '../../src/game/guilds.ts';
 import { mapTiles, tileId } from '../../src/game/hex.ts';
 import { startingLand } from '../../src/game/land.ts';
-import type { FrameObstacle } from '../../src/game/obstacles.ts';
+import { ARENAS, type FrameObstacle } from '../../src/game/obstacles.ts';
 import { playPachinko } from '../../src/game/pachinko.ts';
 import { SimulatedChat } from '../../src/sim/chat.ts';
 import { createRng } from '../../src/util/rng.ts';
@@ -183,10 +183,13 @@ function recordBattle(
   sides: SideInfo[],
   emotes: Map<string, Emote>,
   pick: (frames: BattleFrameMessage[], i: number) => number,
+  /** Whether the picture shows the battle's start as it begins (the arena's name introduced), not a page joining later. */
+  fromStart = false,
 ): unknown[] {
   const battle = new Battle(setup);
   const start = {
     type: 'battle-start', title, durationMs: battle.durationMs, arena: config.battle.arena, enrageGrow: config.skills.enrage.grow, ambient: false, sides,
+    place: battle.place, elapsedMs: 0,
     fighters: battle.fighters.map((f) => ({
       name: f.name, color: f.color, emote: emotes.get(f.id) ?? null, image: null, cls: f.class ?? null, crown: false,
       minion: f.minion, imp: f.imp === true, side: f.side, radius: f.radius * config.battle.drawnRadiusShare,
@@ -197,12 +200,14 @@ function recordBattle(
     battle.step();
     frames.push({ type: 'battle-frame', t: battle.timeMs, f: battle.frame(), e: battle.events, o: battle.obstacleFrame() });
   }
-  let best = 0;
-  let bestScore = -1;
-  for (let i = 20; i < frames.length - 12; i++) {
+  let best = fromStart ? 0 : 20;
+  let bestScore = -Infinity;
+  for (let i = fromStart ? 0 : 20; i < frames.length - 12; i++) {
     const score = pick(frames, i);
     if (score > bestScore) { bestScore = score; best = i; }
   }
+  // Joined at the picked moment: the arena's introduction is long over.
+  if (!fromStart) start.elapsedMs = frames[best]?.t ?? 0;
   return [start, ...frames.slice(best, best + 12)];
 }
 
@@ -406,23 +411,28 @@ export function generateScenes(outDir: string, lang = 'en'): Scene[] {
     moments: [0, 300],
   });
 
-  // Obstacles: a few team battles, each forced to get a layout, picked where barrels and traps are busy.
-  const obstacleChance = config.obstacles.chance;
-  config.obstacles.chance = 1;
-  try {
-    for (const seed of [21, 22, 23, 24]) {
-      page(`obst${seed}`, {
-        messages: [battleState, ...recordBattle(redAttacksBlue, { seed, sides: teamSides(), fighters: fighters.map((f) => ({ ...f })), obstacles: 'fixed' }, twoSides, emotes,
-          (frames, i) => {
-            const o = frames[i]?.o;
-            return o ? o.filter((x) => x[1] === 2).length * 10 + o.filter((x) => x[6] > 0).length * 5 - i / 1000 : -1;
-          })],
-        moments: [1000],
-      });
-    }
-  } finally {
-    config.obstacles.chance = obstacleChance;
+  // Arenas: a team battle in each, picked where its obstacles are busy (barrels rolling, traps striking, bumpers lit).
+  const busy = (frames: BattleFrameMessage[], i: number) => {
+    const o = frames[i]?.o;
+    return o ? o.filter((x) => x[1] === 2).length * 10 + o.filter((x) => x[6] > 0).length * 5 + o.length - i / 1000 : -1;
+  };
+  for (const place of ARENAS) {
+    page(`arena-${place}`, {
+      messages: [battleState, ...recordBattle(redAttacksBlue, { seed: 21, sides: teamSides(), fighters: fighters.map((f) => ({ ...f })), obstacles: 'fixed', place }, twoSides, emotes, busy)],
+      moments: [1000],
+    });
   }
+  // The arena's name, introduced as the battle begins.
+  page('arenaintro', {
+    messages: [battleState, ...recordBattle(redAttacksBlue, { seed: 22, sides: teamSides(), fighters: fighters.map((f) => ({ ...f })), obstacles: 'fixed', place: 'brewery' }, twoSides, emotes, (_frames, i) => -i, true)],
+    moments: [700],
+  });
+  // The god's Rampage breaking through the walls of the Ruins.
+  page('smash', {
+    messages: [battleState, ...recordBattle(versusTitle, { ...godSetup(17, { ...god, skills: ['rampage'] }), obstacles: 'fixed', place: 'ruins' }, godSides, noEmotes,
+      (frames, i) => (frames[i + 2]?.o ?? []).filter((x) => x[1] === 0 && x[6] === 1).length * 10 - i / 1000)],
+    moments: [300],
+  });
 
   // A countdown fight: the countdown with the chatters who joined, then the line-up with their classes.
   // These carry the longest texts the server writes, so they show first where a language runs long.
