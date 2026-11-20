@@ -55,3 +55,19 @@ Windows and Linux downloads on GitHub and attaches them to a release (see
 Chroma Clash was inspired by [Intro Fighters](https://lexone.itch.io/introfighters)
 by [Lexone](https://lexone.itch.io/): chat's emotes tumbling across a "be right
 back" screen is what started this project. Thank you.
+
+## Licence
+
+Copyright (C) 2026 OlMon.
+
+Chroma Clash is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version. It is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See [LICENSE](LICENSE) for the full text.
+
+You may use it on any stream, monetized or not. The downloads also contain
+software and fonts by others under their own licences (Node.js and ws under
+MIT, Jersey 10 and Pirata One under the SIL Open Font License); see
+`THIRD-PARTY-NOTICES.txt` in each download.

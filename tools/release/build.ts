@@ -107,6 +107,35 @@ async function officialNode(): Promise<string> {
   return target;
 }
 
+/** Node.js's licence for the running version (it covers the Node runtime inside the executable), cached in dist/.cache. */
+async function nodeLicense(): Promise<string> {
+  const file = join(cache, `node-${process.version}-LICENSE`);
+  if (!existsSync(file)) {
+    mkdirSync(cache, { recursive: true });
+    await download(`https://raw.githubusercontent.com/nodejs/node/${process.version}/LICENSE`, file);
+  }
+  return readFileSync(file, 'utf8');
+}
+
+/**
+ * The notices of what the download contains from others: Node.js inside the
+ * executable, the ws package bundled into it, and the themes' fonts.
+ */
+async function thirdPartyNotices(): Promise<string> {
+  const rule = '='.repeat(78);
+  const section = (title: string, text: string) => `${rule}\n${title}\n${rule}\n\n${text.trim()}\n\n`;
+  const ws = JSON.parse(readFileSync(join(repo, 'node_modules', 'ws', 'package.json'), 'utf8')) as { version: string };
+  return (
+    `Chroma Clash ${version} contains the following software and fonts by others,\n` +
+    `each under its own licence. Chroma Clash itself is under the GNU General\n` +
+    `Public License, version 3 or later: see LICENSE.\n\n` +
+    section(`Node.js ${process.version} (the runtime inside ${exeName})`, await nodeLicense()) +
+    section(`ws ${ws.version} (bundled into ${exeName})`, readFileSync(join(repo, 'node_modules', 'ws', 'LICENSE'), 'utf8')) +
+    section('Jersey 10 font (overlay/themes/pixel/)', readFileSync(join(repo, 'overlay', 'themes', 'pixel', 'OFL.txt'), 'utf8')) +
+    section('Pirata One font (overlay/themes/comic/)', readFileSync(join(repo, 'overlay', 'themes', 'comic', 'OFL.txt'), 'utf8'))
+  );
+}
+
 function megabytes(file: string): string {
   return `${(statSync(file).size / 1024 / 1024).toFixed(1)} MB`;
 }
@@ -170,6 +199,13 @@ YOUR DATA
   To update, unpack the new version and copy your data/ folder into it
   (or unpack the new version over this folder).
 
+LICENCE AND SOURCE CODE
+  Chroma Clash is free software: you may use it on any stream, share it, and
+  change it under the GNU General Public License, version 3 or later (see
+  LICENSE.txt). It comes with no warranty. The source code, downloads and the
+  place for bug reports and ideas: https://github.com/OlMon/chroma_clash
+  What it contains from others (Node.js, ws, two fonts): THIRD-PARTY-NOTICES.txt
+
 OPTIONS (from a terminal)
   --port 4747          another port, if 4747 is taken
   --data <folder>      keep the data somewhere else
@@ -226,9 +262,12 @@ execFileSync(process.execPath, ['--build-sea', seaConfig], { stdio: 'inherit' })
 if (isMac) execFileSync('codesign', ['--sign', '-', '--force', exe], { stdio: 'inherit' });
 console.log(`  ${exeName}: ${megabytes(exe)}`);
 
-step('copying overlay/, control/, lang/ and START.txt');
+step('copying overlay/, control/, lang/, START.txt, LICENSE and THIRD-PARTY-NOTICES.txt');
 for (const folder of ['overlay', 'control', 'lang']) cpSync(join(repo, folder), join(out, folder), { recursive: true });
-writeFileSync(join(out, 'START.txt'), isWindows ? START_TXT.replaceAll('\n', '\r\n') : START_TXT);
+const text = (content: string) => (isWindows ? content.replaceAll('\r\n', '\n').replaceAll('\n', '\r\n') : content);
+writeFileSync(join(out, 'START.txt'), text(START_TXT));
+writeFileSync(join(out, 'LICENSE.txt'), text(readFileSync(join(repo, 'LICENSE'), 'utf8')));
+writeFileSync(join(out, 'THIRD-PARTY-NOTICES.txt'), text(await thirdPartyNotices()));
 rmSync(work, { recursive: true, force: true });
 
 step('packing');
