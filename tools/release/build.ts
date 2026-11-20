@@ -111,23 +111,48 @@ function megabytes(file: string): string {
   return `${(statSync(file).size / 1024 / 1024).toFixed(1)} MB`;
 }
 
+/** How to start the game, for the platform this build is for; Windows with its warnings. */
+function startSteps(): string {
+  const keepOpen = `  Your browser opens the control panel. Keep the window open while you stream;
+  closing it (or Ctrl+C) stops the game.
+`;
+  if (isWindows) {
+    return `START
+  Double-click ${exeName}.
+${keepOpen}
+WINDOWS WARNINGS
+  Chroma Clash is new and not signed with a paid code-signing certificate, so
+  Windows may make a fuss the first time:
+  - SmartScreen: "Windows protected your PC". Click "More info", then
+    "Run anyway". It asks only once.
+  - Your antivirus (Defender or another) may hold the file back or move it to
+    quarantine. Allow ${exeName} (in Defender: Windows Security >
+    Virus & threat protection > Protection history > the entry > Allow), or
+    unpack the download again.
+  The game runs only on your computer. It talks to Twitch chat and the emote
+  sites (BetterTTV, FrankerFaceZ, 7TV), and asks the website whether a new
+  version is out; nothing else.
+`;
+  }
+  if (isMac) {
+    return `START
+  Double-click ${exeName}; it opens in Terminal.
+  If macOS refuses an unknown developer: right-click it, "Open", "Open";
+  or in Terminal: xattr -d com.apple.quarantine ${exeName}
+${keepOpen}`;
+  }
+  return `START
+  In a terminal in this folder: ./${exeName}
+${keepOpen}`;
+}
+
 const START_TXT = `Chroma Clash ${version}
 ${'='.repeat(`Chroma Clash ${version}`.length)}
 
 A game for your Twitch chat: every chatter joins a guild by their name color and
 fights for the map on your stream overlay. Nothing to install.
 
-START
-  Windows:  double-click ${exeName}
-            (if SmartScreen warns: "More info", then "Run anyway")
-  macOS:    double-click ${exeName}; it opens in Terminal
-            (if macOS refuses an unknown developer: right-click, "Open", "Open";
-            or in Terminal: xattr -d com.apple.quarantine ${exeName})
-  Linux:    in a terminal in this folder: ./${exeName}
-
-  Your browser opens the control panel. Keep the window open while you stream;
-  closing it (or Ctrl+C) stops the game.
-
+${startSteps()}
 FIRST TIME
   1. In the control panel, enter your Twitch channel name.
   2. In OBS add a "Browser" source:
