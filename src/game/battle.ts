@@ -21,8 +21,13 @@ export interface FighterSpec {
    * (see `config.smallChat`).
    */
   strength?: number;
-  /** A chatter fighting beside imps: the overlay flies a banner over their name. Looks only. */
+  /** A chatter fighting beside imps or doubles: the overlay flies a banner over their name. Looks only. */
   leader?: boolean;
+  /**
+   * A double the god made of the fighter with this id, in a small chat: it
+   * starts beside it, never makes a highlight, and earns nothing.
+   */
+  doubleOf?: string;
   /**
    * The fighter's class for this fight: its stats and how it behaves. See
    * `config.classes`. Fighters with stat overrides, such as the god, have none.
@@ -643,6 +648,15 @@ export class Battle {
         fighter.damage *= fighter.strength;
       }
       fighter.health = fighter.maxHealth;
+    }
+
+    // The god's doubles start right beside the chatter they copy, and step apart from there.
+    for (const double of this.fighters.filter((f) => f.doubleOf)) {
+      const original = this.fighters.find((f) => f.id === double.doubleOf);
+      if (!original) continue;
+      const angle = rng() * Math.PI * 2;
+      double.x = original.x + Math.cos(angle) * original.radius * 1.2;
+      double.y = original.y + Math.sin(angle) * original.radius * 1.2;
     }
 
     const holder = this.fighters.find((fighter) => fighter.holdsCenter);
@@ -1406,7 +1420,7 @@ export class Battle {
    * the first of them is first blood.
    */
   private noteDeath(victim: Fighter, killer: Fighter | null, cause: DeathCause): void {
-    if (victim.minion || victim.imp) return;
+    if (victim.minion || victim.imp || victim.doubleOf) return;
     this.deaths++;
     const sideSize = this.fighters.filter((f) => f.side === victim.side && !f.minion).length;
     const standing = this.fighters.some((f) => f !== victim && f.side === victim.side && !f.minion && (f.alive || f.benched));

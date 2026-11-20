@@ -219,15 +219,19 @@ export const config = {
    * `node src/cli/fight-durations.ts`.
    */
   /**
-   * Small chats. A War or a god fight fills every guild that fields at least
-   * one chatter with the streamer's imps up to `floor` fighters; a Hero Clash
-   * heat fills a guild without a hero with one imp. Imps have `impStrength` of
-   * a chatter's health and damage, and the chatters who fight beside them
-   * `leaderStrength`, so the chatters stay the heroes. With fewer than
-   * `widenBelow` chatters active, fighters are drawn from everyone who wrote
-   * this session, not only the last half hour.
+   * Small chats. A team fight (a War, a god fight, a test battle, a Guild
+   * Clash) gives every guild that fights the same team size: as many as the
+   * largest guild brings, at least `minTeam`, and in a War or god fight at
+   * most `teamSize`. A guild short of it is filled up in this order:
+   * 1. its chatters who wrote earlier this session, the latest first;
+   * 2. the god multiplies its lonely fighters: up to `clonesPerChatter`
+   *    doubles of each, with `cloneStrength` of their health and damage;
+   * 3. the streamer's imps, with `impStrength`, never more of them than the
+   *    guild has chatters.
+   * The chatters of a guild that needed doubles or imps lead them under a
+   * banner, with `leaderStrength`.
    */
-  smallChat: { floor: 6, impStrength: 0.7, leaderStrength: 1.15, widenBelow: 10 },
+  smallChat: { teamSize: 6, minTeam: 3, clonesPerChatter: 1, cloneStrength: 0.7, impStrength: 0.7, leaderStrength: 1.15 },
   pace: {
     /**
      * The shortest a fight usually lasts, for the runtimes the control panel

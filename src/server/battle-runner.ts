@@ -97,6 +97,8 @@ export class BattleRunner {
         minion: f.minion,
         imp: f.imp === true,
         leader: f.leader === true,
+        // A double the god made: the index of the fighter it copies, else -1.
+        double: f.doubleOf ? this.battle!.fighters.findIndex((o) => o.id === f.doubleOf) : -1,
         side: f.side,
         radius: f.radius * config.battle.drawnRadiusShare,
       })),
@@ -184,8 +186,8 @@ export class BattleRunner {
     } else {
       let best: { name: string; kills: number } | null = null;
       battle.fighters.forEach((f) => {
-        // The streamer's imps and the god's minions are never the best of a fight.
-        if (f.imp || f.minion) return;
+        // The streamer's imps, the god's doubles and its minions are never the best of a fight.
+        if (f.imp || f.minion || f.doubleOf) return;
         if (f.kills > 0 && (!best || f.kills > best.kills)) best = { name: f.name, kills: f.kills };
       });
       const winner = result.winner

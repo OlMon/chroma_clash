@@ -165,11 +165,11 @@ test('statistics and XP: kills match deaths, everyone active is rewarded', () =>
   const users = store.recentlyActive(0);
   assert.equal(users.length, 30);
 
-  // Every chatter's death is somebody's kill; a kill can also be one of the imps that filled a small guild.
+  // Every chatter's death is somebody's kill; a kill can also be an imp or a double that filled a short guild.
   const kills = users.reduce((sum, u) => sum + u.kills, 0);
   const deaths = users.reduce((sum, u) => sum + u.deaths, 0);
-  const imps = steps.reduce((sum, step) => sum + (step.setup?.fighters.filter((f) => f.imp).length ?? 0), 0);
-  assert.ok(kills >= deaths && kills <= deaths + imps, `${kills} kills, ${deaths} deaths, ${imps} imps`);
+  const fillers = steps.reduce((sum, step) => sum + (step.setup?.fighters.filter((f) => f.imp || f.doubleOf).length ?? 0), 0);
+  assert.ok(kills >= deaths && kills <= deaths + fillers, `${kills} kills, ${deaths} deaths, ${fillers} imps and doubles`);
   assert.ok(kills > 0);
   assert.ok(users.every((u) => u.battles >= 1));
 

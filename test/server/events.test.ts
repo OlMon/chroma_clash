@@ -283,8 +283,8 @@ test('Streamer vs Chat: over the map once per session; a friendly fight any time
   const chatSides = step.setup!.sides.filter((s) => s.id !== 'god');
   assert.deepEqual(chatSides.map((s) => s.id).sort(), ['blue', 'green', 'red']);
   assert.ok(chatSides.every((s) => s.team === 'chat'));
-  // The god, and five chatters per guild filled up with imps to the small-chat floor.
-  assert.equal(step.setup!.fighters.length, 1 + 3 * Math.max(5, config.smallChat.floor));
+  // The god and five chatters per guild: every guild brings as many, so nobody is filled up.
+  assert.equal(step.setup!.fighters.length, 16);
   assert.equal(step.map!.targets!.length, 3, 'one tile per guild is at stake');
   assert.equal(engine.friendly, false);
   engine.apply(step, resultFor(step.setup!, 'chat'));

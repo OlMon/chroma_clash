@@ -2144,6 +2144,7 @@ function onBattleStart(message) {
     // When this page began showing the battle: fighters pop in and the scoreboard drops in from then.
     shownAt: performance.now(),
   };
+  announceDoubles();
   requestAnimationFrame(drawBattle);
 }
 
@@ -2878,6 +2879,20 @@ function drawFighter(fighter, x, y, health, flags, alpha, squash) {
     ctx.fillRect(x - width / 2, y - r - 12, width * health, 5);
   }
 
+  // A double the god made: a shimmering rim in the god's color, and no name of its own (its chatter has it).
+  if (fighter.double >= 0) {
+    ctx.save();
+    ctx.setLineDash([6, 5]);
+    ctx.lineDashOffset = -performance.now() / 40;
+    circle(x, y, r + 5);
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = (state && state.god && state.god.color) || '#FFD54A';
+    ctx.stroke();
+    ctx.restore();
+    if (fighter.cls) drawClassBadge(fighter.cls, x + r * 0.72, y + r * 0.72, Math.max(9, r * 0.42));
+    ctx.globalAlpha = 1;
+    return;
+  }
   let nameWidth = 0;
   if (fighter.name && namesOn()) {
     ctx.font = `600 14px ${FONT}`;
@@ -2969,6 +2984,7 @@ const RANKS = ['godFalls', 'last', 'crown', 'streak', 'spree', 'cause', 'firstBl
 
 /** A fighter's name for a highlight: a minion is "the god's minion". */
 function feedName(fighter) {
+  if (fighter.double >= 0) return tr('overlay.feed.doubleName', { name: fighter.name });
   if (!fighter.minion) return fighter.name;
   const god = battle.fighters.find((f) => f.side === fighter.side && !f.minion);
   return tr('overlay.feed.minion', { god: god ? god.name : '' });
@@ -3009,6 +3025,33 @@ function feedLine(event) {
     .split(/(\u0001|\u0002)/)
     .filter((part) => part !== '')
     .map((part) => names[part] || { text: part, color: null });
+}
+
+/**
+ * When the god multiplied lonely chatters for a small fight: a line for each
+ * (at most two), as the doubles step out of them. Shown whether or not the
+ * highlights are on: it says what is happening on the field.
+ */
+function announceDoubles() {
+  const originals = [...new Set(battle.fighters.filter((f) => f.double >= 0).map((f) => f.double))];
+  if (originals.length === 0 || battle.ambient) return;
+  const god = state && state.god ? state.god : { name: 'God', color: '#FFD54A' };
+  let count = 0;
+  while (tr(`overlay.feed.double.${count + 1}`) !== `overlay.feed.double.${count + 1}`) count++;
+  originals.slice(0, 2).forEach((index, n) => {
+    const victim = battle.fighters[index];
+    if (!victim) return;
+    const names = {
+      '\u0001': { text: victim.name, color: battle.sideColors[victim.side] || '#FFFFFF' },
+      '\u0002': { text: god.name, color: god.color || '#FFD54A' },
+    };
+    const key = `overlay.feed.double.${1 + ((index + n) % Math.max(1, count))}`;
+    const parts = tr(key, { victim: '\u0001', god: '\u0002' })
+      .split(/(\u0001|\u0002)/)
+      .filter((part) => part !== '')
+      .map((part) => names[part] || { text: part, color: null });
+    battle.feed.lines.push({ parts, shownAt: battle.shownAt + DOUBLE.inMs + n * 900 });
+  });
 }
 
 /** Moves waiting deaths into the shown lines, and lets old lines go. */
@@ -4822,6 +4865,38 @@ function drawTrap(x, y, r, state, now) {
   }
 }
 
+/** The god's doubles: they split from their chatter over `splitMs` after `inMs`; the flash lasts `flashMs`. */
+const DOUBLE = { inMs: 350, splitMs: 1100, flashMs: 900 };
+
+/** A ring of light in the god's color where a chatter is being doubled. */
+function drawDoubleFlashes(since, at) {
+  if (since > DOUBLE.flashMs + DOUBLE.inMs) return;
+  const color = (state && state.god && state.god.color) || '#FFD54A';
+  const seen = new Set();
+  for (const d of at) {
+    if (!d || d.fighter.double < 0 || seen.has(d.fighter.double)) continue;
+    seen.add(d.fighter.double);
+    const original = at[d.fighter.double];
+    if (!original) continue;
+    const p = Math.max(0, (since - DOUBLE.inMs * 0.5) / DOUBLE.flashMs);
+    if (p <= 0 || p >= 1) continue;
+    ctx.save();
+    ctx.globalAlpha = 1 - p;
+    circle(original.x, original.y, original.r * (1.1 + 1.6 * p));
+    ctx.lineWidth = 6 * (1 - p) + 2;
+    ctx.strokeStyle = color;
+    ctx.stroke();
+    for (let i = 0; i < 8; i++) {
+      const angle = (i / 8) * Math.PI * 2 + p;
+      const reach = original.r * (1.2 + 2.2 * p);
+      circle(original.x + Math.cos(angle) * reach, original.y + Math.sin(angle) * reach, 3 * (1 - p) + 1);
+      ctx.fillStyle = '#FFF6CF';
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
 /** How a battle comes in: obstacles fade in, fighters pop up spread over `popMs`, each in `growMs`, the scoreboard drops in; at the end the battlefield fades over `leaveMs`. */
 const BATTLE_IN = { obstaclesMs: 450, popMs: 500, growMs: 260, hudMs: 600, leaveMs: 450 };
 
@@ -4937,6 +5012,17 @@ function renderBattle(now) {
   });
   const at = [];
   for (const d of drawn) at[d.index] = d;
+  // The god's doubles step out of the chatter they copy as the battle begins, with a flash in the god's color.
+  const sinceShown = performance.now() - battle.shownAt;
+  if (sinceShown < DOUBLE.splitMs) {
+    for (const d of drawn) {
+      const original = d.fighter.double >= 0 ? at[d.fighter.double] : null;
+      if (!original) continue;
+      const p = ease(sinceShown / DOUBLE.splitMs);
+      d.x = original.x + (d.x - original.x) * p;
+      d.y = original.y + (d.y - original.y) * p;
+    }
+  }
 
   // After a heavy blow the whole battlefield shakes, fading out; the scoreboard stays still.
   ctx.save();
@@ -4954,6 +5040,7 @@ function renderBattle(now) {
     ctx.translate(Math.sin(now / 13) * strength, Math.cos(now / 17) * strength);
   }
   drawGroundEffects(now, at);
+  drawDoubleFlashes(sinceShown, at);
   ctx.save();
   ctx.globalAlpha = Math.min(1, shown / BATTLE_IN.obstaclesMs) * (1 - leaving);
   drawObstacles(previous, latest, blend, now);
@@ -4999,7 +5086,7 @@ function renderBattle(now) {
       ctx.scale(pop, pop);
       ctx.translate(-d.x, -d.y);
     }
-    drawFighter(d.fighter, d.x, d.y, d.health, d.flags, (d.flags & FLAG.hidden ? 0.3 : 1) * (1 - leaving), d.squash);
+    drawFighter(d.fighter, d.x, d.y, d.health, d.flags, (d.flags & FLAG.hidden ? 0.3 : 1) * (d.fighter.double >= 0 ? 0.82 : 1) * (1 - leaving), d.squash);
     if (pop < 1) ctx.restore();
     // The god running across the screen's edge shows on both sides while it crosses.
     if (d.x - d.r < 0) drawFighter(d.fighter, d.x + canvas.width, d.y, d.health, d.flags, 1);

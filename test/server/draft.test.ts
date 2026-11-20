@@ -114,29 +114,42 @@ test('imps fill the places of guilds that drew fewer chatters; a guild nobody dr
   store.close();
 });
 
-test('Guild Clash with imps: they fight in the guild\'s color, step in last, and never take the crown', () => {
+test('Guild Clash: a short guild takes its earlier chatters first, then the god doubles and imps fill in last', () => {
   const { store, users } = setupStore(6);
+  // Blue drew one chatter; its five others wrote earlier this session and fill its places first.
   const picks = [...users.filter((u) => u.guild_id === 'red').slice(0, 6), ...users.filter((u) => u.guild_id === 'blue').slice(0, 1)];
   const engine = new DraftEngine(store, () => T0 + 60_000, 4, 'guild', picks);
-  const step = engine.next()!;
   const blue = engine.lineup().teams.find((t) => t.name === 'Blue')!;
   assert.equal(blue.members.length, 6);
-  assert.deepEqual(blue.members.slice(1).map((m) => [m.name, m.imp, m.id]), [1, 2, 3, 4, 5].map((n) => [`Imp ${n}`, true, undefined]));
+  assert.ok(blue.members.every((m) => !m.imp && !m.double && m.id), 'all six are chatters');
   assert.equal(engine.lineup().teams.length, 2, 'green drew nobody and sits out');
+  store.close();
 
+  // With nobody earlier to call on, a lone chatter is doubled and one imp takes the last place.
+  const lonely = Store.open(':memory:');
+  lonely.startSession(T0);
+  // Guilds pinned: in so small a channel newcomers would otherwise fill the smallest guild.
+  const join = (guild: GuildId, at: number) => {
+    const event = message(guild, at);
+    lonely.recordMessage(event);
+    lonely.db.prepare('UPDATE users SET guild_id = ? WHERE user_id = ?').run(guild, event.userId);
+  };
+  for (let i = 0; i < 6; i++) join('red', T0 + i);
+  join('blue', T0 + 10);
+  const few = lonely.recentlyActive(0);
+  const clash = new DraftEngine(lonely, () => T0 + 60_000, 4, 'guild', few);
+  const step = clash.next()!;
+  const team = clash.lineup().teams.find((t) => t.name === 'Blue')!;
+  assert.deepEqual(team.members.map((m) => [Boolean(m.double), Boolean(m.imp)]), [[false, false], [true, false], [false, true]], 'the chatter, their double, an imp');
   const battle = new Battle(step.setup!);
   const imps = battle.fighters.filter((f) => f.imp);
-  assert.equal(imps.length, 5);
+  assert.equal(imps.length, 1, 'never more imps than the guild has chatters');
   assert.ok(imps.every((f) => f.side === 'blue' && f.class === null && !f.minion));
-  // Three per guild on the field: blue's chatter first, then two imps; the other three wait.
-  const blueChatter = battle.fighters.find((f) => f.side === 'blue' && !f.imp)!;
-  assert.equal(blueChatter.benched, false);
-  assert.deepEqual(imps.map((f) => f.benched), [false, false, true, true, true]);
   const result = battle.run();
-  engine.apply(step, result);
-  // Whoever wins, an imp never gets the crown.
-  if (engine.champion) assert.ok(picks.includes(engine.champion));
-  store.close();
+  clash.apply(step, result);
+  // Whoever wins, neither an imp nor a double gets the crown.
+  if (clash.champion) assert.ok(few.some((user) => user.user_id === clash.champion!.user_id));
+  lonely.close();
 });
 
 test('Guild Clash: three per guild on the field, equal stats, and the Hero Clash reward', () => {

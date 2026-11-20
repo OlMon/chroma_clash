@@ -196,8 +196,8 @@ function recordBattle(
     type: 'battle-start', title, durationMs: battle.durationMs, arena: config.battle.arena, enrageGrow: config.skills.enrage.grow, ambient: false, sides,
     place: battle.place, elapsedMs: 0,
     fighters: battle.fighters.map((f) => ({
-      name: f.name, color: f.color, emote: emotes.get(f.id) ?? null, image: null, cls: f.class ?? null, crown: false,
-      minion: f.minion, imp: f.imp === true, leader: f.leader === true, side: f.side, radius: f.radius * config.battle.drawnRadiusShare,
+      name: f.name, color: f.color, emote: emotes.get(f.doubleOf ?? f.id) ?? null, image: null, cls: f.class ?? null, crown: false,
+      minion: f.minion, imp: f.imp === true, leader: f.leader === true, double: f.doubleOf ? battle.fighters.findIndex((o) => o.id === f.doubleOf) : -1, side: f.side, radius: f.radius * config.battle.drawnRadiusShare,
     })),
   };
   const frames: BattleFrameMessage[] = [];
@@ -372,16 +372,28 @@ export function generateScenes(outDir: string, lang = 'en'): Scene[] {
     moments: [250],
   });
 
-  // A small chat's War: two and three chatters, each guild filled up with imps; the chatters lead them under banners.
-  const { floor, impStrength, leaderStrength } = config.smallChat;
-  const small = (side: string, count: number): FighterSpec[] => [
-    ...fighters.filter((f) => f.side === side).slice(0, count).map((f) => ({ ...f, leader: true, strength: leaderStrength })),
-    ...Array.from({ length: floor - count }, (_, i): FighterSpec => ({ id: `imp:${side}:${i + 1}`, name: t('server.imp.name', { n: i + 1 }), color: null, class: null, side, level: 0, imp: true, strength: impStrength })),
+  // A small chat's War: one guild of two chatters against five, filled up the small-chat way: the god doubles
+  // the two (a status line says so), an imp takes the last place; the chatters lead them under banners.
+  const { impStrength, leaderStrength, cloneStrength } = config.smallChat;
+  const lead = (f: FighterSpec): FighterSpec => ({ ...f, leader: true, strength: leaderStrength });
+  const reds = fighters.filter((f) => f.side === 'red').slice(0, 2).map(lead);
+  const smallWar: FighterSpec[] = [
+    ...reds,
+    ...reds.map((f): FighterSpec => ({ ...f, id: `double:${f.id}:1`, doubleOf: f.id, leader: false, strength: cloneStrength })),
+    { id: 'imp:red:1', name: t('server.imp.name', { n: 1 }), color: null, class: null, side: 'red', level: 0, imp: true, strength: impStrength },
+    ...fighters.filter((f) => f.side === 'blue').slice(0, 5).map(lead),
+    { id: 'imp:blue:1', name: t('server.imp.name', { n: 1 }), color: null, class: null, side: 'blue', level: 0, imp: true, strength: impStrength },
   ];
   page('smallwar', {
-    messages: [battleState, ...recordBattle(redAttacksBlue, { seed: 6, sides: teamSides(), fighters: [...small('red', 2), ...small('blue', 3)] }, twoSides, emotes,
+    messages: [battleState, ...recordBattle(redAttacksBlue, { seed: 6, sides: teamSides(), fighters: smallWar }, twoSides, emotes,
       (_frames, i) => (i === 50 ? 1 : 0))],
     moments: [250],
+  });
+  // The doubles stepping out of their chatters as the battle begins, and the status line.
+  page('doubles', {
+    messages: [battleState, ...recordBattle(redAttacksBlue, { seed: 6, sides: teamSides(), fighters: smallWar }, twoSides, emotes, (_frames, i) => -i, true)],
+    moments: [0],
+    tweak: 'if (battle && !window.__doubles) { window.__doubles = 1; battle.shownAt = performance.now() - 900; battle.feed.lines.forEach((l, i) => { l.shownAt = performance.now() - 300 - i * 500; }); }',
   });
 
   // The streamer against chat: no classes or emotes, only the god's skills, and steady timing.
@@ -495,7 +507,7 @@ export function generateScenes(outDir: string, lang = 'en'): Scene[] {
           // Blue drew only four: the streamer's imps fill its other places.
           members: [
             ...drawn.filter((f) => f.side === g.id).slice(0, g.id === 'blue' ? 4 : 10)
-              .map((f) => ({ name: f.name, detail: t(`class.${f.class}`), emote: emotes.get(f.id) ?? null, color: f.color })),
+              .map((f) => ({ name: f.name, detail: t(`class.${f.class}`), emote: emotes.get(f.doubleOf ?? f.id) ?? null, color: f.color })),
             ...(g.id === 'blue' ? Array.from({ length: 6 }, (_, i) => ({ name: t('server.imp.name', { n: i + 1 }), detail: t('server.imp.detail'), imp: true })) : []),
           ],
         })),
@@ -513,7 +525,7 @@ export function generateScenes(outDir: string, lang = 'en'): Scene[] {
       lineup: {
         teams: heroes.map((f) => ({
           name: guild(f.side), color: config.guilds.list.find((g) => g.id === f.side)!.color,
-          members: [{ name: f.name, detail: t(`class.${f.class}`), emote: emotes.get(f.id) ?? null, color: f.color }],
+          members: [{ name: f.name, detail: t(`class.${f.class}`), emote: emotes.get(f.doubleOf ?? f.id) ?? null, color: f.color }],
         })),
         note: t('server.clash.lineupNote'),
       },

@@ -1,5 +1,5 @@
 import type { EmoteImage } from '../emotes/sources.ts';
-import { toughnessFor } from './battles.ts';
+import { doubleOf, fillTeam, previousChatters, teamTarget, toughnessFor } from './battles.ts';
 import { config, type ClassId, type GuildId } from '../config.ts';
 import type { Store, UserRow } from '../db/store.ts';
 import { assignClasses, type BattleResult, type BattleSetup, type FighterSpec } from '../game/battle.ts';
@@ -23,6 +23,8 @@ export interface LineupMember {
   id?: string;
   /** One of the streamer's imps, filling a place no chatter took: drawn as a small imp. */
   imp?: boolean;
+  /** A double the god made of the chatter `id`: drawn with their emote, marked as a copy. */
+  double?: boolean;
   emote?: EmoteImage | null;
   color?: string | null;
 }
@@ -119,8 +121,14 @@ export class DraftEngine implements EventEngine<DraftStep> {
   champion: UserRow | null = null;
   /** Guild mode: the neutral tile the winning guild took as its prize, or null. */
   prize: string | null = null;
-  /** Guild mode: the imps filling the places of guilds that drew fewer chatters. */
-  readonly imps: Imp[];
+  /**
+   * Guild mode: a guild that drew fewer chatters than the others is filled up
+   * (see `config.smallChat`): with its chatters who wrote earlier this
+   * session (they join `picks`), then doubles the god makes of its chatters,
+   * then the streamer's imps, never more imps than it has chatters.
+   */
+  readonly doubles: UserRow[] = [];
+  readonly imps: Imp[] = [];
   /** The class each drawn fighter was dealt, shown in the line-up. */
   readonly classes = new Map<string, ClassId>();
   private readonly store: Store;
@@ -141,9 +149,23 @@ export class DraftEngine implements EventEngine<DraftStep> {
     this.now = now;
     this.seed = seed;
     this.mode = mode;
-    this.picks = picks;
     this.startedAt = now();
-    this.imps = mode === 'guild' ? impsFor(picks, config.draft.onFieldPerGuild, this.lang) : [];
+    const all = [...picks];
+    if (mode === 'guild') {
+      const drawn = new Set(picks.map((user) => user.user_id));
+      const counts = config.guilds.list.map((guild) => picks.filter((user) => user.guild_id === guild.id).length).filter((n) => n > 0);
+      const target = teamTarget(counts, config.draft.perGuild);
+      for (const guild of config.guilds.list) {
+        const own = picks.filter((user) => user.guild_id === guild.id);
+        if (own.length === 0) continue;
+        const fill = fillTeam(own, previousChatters(store, guild.id, drawn, now()), target);
+        all.push(...fill.previous);
+        this.doubles.push(...fill.doubled);
+        for (let n = 1; n <= fill.imps; n++) this.imps.push({ id: `imp:${guild.id}:${n}`, name: this.t('server.imp.name', { n }), guild: guild.id });
+      }
+    }
+    this.picks = all;
+    picks = all;
     // Classes are dealt at the draw, so the line-up can show them before the fight.
     const dealt: FighterSpec[] = picks.map((user) => ({
       id: user.user_id,
@@ -183,6 +205,9 @@ export class DraftEngine implements EventEngine<DraftStep> {
             ...this.picks
               .filter((user) => user.guild_id === guild.id)
               .map((user): LineupMember => ({ name: user.display_name, detail: this.className(user), id: user.user_id })),
+            ...this.doubles
+              .filter((user) => user.guild_id === guild.id)
+              .map((user): LineupMember => ({ name: this.t('server.double.name', { name: user.display_name }), detail: this.t('server.double.detail'), id: user.user_id, double: true })),
             ...this.imps
               .filter((imp) => imp.guild === guild.id)
               .map((imp): LineupMember => ({ name: imp.name, detail: this.t('server.imp.detail'), imp: true })),
@@ -202,7 +227,7 @@ export class DraftEngine implements EventEngine<DraftStep> {
     const setup: BattleSetup = {
       seed: this.seed,
       durationMs: config.draft.durationMs,
-      toughness: toughnessFor(free ? 'freeForAll' : 'guildClash', this.picks.length + this.imps.length),
+      toughness: toughnessFor(free ? 'freeForAll' : 'guildClash', this.picks.length + this.doubles.length + this.imps.length),
       sizeBalance: false,
       fortune: false,
       levelBonus: false,
@@ -219,9 +244,13 @@ export class DraftEngine implements EventEngine<DraftStep> {
           class: this.classes.get(user.user_id),
           side: free ? user.user_id : user.guild_id,
           level: 0,
-          // A guild filled up with imps: its chatters lead them (see `config.smallChat`).
-          ...(this.imps.some((imp) => imp.guild === user.guild_id) ? { leader: true, strength: config.smallChat.leaderStrength } : {}),
+          // A guild filled up with doubles or imps: its chatters lead them (see `config.smallChat`).
+          ...(this.imps.some((imp) => imp.guild === user.guild_id) || this.doubles.some((d) => d.guild_id === user.guild_id)
+            ? { leader: true, strength: config.smallChat.leaderStrength }
+            : {}),
         })),
+        // The god's doubles of lonely chatters, with their chatter's class.
+        ...this.doubles.map((user): FighterSpec => ({ ...doubleOf(user, user.guild_id), class: this.classes.get(user.user_id) ?? null })),
         // The imps step in last, after the guild's chatters: plain fighters without a class, weaker than chatters.
         ...this.imps.map((imp): FighterSpec => ({ id: imp.id, name: imp.name, color: null, class: null, side: imp.guild, level: 0, imp: true, strength: config.smallChat.impStrength })),
       ],
