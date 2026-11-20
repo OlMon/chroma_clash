@@ -349,6 +349,8 @@ h3 .new { font-size: 0.42em; vertical-align: 0.4em; }
 .road-now { border-color: rgba(255, 213, 74, 0.45); }
 .road-now .tag { color: var(--gold); }
 .road-tribute a { color: var(--gold); }
+.road-later { margin-top: 16px; }
+.road-later .tag { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.1em; color: #9aa1b5; margin: -0.2em 0 0.7em; }
 .card-god { border-color: rgba(255, 213, 74, 0.35); background: linear-gradient(180deg, rgba(255, 213, 74, 0.07), var(--surface) 60%); }
 
 .split-notes { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 20px; }
