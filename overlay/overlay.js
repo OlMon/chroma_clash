@@ -859,6 +859,7 @@ function drawTileNature(tile, x, y, size) {
 
 /** Small flames licking up from the lower part of a burning tile. */
 function drawTileFlames(x, y, size, now, seed) {
+  if (Theme.current.art.tileFlames) return Theme.current.art.tileFlames(ctx, x, y, size, now, seed, { px: Theme.current.pixelScale });
   ctx.save();
   const base = y + size * 0.55;
   const tongues = [[-0.45, 0.7], [-0.16, 1.0], [0.14, 0.85], [0.44, 0.65]];
@@ -3960,6 +3961,7 @@ function pinHits(board, elapsed) {
 const FIREWORK = { climbMs: 520, burstMs: 1300, sparks: 26 };
 
 function drawFirework(fromX, x, fromY, toY, t, color, seed) {
+  if (Theme.current.art.firework) return Theme.current.art.firework(ctx, fromX, x, fromY, toY, t, color, seed, { px: Theme.current.pixelScale, ...FIREWORK });
   ctx.save();
   if (t < FIREWORK.climbMs) {
     // The rocket: a bright head with a fading tail.
@@ -4439,6 +4441,10 @@ function drawBoards(elapsed) {
         const pin = pinAt(layout, r, c);
         const since = elapsed - (hits.get(`${r},${c}`) ?? -Infinity);
         const glow = since < PIN_GLOW_MS ? 1 - since / PIN_GLOW_MS : 0;
+        if (Theme.current.art.pachinkoPin) {
+          Theme.current.art.pachinkoPin(ctx, pin.x, pin.y, PIN_RADIUS, glow, { px: Theme.current.pixelScale });
+          continue;
+        }
         if (glow > 0) {
           circle(pin.x, pin.y, PIN_RADIUS * (1.6 + 1.6 * glow));
           ctx.fillStyle = `rgba(255, 226, 122, ${0.45 * glow})`;
@@ -4582,6 +4588,7 @@ function drawObstacles(previous, latest, blend, now) {
 
 /** A stone wall seen from above: a slab of bricks with a lit top edge and a shadow. */
 function drawWall(x, y, w, h, id) {
+  if (Theme.current.art.wall) return Theme.current.art.wall(ctx, x, y, w, h, id, { px: Theme.current.pixelScale });
   const left = x - w / 2;
   const top = y - h / 2;
   ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
@@ -4623,6 +4630,7 @@ function drawWall(x, y, w, h, id) {
 
 /** A wall the god broke through: its bricks fly apart in a puff of dust, `ms` after it broke. */
 function drawRubble(x, y, w, h, id, ms) {
+  if (Theme.current.art.rubble) return Theme.current.art.rubble(ctx, x, y, w, h, id, ms, { px: Theme.current.pixelScale });
   const p = Math.min(1, ms / 450);
   const across = w >= h;
   const length = across ? w : h;
@@ -4663,6 +4671,7 @@ function drawRubble(x, y, w, h, id, ms) {
 
 /** A pinball bumper: rings of red and white around a lit cap. It flashes when it flings someone. */
 function drawBumper(x, y, r, lit, now) {
+  if (Theme.current.art.bumper) return Theme.current.art.bumper(ctx, x, y, r, lit, now, { px: Theme.current.pixelScale });
   circle(x + 4, y + 6, r);
   ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
   ctx.fill();
@@ -4693,6 +4702,7 @@ function drawBumper(x, y, r, lit, now) {
 
 /** A barrel rolling across: wooden staves and two iron hoops that turn as it rolls. Broken, it is a few flying staves. */
 function drawBarrel(x, y, r, rolled, broken, now, id) {
+  if (Theme.current.art.barrel) return Theme.current.art.barrel(ctx, x, y, r, rolled, broken, id, { px: Theme.current.pixelScale });
   if (broken) {
     for (let i = 0; i < 5; i++) {
       const angle = (i / 5) * Math.PI * 2 + id;
@@ -4739,6 +4749,7 @@ function drawBarrel(x, y, r, rolled, broken, now, id) {
 
 /** A spike trap: an iron grate in the ground. Before it strikes its rim glows red; then the spikes shoot up. */
 function drawTrap(x, y, r, state, now) {
+  if (Theme.current.art.trap) return Theme.current.art.trap(ctx, x, y, r, state, now, { px: Theme.current.pixelScale });
   circle(x, y, r);
   inkPath();
   ctx.fillStyle = '#3A3634';

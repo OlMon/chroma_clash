@@ -66,6 +66,11 @@ Draw in screen coordinates (1920 × 1080); the pixel scale is applied for you.
 | `mageRune(ctx, x, y, radius, progress, now, color, { px })` | A mage's circle before the blast. |
 | `mageBlast(ctx, x, y, radius, progress, color, { px })` | The blast. |
 | `fireGround(ctx, mark, now, { px })` / `fireFlames(ctx, mark, now, { px })` | Burning ground: `mark` has `x`, `y`, `r`, `start`, `ms`. Ground is drawn under the fighters, flames over them. |
+| `wall(ctx, x, y, w, h, id, { px })`, `bumper(ctx, x, y, r, lit, now, { px })`, `barrel(ctx, x, y, r, rolled, broken, id, { px })`, `trap(ctx, x, y, r, state, now, { px })` | Obstacles, centered on x, y. `rolled` is how far a barrel turned (radians), `state` a trap's 0 resting, 1 warning, 2 striking. |
+| `rubble(ctx, x, y, w, h, id, ms, { px })` | A wall the god broke, `ms` after it broke (gone after 450). |
+| `tileFlames(ctx, x, y, size, now, seed, { px })` | Flames on a burning map tile; `size` is the tile's radius. |
+| `pachinkoPin(ctx, x, y, r, glow, { px })` | A Pachinko pin; `glow` from 1 just hit to 0. |
+| `firework(ctx, fromX, x, fromY, toY, t, color, seed, { px, climbMs, burstMs, sparks })` | A jackpot's firework, `t` ms after the ball landed: it climbs from fromX, fromY to x, toY for `climbMs`, then bursts. |
 | `damageNumber(ctx, x, y, value, { age, life, lethal, skill, color, seed, rank, px })` | A big hit's damage over the fighter, rising. The context is faded already; `age` and `life` in milliseconds, `lethal` for a killing blow, `skill` for the god's skills, `color` the built-in color for it, `rank` its place among the hits of the same moment (0 the biggest). |
 | `knockout(ctx, x, y, age, seed, { life, px })` | Drawn where a fighter falls, for `life` milliseconds (only when a theme has it). |
 | `shade(ctx, x, y, width, height, { px })` | Shading on the dark side of a shape (fighters, bumpers, barrels, a Monument's right half): fill the rectangle, the context is clipped to the dark part. |
