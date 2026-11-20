@@ -256,7 +256,8 @@
     const colors = { r: '#C8321E', o: '#F28A1E', y: '#FFE07A' };
     const cell = Math.max(px, snap(size / 9, px));
     [-0.42, 0, 0.42].forEach((at, i) => {
-      const shape = FLAMES[(Math.floor(now / 160) + i + seed) % 2];
+      // Seeds can be negative (tiles left of the middle): keep the frame 0 or 1.
+      const shape = FLAMES[(((Math.floor(now / 160) + i + seed) % 2) + 2) % 2];
       const left = snap(x + at * size - cell * 2.5, px);
       const top = snap(y + size * 0.62 - cell * shape.length - (i === 1 ? cell : 0), px);
       shape.forEach((row, r) => {
