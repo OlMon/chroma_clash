@@ -15,7 +15,7 @@ import { config } from '../../src/config.ts';
 import { Battle, assignClasses, godHealth, radiusFor, type BattleEvent, type BattleSetup, type FighterSpec } from '../../src/game/battle.ts';
 import { assignGuild } from '../../src/game/guilds.ts';
 import { mapTiles, tileId } from '../../src/game/hex.ts';
-import { startingLand } from '../../src/game/land.ts';
+import { fertility, startingLand } from '../../src/game/land.ts';
 import { ARENAS, type FrameObstacle } from '../../src/game/obstacles.ts';
 import { playPachinko } from '../../src/game/pachinko.ts';
 import { SimulatedChat } from '../../src/sim/chat.ts';
@@ -122,7 +122,9 @@ function seasonState(lang: string) {
     const city = cities[id];
     const owner: string | null = city ?? (id === '0,0' ? 'red' : (land[id] ?? null));
     const level = city ? 0 : id === '0,0' ? 5 : 1 + Math.floor(rng() * 5);
-    return { id, q: hex.q, r: hex.r, owner, isCity: Boolean(city), scorched: false, burning: false, level };
+    // How fertile it is, as the server works it out for season 3.
+    const share = (fertility(3, id) - config.land.fertility.min) / (config.land.fertility.max - config.land.fertility.min);
+    return { id, q: hex.q, r: hex.r, owner, isCity: Boolean(city), scorched: false, burning: false, level, fertility: Math.round(share * 100) / 100 };
   });
   const greenTile = tiles.find((t) => t.id === '1,0');
   if (greenTile) greenTile.owner = 'green';

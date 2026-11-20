@@ -316,3 +316,17 @@ test('a guild whose land burns tells chat how many more writers put it out', () 
   assert.equal(fireOf(T0 + 5 * MIN + 1_000).red!.writers, 0);
   store.close();
 });
+
+test('the overlay is told how fertile each tile is this season, from 0 to 1', () => {
+  const store = openStore();
+  store.startSession(T0);
+  const seasonId = store.currentSeasonId(T0);
+  const tiles = buildSnapshot(store, { kind: 'sim', channel: 'test', status: '' }, T0).tiles;
+  const { min, max } = config.land.fertility;
+  for (const tile of tiles) {
+    assert.ok(tile.fertility >= 0 && tile.fertility <= 1, tile.id);
+    assert.ok(Math.abs(min + (max - min) * tile.fertility - fertility(seasonId, tile.id)) < 0.01, `${tile.id} matches what it yields`);
+  }
+  assert.ok(new Set(tiles.map((t) => t.fertility)).size > tiles.length / 2, 'tiles differ');
+  store.close();
+});

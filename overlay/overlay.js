@@ -538,6 +538,7 @@ function drawMap(guildColors, originX, originY) {
       drawCastle(0, 0);
       ctx.restore();
     }
+    drawTileNature(tile, x, y, HEX_SIZE - 3);
     drawTileMark(tile, x, y, HEX_SIZE - 3);
     if (tile.burning) drawTileFlames(x, y, HEX_SIZE - 3, performance.now(), tile.q * 7 + tile.r * 3);
     if (isGodTile(tile)) drawGodTile(tile, x, y, HEX_SIZE - 3, 16);
@@ -748,6 +749,90 @@ function drawTileMark(tile, x, y, size) {
       circle(x + Math.cos(angle) * reach, y + Math.sin(angle) * reach, Math.max(1, size * 0.05));
       ctx.fillStyle = `rgba(255, 128, 40, ${0.8 * fresh})`;
       ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
+/**
+ * What the land is like, in a tile's corners (the middle keeps its level
+ * clear): fertile land grows tufts of grass, and the most fertile a flower
+ * or two; barren land is cracked and stony. Middling land shows nothing.
+ * Positions come from the tile, so they never jump.
+ */
+const NATURE = { lush: 0.62, barren: 0.38 };
+
+function drawTileNature(tile, x, y, size) {
+  const share = tile.fertility;
+  if (typeof share !== 'number' || tile.isCity || isGodTile(tile)) return;
+  if (share < NATURE.lush && share > NATURE.barren) return;
+  const seed = tile.q * 31 + tile.r * 17 + 5;
+  /** A spot in the tile's outer ring, the `i`th of `count`, turned by the tile's own angle. */
+  const spot = (i, count, reach) => {
+    const angle = hash01(seed) * Math.PI * 2 + (i / count) * Math.PI * 2 + (hash01(seed + i) - 0.5) * 0.6;
+    const out = size * (reach + 0.08 * hash01(seed + i * 3));
+    return { x: x + Math.cos(angle) * out, y: y + Math.sin(angle) * out * 0.92 };
+  };
+  ctx.save();
+  hexPath(x, y, size);
+  ctx.clip();
+  if (share >= NATURE.lush) {
+    const strength = (share - NATURE.lush) / (1 - NATURE.lush);
+    const tufts = 3 + Math.round(strength * 3);
+    ctx.lineCap = 'round';
+    for (let i = 0; i < tufts; i++) {
+      const p = spot(i, tufts, 0.6);
+      const blade = size * 0.2;
+      for (const [dx, lean, color] of [[-0.12, -0.5, '#2F6B26'], [0.12, 0.45, '#2F6B26'], [0, 0.05, '#A6E07A']]) {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = Math.max(1.4, size * 0.055);
+        ctx.beginPath();
+        ctx.moveTo(p.x + dx * blade, p.y);
+        ctx.quadraticCurveTo(p.x + dx * blade, p.y - blade * 0.6, p.x + dx * blade + lean * blade, p.y - blade);
+        ctx.stroke();
+      }
+    }
+    // The most fertile land flowers.
+    if (strength > 0.55) {
+      for (let i = 0; i < 2; i++) {
+        const p = spot(i + 0.5, 2, 0.5);
+        circle(p.x, p.y - size * 0.05, Math.max(1.6, size * 0.06));
+        ctx.fillStyle = i === 0 ? '#FFE36E' : '#FFFFFF';
+        ctx.fill();
+      }
+    }
+  } else {
+    const strength = (NATURE.barren - share) / NATURE.barren;
+    // Cracks: short zigzags reaching in from the edge.
+    const cracks = 1 + Math.round(strength * 2);
+    ctx.strokeStyle = 'rgba(35, 22, 10, 0.55)';
+    ctx.lineWidth = Math.max(1.2, size * 0.045);
+    ctx.lineJoin = 'round';
+    for (let i = 0; i < cracks; i++) {
+      const angle = hash01(seed + 40 + i) * Math.PI * 2;
+      ctx.beginPath();
+      for (let k = 0; k <= 3; k++) {
+        const out = size * (0.95 - k * 0.14);
+        const bend = (k % 2 === 0 ? -1 : 1) * 0.16;
+        const px = x + Math.cos(angle + bend) * out;
+        const py = y + Math.sin(angle + bend) * out;
+        if (k === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+    }
+    // Stones.
+    const stones = 2 + Math.round(strength * 2);
+    for (let i = 0; i < stones; i++) {
+      const p = spot(i, stones, 0.62);
+      const r = size * (0.06 + 0.04 * hash01(seed + i * 7));
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y, r * 1.3, r, hash01(seed + i) * Math.PI, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(205, 192, 172, 0.85)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(50, 38, 26, 0.6)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
     }
   }
   ctx.restore();
@@ -1143,7 +1228,10 @@ function drawEventMap(elapsed) {
     ctx.fill();
     ctx.globalAlpha = 1;
     if (!owner && tile.scorched && !changed) drawScorch(x, y, BIG_HEX - 5, 0.55);
-    if (!changed) drawTileMark(tile, x, y, BIG_HEX - 5);
+    if (!changed) {
+      drawTileNature(tile, x, y, BIG_HEX - 5);
+      drawTileMark(tile, x, y, BIG_HEX - 5);
+    }
 
     if (changed && change > 0) {
       hexPath(x, y, (BIG_HEX - 4) * change);

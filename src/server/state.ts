@@ -1,6 +1,6 @@
 import { config, type GuildId, type SeasonStart, type SkillId, type StatId } from '../config.ts';
 import type { GodRecord, MishapRecord, SeasonWinner, Store } from '../db/store.ts';
-import { monumentIncome } from '../game/land.ts';
+import { fertility, monumentIncome } from '../game/land.ts';
 import { windowStartOf } from '../game/ticks.ts';
 import type { SeasonForecast } from '../game/season.ts';
 import { activeTheme, type ThemeInfo } from './themes.ts';
@@ -136,6 +136,8 @@ export interface GameSnapshot {
     burning: boolean;
     /** What a recent mishap left on the tile: a scorch mark or ash, and how old (0 new, toward 1 fading); null for none. */
     mark: { kind: 'lightning' | 'fire'; age: number } | null;
+    /** How fertile the tile is this season, from 0 (the most barren) to 1 (the most fertile): the overlay shows it. */
+    fertility: number;
   }[];
   /** The latest lightning strikes, fires and harvests, oldest first; `id` tells new ones from old. */
   mishaps: MishapRecord[];
@@ -161,6 +163,12 @@ export interface PanelBox {
  * The two overlay panels as they are shown: the stored places, kept inside the
  * screen, with their sizes. The statistics panel is as tall as its enabled lines.
  */
+/** A tile's fertility this season as a share of the range, 0 to 1, in hundredths. */
+function fertilityShare(seasonId: number, tileId: string): number {
+  const { min, max } = config.land.fertility;
+  return Math.round(((fertility(seasonId, tileId) - min) / (max - min)) * 100) / 100;
+}
+
 export function overlayPanels(store: Store): Record<'map' | 'stats', PanelBox> {
   const { width, height, mapPanel, statsPanel } = config.overlay;
   const layout = store.overlayLayout();
@@ -357,6 +365,7 @@ export function buildSnapshot(
       level: t.level,
       burning: t.burning > 0,
       mark: marks.get(t.tile_id) ?? null,
+      fertility: fertilityShare(seasonId, t.tile_id),
     })),
     mishaps: store.recentMishaps(),
     topChatters: session
