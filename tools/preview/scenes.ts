@@ -427,6 +427,18 @@ export function generateScenes(outDir: string, lang = 'en'): Scene[] {
     messages: [battleState, ...recordBattle(redAttacksBlue, { seed: 22, sides: teamSides(), fighters: fighters.map((f) => ({ ...f })), obstacles: 'fixed', place: 'brewery' }, twoSides, emotes, (_frames, i) => -i, true)],
     moments: [700],
   });
+  // Transitions: a battle coming in while the corner panels slide away, and the panels sliding back after it.
+  page('battlein', {
+    messages: [stateMessage, ...recordBattle(redAttacksBlue, { seed: 22, sides: teamSides(), fighters: fighters.map((f) => ({ ...f })), obstacles: 'fixed', place: 'pinball' }, twoSides, emotes, (_frames, i) => -i, true)],
+    moments: [0],
+    tweak: `cornerShown.at = performance.now() - 230; if (battle) { battle.shownAt = performance.now() - 330; battle.startedAt = -1e9; }`,
+  });
+  page('panelsin', {
+    messages: [stateMessage],
+    moments: [0],
+    tweak: `cornerShown.shown = true; cornerShown.at = performance.now() - 260;`,
+  });
+
   // The god's Rampage breaking through the walls of the Ruins.
   page('smash', {
     messages: [battleState, ...recordBattle(versusTitle, { ...godSetup(17, { ...god, skills: ['rampage'] }), obstacles: 'fixed', place: 'ruins' }, godSides, noEmotes,

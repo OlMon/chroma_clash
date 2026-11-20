@@ -1279,6 +1279,14 @@ function drawPanel() {
 
 function renderPanel() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+  // The corner panels are the screen unless something else has it; they slide away and back.
+  const corner = !pachinko && !announcement && !countdown;
+  noteCorner(corner);
+  if (corner) {
+    drawCorner(cornerOut());
+    return;
+  }
+  if (cornerOut() < 1) drawCorner(cornerOut());
   if (pachinko) {
     drawPachinko(performance.now() - pachinko.shownAt);
     return;
@@ -1315,9 +1323,66 @@ function renderPanel() {
     drawBanner(announcement.title, announcement.subtitle || '', null);
     const strip = bannerOnScreen(state && state.mapStrip);
     if (strip) drawOnTop(() => drawMapBanner(strip));
-    return;
   }
-  drawCorner();
+}
+
+// --- Transitions -----------------------------------------------------------------
+
+/**
+ * The corner panels slide out toward the nearer side of the screen when a
+ * battle, a countdown or an announcement takes the screen, and back in
+ * after it, overshooting a little.
+ */
+const SLIDE = { outMs: 420, inMs: 600 };
+/** Whether the corner panels are what the screen shows, and since when; `shown` is null before the first draw, which does not slide. */
+const cornerShown = { shown: null, at: -Infinity };
+
+function noteCorner(shown) {
+  if (cornerShown.shown === shown) return;
+  const first = cornerShown.shown === null;
+  cornerShown.shown = shown;
+  cornerShown.at = first ? -Infinity : performance.now();
+  if (!first) runTransition();
+}
+
+function easeInCubic(t) {
+  const x = Math.min(1, Math.max(0, t));
+  return x * x * x;
+}
+
+/** Overshoots a little before it settles at 1. */
+function easeOutBack(t) {
+  const x = Math.min(1, Math.max(0, t)) - 1;
+  return 1 + 2.4 * x * x * x + 1.4 * x * x;
+}
+
+/** How far out the corner panels are now: 0 in place, 1 off screen (a little below 0 while overshooting on the way in). */
+function cornerOut() {
+  const t = performance.now() - cornerShown.at;
+  if (cornerShown.shown !== false) return t >= SLIDE.inMs ? 0 : 1 - easeOutBack(t / SLIDE.inMs);
+  return t >= SLIDE.outMs ? 1 : easeInCubic(t / SLIDE.outMs);
+}
+
+/** How far to move a panel at `x`, `width` wide, toward its nearer side, `out` of the whole way. */
+function slideAside(x, width, out) {
+  if (out === 0) return 0;
+  return x + width / 2 < canvas.width / 2 ? -(x + width + 40) * out : (canvas.width - x + 40) * out;
+}
+
+let transitionRunning = false;
+
+/** Draws the panel every frame while the corner panels slide; a battle draws them in its own loop. */
+function runTransition() {
+  if (transitionRunning) return;
+  transitionRunning = true;
+  const tick = () => {
+    const t = performance.now() - cornerShown.at;
+    const sliding = t < (cornerShown.shown ? SLIDE.inMs : SLIDE.outMs);
+    if (!battle) frame(renderPanel);
+    if (sliding) requestAnimationFrame(tick);
+    else transitionRunning = false;
+  };
+  requestAnimationFrame(tick);
 }
 
 /** The countdown before a fight: the seconds left, and who has joined the draw so far. */
@@ -1515,11 +1580,22 @@ function drawLineup(a) {
 }
 
 /** The map panel in the corner: territory and cities. Hidden while the background layer is off. */
-function drawCorner() {
+function drawCorner(out = 0) {
   if (!state || !state.session.active) return;
+  ctx.save();
+  ctx.translate(slideAside(state.overlay.stats.x, state.overlay.stats.width, out), 0);
   drawSeasonPanel();
+  ctx.restore();
   const box = state.overlay.map;
   if (!box.visible) return;
+  ctx.save();
+  ctx.translate(slideAside(box.x, PANEL.width, out), 0);
+  drawMapPanel(box);
+  ctx.restore();
+}
+
+/** The map panel: the map, and each guild's row beside it. */
+function drawMapPanel(box) {
   const left = box.x;
   const top = box.y;
 
@@ -1947,6 +2023,8 @@ function onBattleStart(message) {
     // When the battle began on this page: the arena's name is introduced then (not to a page that joins late).
     startedAt: performance.now() - (message.elapsedMs || 0),
     broken: new Map(), // obstacle id → when it was first seen broken, for crumbling walls
+    // When this page began showing the battle: fighters pop in and the scoreboard drops in from then.
+    shownAt: performance.now(),
   };
   requestAnimationFrame(drawBattle);
 }
@@ -4215,7 +4293,7 @@ function drawObstacles(previous, latest, blend, now) {
     const x = (old ? old[2] + (x2 - old[2]) * blend : x2) * s;
     const y = (old ? old[3] + (y2 - old[3]) * blend : y2) * s;
     ctx.save();
-    ctx.globalAlpha = life / 100;
+    ctx.globalAlpha *= life / 100;
     if (kind === OBSTACLE.wall && state === 1) {
       if (!battle.broken.has(id)) battle.broken.set(id, now);
       drawRubble(x, y, a * s, b * s, id, now - battle.broken.get(id));
@@ -4416,6 +4494,16 @@ function drawTrap(x, y, r, state, now) {
   }
 }
 
+/** How a battle comes in: obstacles fade in, fighters pop up spread over `popMs`, each in `growMs`, the scoreboard drops in; at the end the battlefield fades over `leaveMs`. */
+const BATTLE_IN = { obstaclesMs: 450, popMs: 500, growMs: 260, hudMs: 600, leaveMs: 450 };
+
+/** How big a fighter is drawn as the battle comes in: 0 not yet there, overshooting a little, then 1. */
+function popIn(shown, index) {
+  if (shown >= BATTLE_IN.popMs + BATTLE_IN.growMs) return 1;
+  const start = hash01(index * 7.3 + 1) * BATTLE_IN.popMs;
+  return shown <= start ? 0 : easeOutBack((shown - start) / BATTLE_IN.growMs);
+}
+
 /** The squash of a fighter that moved `dx`, `dy` pixels in `ms` milliseconds; null when it barely moves. */
 function squashFor(dx, dy, ms) {
   const speed = (Math.hypot(dx, dy) * 1000) / ms;
@@ -4425,8 +4513,14 @@ function squashFor(dx, dy, ms) {
 
 function renderBattle(now) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+  // The corner panels slide away while the battle comes in.
+  noteCorner(false);
+  if (cornerOut() < 1) drawCorner(cornerOut());
   const latest = battle.latest;
   if (!latest) return;
+  // Coming in: fighters pop up one after another. Going: the battlefield fades as the result ends.
+  const shown = performance.now() - battle.shownAt;
+  const leaving = battle.end ? Math.min(1, Math.max(0, (performance.now() - battle.end.shownAt - battle.end.holdMs + BATTLE_IN.leaveMs) / BATTLE_IN.leaveMs)) : 0;
 
   // Move smoothly from the previous frame to the latest one.
   const previous = battle.previous || latest;
@@ -4473,7 +4567,10 @@ function renderBattle(now) {
     ctx.translate(Math.sin(now / 13) * strength, Math.cos(now / 17) * strength);
   }
   drawGroundEffects(now, at);
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, shown / BATTLE_IN.obstaclesMs) * (1 - leaving);
   drawObstacles(previous, latest, blend, now);
+  ctx.restore();
   // Lower fighters are drawn last so names overlap in a natural order.
   drawn.sort((a, b) => a.y - b.y);
 
@@ -4507,7 +4604,16 @@ function renderBattle(now) {
       ctx.fillStyle = haze;
       ctx.fill();
     }
-    drawFighter(d.fighter, d.x, d.y, d.health, d.flags, d.flags & FLAG.hidden ? 0.3 : 1, d.squash);
+    const pop = popIn(shown, d.index);
+    if (pop <= 0) continue;
+    if (pop < 1) {
+      ctx.save();
+      ctx.translate(d.x, d.y);
+      ctx.scale(pop, pop);
+      ctx.translate(-d.x, -d.y);
+    }
+    drawFighter(d.fighter, d.x, d.y, d.health, d.flags, (d.flags & FLAG.hidden ? 0.3 : 1) * (1 - leaving), d.squash);
+    if (pop < 1) ctx.restore();
     // The god running across the screen's edge shows on both sides while it crosses.
     if (d.x - d.r < 0) drawFighter(d.fighter, d.x + canvas.width, d.y, d.health, d.flags, 1);
     else if (d.x + d.r > canvas.width) drawFighter(d.fighter, d.x - canvas.width, d.y, d.health, d.flags, 1);
@@ -4534,12 +4640,15 @@ function renderBattle(now) {
     }
     drawOnTop(() => {
       ctx.save();
-      ctx.translate(0, view.top);
+      // The scoreboard drops in from above, and rises away as the battle goes.
+      const drop = (1 - easeOutBack(shown / BATTLE_IN.hudMs)) + easeInCubic(leaving);
+      ctx.translate(0, view.top - drop * 160);
       drawBattleHud(latest);
       ctx.restore();
       if (battle.end) {
         // In the middle of the arena, not of the screen.
         ctx.save();
+        ctx.globalAlpha = 1 - leaving;
         ctx.translate(0, view.top + (view.height - canvas.height) / 2);
         drawBattleResult();
         ctx.restore();
