@@ -274,5 +274,193 @@
     ctx.restore();
   }
 
-  Theme.register({ art: { box, classIcon, caption, fireFlames } });
+  /** Dense halftone dots, cached per canvas: the shading on the dark side of things. */
+  const dotPatterns = new WeakMap();
+  function dots(ctx) {
+    let pattern = dotPatterns.get(ctx);
+    if (!pattern) {
+      const tile = document.createElement('canvas');
+      tile.width = 6;
+      tile.height = 6;
+      const t = tile.getContext('2d');
+      t.fillStyle = 'rgba(11, 8, 7, 0.62)';
+      for (const [x, y] of [[1.5, 1.5], [4.5, 4.5]]) {
+        t.beginPath();
+        t.arc(x, y, 1.45, 0, Math.PI * 2);
+        t.fill();
+      }
+      pattern = ctx.createPattern(tile, 'repeat');
+      dotPatterns.set(ctx, pattern);
+    }
+    return pattern;
+  }
+
+  /** Shading on the dark side of a shape: the caller has clipped to it. */
+  function shade(ctx, x, y, width, height) {
+    ctx.fillStyle = dots(ctx);
+    ctx.fillRect(x, y, width, height);
+  }
+
+  /**
+   * A comic sunburst behind a winner: flat wedges in the color and in
+   * parchment, each edged in ink, no soft light. The context is already
+   * moved to the middle and turned.
+   */
+  function rays(ctx, { count, length, color, alpha }) {
+    ctx.save();
+    ctx.globalAlpha *= alpha;
+    ctx.lineJoin = 'miter';
+    for (let i = 0; i < count; i++) {
+      const a0 = (i / count) * Math.PI * 2;
+      const a1 = ((i + 0.5) / count) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(Math.cos(a0) * length, Math.sin(a0) * length);
+      ctx.lineTo(Math.cos(a1) * length, Math.sin(a1) * length);
+      ctx.closePath();
+      ctx.fillStyle = i % 2 === 0 ? color : '#F3E2B3';
+      ctx.fill();
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = INK;
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  /**
+   * A mage's circle, inked: a flat disc in the mage's color, a heavy ink
+   * ring, a ring of rune ticks turning, and a parchment star with ink edges.
+   */
+  function mageRune(ctx, x, y, radius, p, now, color) {
+    ctx.save();
+    ctx.globalAlpha = 0.25 + 0.3 * p;
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.globalAlpha = 0.6 + 0.4 * p;
+    ctx.lineWidth = 7;
+    ctx.strokeStyle = INK;
+    ctx.stroke();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#F3E2B3';
+    ctx.stroke();
+    const spin = now / 900;
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 12; i++) {
+      const angle = spin + (i / 12) * Math.PI * 2;
+      const from = radius * 0.78;
+      const to = radius * (i % 3 === 0 ? 0.96 : 0.9);
+      for (const [width, stroke] of [[6, INK], [2.5, '#F3E2B3']]) {
+        ctx.lineWidth = width;
+        ctx.strokeStyle = stroke;
+        ctx.beginPath();
+        ctx.moveTo(x + Math.cos(angle) * from, y + Math.sin(angle) * from);
+        ctx.lineTo(x + Math.cos(angle) * to, y + Math.sin(angle) * to);
+        ctx.stroke();
+      }
+    }
+    ctx.beginPath();
+    for (let i = 0; i < 12; i++) {
+      const angle = -spin * 1.4 + (i / 12) * Math.PI * 2;
+      const reach = radius * (i % 2 === 0 ? 0.68 : 0.36);
+      const px = x + Math.cos(angle) * reach;
+      const py = y + Math.sin(angle) * reach;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fillStyle = '#F3E2B3';
+    ctx.globalAlpha = 0.5 + 0.5 * p;
+    ctx.fill();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = INK;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /** A jagged comic burst around 0, 0: `rx` by `ry`, `spikes` points, its own wobble from `seed`. */
+  function burstPath(ctx, rx, ry, spikes, seed) {
+    ctx.beginPath();
+    for (let i = 0; i < spikes * 2; i++) {
+      const angle = (i / (spikes * 2)) * Math.PI * 2;
+      const long = i % 2 === 0;
+      const reach = long ? 0.92 + 0.22 * noise(seed + i * 3.1) : 0.62;
+      const px = Math.cos(angle) * rx * reach;
+      const py = Math.sin(angle) * ry * reach;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+  }
+
+  /** Heavy comic letters: an ink outline, a shadow in `shadow`, a `face` colored front. */
+  function shout(ctx, text, size, face, shadow) {
+    ctx.font = `900 ${size}px ${Theme.current.font}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = Math.max(5, size * 0.22);
+    ctx.strokeStyle = INK;
+    ctx.strokeText(text, 3, 3);
+    ctx.fillStyle = shadow;
+    ctx.fillText(text, 3, 3);
+    ctx.strokeText(text, 0, 0);
+    ctx.fillStyle = face;
+    ctx.fillText(text, 0, 0);
+  }
+
+  const HEAVY = ['POW!', 'KRAK!', 'BAM!', 'WHAM!', 'THWACK!'];
+  const KNOCKOUT = ['KO!', 'BONK!', 'SPLAT!'];
+
+  /**
+   * A big hit as a comic shouts it: the heaviest (40 or more, or a killing
+   * blow, and the biggest of its blow) in a jagged burst with a sound word and
+   * the number under it; the others as slanted inked numbers.
+   */
+  function damageNumber(ctx, x, y, value, { age, lethal, skill, seed, rank }) {
+    const pop = Math.min(1.15, age < 140 ? (age / 140) * 1.15 : 1.15 - Math.min(0.15, (age - 140) / 600));
+    ctx.translate(x, y);
+    ctx.scale(pop, pop);
+    ctx.rotate((noise(seed) - 0.5) * 0.3);
+    // Only the biggest of a blow gets the burst, so a blow that hits a crowd does not bury it.
+    if ((value >= 40 || lethal) && !rank) {
+      burstPath(ctx, 82, 54, 11, seed);
+      ctx.fillStyle = lethal ? '#B01E10' : '#E2902E';
+      ctx.fill();
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = INK;
+      ctx.stroke();
+      burstPath(ctx, 60, 39, 11, seed + 7);
+      ctx.fillStyle = '#FFD24A';
+      ctx.fill();
+      ctx.transform(1, 0, -0.15, 1, 0, 0);
+      shout(ctx, HEAVY[Math.floor(noise(seed + 2) * HEAVY.length)], 34, '#FFF1D2', lethal ? '#B01E10' : '#8E1A12');
+      // The number under the burst.
+      ctx.translate(4, 50);
+      shout(ctx, String(value), 26, lethal ? '#FF8A7A' : '#FFF1D2', '#0B0807');
+      return;
+    }
+    ctx.transform(1, 0, -0.18, 1, 0, 0);
+    shout(ctx, String(value), 30, skill ? '#FFD24A' : '#FFF1D2', '#8E1A12');
+  }
+
+  /** Where a fighter falls: a small burst with "KO!", popping up and fading. */
+  function knockout(ctx, x, y, age, seed, { life }) {
+    const p = age / life;
+    const pop = p < 0.2 ? p / 0.2 : 1;
+    ctx.globalAlpha *= Math.min(1, (1 - p) / 0.35);
+    ctx.translate(x, y - 10 - 18 * p);
+    ctx.scale(pop, pop);
+    ctx.rotate((noise(seed) - 0.5) * 0.5);
+    burstPath(ctx, 40, 28, 9, seed);
+    ctx.fillStyle = '#F3E2B3';
+    ctx.fill();
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = INK;
+    ctx.stroke();
+    shout(ctx, KNOCKOUT[Math.floor(noise(seed + 5) * KNOCKOUT.length)], 22, '#B01E10', '#0B0807');
+  }
+
+  Theme.register({ art: { box, classIcon, caption, fireFlames, shade, rays, mageRune, damageNumber, knockout } });
 })();

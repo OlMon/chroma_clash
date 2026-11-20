@@ -414,7 +414,7 @@ export function generateScenes(outDir: string, lang = 'en'): Scene[] {
     messages: [battleState, ...recordBattle(versusTitle, godSetup(19, { ...god, skills: ['leap'] }), godSides, noEmotes,
       (frames, i) => (castAt(frames[i + 11], 'leap') ? 100 - i / 100 : -1))],
     moments: [0],
-    tweak: 'if (battle) { battle.numbers.forEach((n, k) => { n.start = performance.now() - 220 - (k % 4) * 60; }); }',
+    tweak: 'if (battle) { battle.numbers.forEach((n, k) => { n.start = performance.now() - 220 - (k % 4) * 60; }); battle.knockouts.forEach((n, k) => { n.start = performance.now() - 150 - k * 80; }); }',
   });
 
   // Shockwave: picked just after it hurled the nearest chatters, who fly off squashed by their speed.

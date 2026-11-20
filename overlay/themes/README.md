@@ -66,8 +66,10 @@ Draw in screen coordinates (1920 × 1080); the pixel scale is applied for you.
 | `mageRune(ctx, x, y, radius, progress, now, color, { px })` | A mage's circle before the blast. |
 | `mageBlast(ctx, x, y, radius, progress, color, { px })` | The blast. |
 | `fireGround(ctx, mark, now, { px })` / `fireFlames(ctx, mark, now, { px })` | Burning ground: `mark` has `x`, `y`, `r`, `start`, `ms`. Ground is drawn under the fighters, flames over them. |
-| `damageNumber(ctx, x, y, value, { age, life, lethal, skill, color, seed, px })` | A big hit's damage over the fighter, rising. The context is faded already; `age` and `life` in milliseconds, `lethal` for a killing blow, `skill` for the god's skills, `color` the built-in color for it. |
+| `damageNumber(ctx, x, y, value, { age, life, lethal, skill, color, seed, rank, px })` | A big hit's damage over the fighter, rising. The context is faded already; `age` and `life` in milliseconds, `lethal` for a killing blow, `skill` for the god's skills, `color` the built-in color for it, `rank` its place among the hits of the same moment (0 the biggest). |
 | `knockout(ctx, x, y, age, seed, { life, px })` | Drawn where a fighter falls, for `life` milliseconds (only when a theme has it). |
+| `shade(ctx, x, y, width, height, { px })` | Shading on the dark side of a shape (fighters, bumpers, barrels, a Monument's right half): fill the rectangle, the context is clipped to the dark part. |
+| `rays(ctx, { count, length, color, alpha, px })` | The rays behind a winner (a finished Monument, Pachinko's winning board). The context is moved to their middle and turned. |
 | `caption(ctx, text, { color, age, font, width, px })` | The god's skill name at the bottom of the screen. The context is already moved to its middle, scaled for the pop-in and faded; the font is set. `color` is the caster's, `age` the milliseconds since it appeared, `width` the text's width. |
 
 See `pixel/theme.js` for a complete small example and `comic/theme.js` for a larger one.

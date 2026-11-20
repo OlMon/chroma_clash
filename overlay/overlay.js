@@ -234,6 +234,25 @@ function inkOf() {
   return Theme.current.ink;
 }
 
+/**
+ * A theme's shading on the dark side of a round shape (the comic's dense
+ * halftone dots, lower right): nothing without a theme `shade`.
+ */
+function shadeCircle(x, y, r) {
+  const shade = Theme.current.art.shade;
+  if (!shade) return;
+  ctx.save();
+  circle(x, y, r);
+  ctx.clip();
+  // The crescent the light does not reach: the disc minus one moved up and left.
+  ctx.beginPath();
+  ctx.rect(x - r, y - r, r * 2, r * 2);
+  ctx.arc(x - r * 0.28, y - r * 0.32, r * 0.98, 0, Math.PI * 2);
+  ctx.clip('evenodd');
+  shade(ctx, x - r, y - r, r * 2, r * 2, { px: Theme.current.pixelScale });
+  ctx.restore();
+}
+
 /** Strokes the current path in the theme's ink, `extra` pixels wider than its outline. Nothing without ink. */
 function inkPath(extra = 0) {
   const ink = inkOf();
@@ -1854,12 +1873,17 @@ function drawMonument(design, progress, x, y, height, color) {
     if (part.stage <= stage) {
       ctx.fillStyle = stone;
       ctx.fill();
-      // The right half in shade, for a little depth.
+      // The right half in shade, for a little depth (a theme may shade it its own way).
       ctx.save();
       ctx.clip();
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
-      ctx.fillRect(x, y - height * 1.1, height, height * 1.2);
+      if (theme.art.shade) theme.art.shade(ctx, x, y - height * 1.1, height, height * 1.2, { px: theme.pixelScale });
+      else {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.22)';
+        ctx.fillRect(x, y - height * 1.1, height, height * 1.2);
+      }
       ctx.restore();
+      path(part.poly);
+      inkPath(-2);
       path(part.poly);
       ctx.lineWidth = line(Math.max(1.5, height * 0.025));
       ctx.strokeStyle = '#100C0A';
@@ -1972,7 +1996,10 @@ function drawCelebration(a, elapsed) {
   // Rays turning slowly behind the Monument.
   ctx.translate(cx, base - 180);
   ctx.rotate(elapsed / 4000);
-  for (let i = 0; i < 16; i++) {
+  if (Theme.current.art.rays) {
+    Theme.current.art.rays(ctx, { count: 16, length: 520, color, alpha: 0.85, px: Theme.current.pixelScale });
+    ctx.restore();
+  } else for (let i = 0; i < 16; i++) {
     ctx.rotate((Math.PI * 2) / 16);
     const gradient = ctx.createLinearGradient(0, 0, 520, 0);
     gradient.addColorStop(0, i % 2 === 0 ? color : 'rgba(255, 245, 200, 0.9)');
@@ -1986,7 +2013,7 @@ function drawCelebration(a, elapsed) {
     ctx.closePath();
     ctx.fill();
   }
-  ctx.restore();
+  if (!Theme.current.art.rays) ctx.restore();
   // It rises into place over the first second.
   const rise = ease(elapsed / 1000);
   drawMonument(a.celebrate.design, 1, cx, base + (1 - rise) * 80, 360, color);
@@ -2779,6 +2806,9 @@ function drawFighter(fighter, x, y, health, flags, alpha, squash) {
     ctx.fillStyle = hit ? '#FFFFFF' : fighter.color || guildColor;
     ctx.fill();
   }
+  shadeCircle(x, y, r);
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
   // The ring always shows the guild, whatever the chatter's own color is.
   ctx.lineWidth = 4;
   ctx.strokeStyle = guildColor;
@@ -3020,8 +3050,14 @@ function hash01(seed) {
 function drawMageRune(caster, x, y, radius, p, now, color) {
   if (Theme.current.art.mageRune) {
     Theme.current.art.mageRune(ctx, x, y, radius, p, now, color, { px: Theme.current.pixelScale });
-    return;
+  } else {
+    drawBuiltInRune(x, y, radius, p, now, color);
   }
+  drawMageOrb(caster, x, y, p, color);
+}
+
+/** The built-in circle of runes. */
+function drawBuiltInRune(x, y, radius, p, now, color) {
   ctx.save();
   // The ground darkens and glows in the mage's color.
   const glow = ctx.createRadialGradient(x, y, radius * 0.1, x, y, radius);
@@ -3069,8 +3105,10 @@ function drawMageRune(caster, x, y, radius, p, now, color) {
     ctx.stroke();
   }
   ctx.restore();
+}
 
-  // The orb, in the first part of the warning, flying from the mage with a short tail.
+/** The orb, in the first part of the warning, flying from the mage to the spot with a short tail. */
+function drawMageOrb(caster, x, y, p, color) {
   if (caster && p < 0.45) {
     const t = p / 0.45;
     const ox = caster.x + (x - caster.x) * t;
@@ -4022,6 +4060,11 @@ function drawRays(x, y, layout, color, since) {
   ctx.clip();
   ctx.translate(x, y);
   ctx.rotate(since / 2600);
+  if (Theme.current.art.rays) {
+    Theme.current.art.rays(ctx, { count: 14, length: layout.width, color, alpha: 0.5 * ease(since / 600), px: Theme.current.pixelScale });
+    ctx.restore();
+    return;
+  }
   ctx.globalAlpha = 0.22 * ease(since / 600);
   ctx.fillStyle = color;
   const rays = 14;
@@ -4639,6 +4682,7 @@ function drawBumper(x, y, r, lit, now) {
   circle(x, y, r * 0.5);
   ctx.fillStyle = cap;
   ctx.fill();
+  shadeCircle(x, y, r);
   if (lit) {
     circle(x, y, r * (1.25 + 0.15 * Math.sin(now / 30)));
     ctx.lineWidth = 4;
@@ -4686,6 +4730,7 @@ function drawBarrel(x, y, r, rolled, broken, now, id) {
   ctx.fillRect(-r, -r * 0.55, r * 2, r * 0.18);
   ctx.fillRect(-r, r * 0.37, r * 2, r * 0.18);
   ctx.restore();
+  shadeCircle(x, y, r);
   circle(x, y, r);
   ctx.lineWidth = 2;
   ctx.strokeStyle = '#3A2410';
@@ -4749,9 +4794,9 @@ const SKILL_CAUSES = new Set(['rampage', 'shockwave', 'leap', 'smite', 'fire']);
 
 function noteBigHits(events, now) {
   const hits = events.filter((e) => e.k === 'hit').sort((a, b) => (b.l || 0) - (a.l || 0) || b.v - a.v);
-  for (const hit of hits.slice(0, NUMBERS.perFrame)) {
-    battle.numbers.push({ x: hit.x, y: hit.y, v: hit.v, l: hit.l === 1, c: hit.c, start: now, seed: hit.i * 13 + hit.v });
-  }
+  hits.slice(0, NUMBERS.perFrame).forEach((hit, rank) => {
+    battle.numbers.push({ x: hit.x, y: hit.y, v: hit.v, l: hit.l === 1, c: hit.c, start: now, seed: hit.i * 13 + hit.v, rank });
+  });
   if (battle.numbers.length > NUMBERS.max) battle.numbers.splice(0, battle.numbers.length - NUMBERS.max);
 }
 
@@ -4775,7 +4820,7 @@ function drawBigHits(now) {
     ctx.save();
     ctx.globalAlpha *= Math.min(1, (1 - p) / 0.3);
     if (Theme.current.art.damageNumber) {
-      Theme.current.art.damageNumber(ctx, x, y, n.v, { age, life: NUMBERS.lifeMs, lethal: n.l, skill: SKILL_CAUSES.has(n.c), color, seed: n.seed, px: Theme.current.pixelScale });
+      Theme.current.art.damageNumber(ctx, x, y, n.v, { age, life: NUMBERS.lifeMs, lethal: n.l, skill: SKILL_CAUSES.has(n.c), color, seed: n.seed, rank: n.rank, px: Theme.current.pixelScale });
     } else {
       const pop = easeOutBack(age / 180);
       const size = Math.round((30 + Math.min(22, (n.v - 20) * 0.5)) * (n.l ? 1.2 : 1));
