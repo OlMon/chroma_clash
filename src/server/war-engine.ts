@@ -112,7 +112,7 @@ export class WarEngine {
     const stake =
       target.kind === 'attack' && staked
         ? this.t('server.war.stake', {
-            level,
+            attack: title,
             kept: levelAfterCapture(level),
             defender: this.guild(target.defender),
             bonus: Math.round(defenseBonus(level) * 100),

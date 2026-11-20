@@ -82,7 +82,7 @@ test('an attack on developed land names the stake: the level, what a taken tile 
   const step = engine.next()!;
   assert.equal(step.kind, 'attack');
   assert.match(step.meta!.title, /^\w+ attacks \w+'s level 8$/);
-  assert.match(step.subtitle, /^At stake: a level-8 tile, which keeps level 4 if taken · \w+ defends with \+24% health$/);
+  assert.match(step.subtitle, /^\w+ attacks \w+'s level 8: taken, it keeps level 4 · \w+ defends with \+24% health$/);
   store.close();
 });
 

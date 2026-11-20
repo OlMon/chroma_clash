@@ -270,7 +270,8 @@ export function generateScenes(outDir: string, lang = 'en'): Scene[] {
 
   // Announcements: a war's battle on the map, and a season's winner.
   page('eventmap', {
-    messages: [stateMessage, { type: 'announce', title: t('server.war.battleOf', { n: 2, total: 3 }), subtitle: t('server.war.attacks', { attacker: guild('green'), defender: guild('red') }), map: { targets: [{ tile: '2,-1', by: 'green' }] }, holdMs: 600000 }],
+    // An attack on developed land: the subtitle names the stake, as the War engine words it.
+    messages: [stateMessage, { type: 'announce', title: t('server.war.battleOf', { n: 2, total: 3 }), subtitle: t('server.war.stake', { attack: t('server.war.attacksLevel', { attacker: guild('green'), defender: guild('red'), level: 4 }), kept: 2, defender: guild('red'), bonus: 12 }), map: { targets: [{ tile: '2,-1', by: 'green' }] }, holdMs: 600000 }],
     moments: [1500],
   });
   page('celebrate', {

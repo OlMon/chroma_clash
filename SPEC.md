@@ -164,7 +164,7 @@ A War is three battles, one per guild as attacker, in order from the guild with 
 
 The attacker's target is chosen automatically:
 
-1. **Enemy border.** If the attacker's territory touches enemy tiles (cities excluded), it attacks the neighbor that owns the most tiles, on the most developed of that neighbor's tiles it touches (equal levels are drawn by lot): developed land is the prize, since a taken tile keeps half its level. The announcement names the stake ("Red attacks Blue's level 8") and explains it ("At stake: a level-8 tile, which keeps level 4 if taken · Blue defends with +24% health"); on undeveloped land it is the plain "Red attacks Blue". The battle is attacker against defender. The third guild sits this battle out.
+1. **Enemy border.** If the attacker's territory touches enemy tiles (cities excluded), it attacks the neighbor that owns the most tiles, on the most developed of that neighbor's tiles it touches (equal levels are drawn by lot): developed land is the prize, since a taken tile keeps half its level. The announcement names the stake ("Red attacks Blue's level 8") and explains it ("Red attacks Blue's level 8: taken, it keeps level 4 · Blue defends with +24% health"); on undeveloped land it is the plain "Red attacks Blue". The battle is attacker against defender. The third guild sits this battle out.
 2. **Skirmish.** If the attacker touches no enemy tile, which is normal early in a season, it attacks a neutral tile next to its territory and all three guilds fight for it as a free-for-all. If the attacker wins it takes the tile at once; otherwise nothing changes.
 3. If neither is possible, the guild's battle is skipped.
 
