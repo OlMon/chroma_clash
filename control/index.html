@@ -5,6 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Chroma Clash control panel</title>
   <link rel="stylesheet" href="control.css">
+  <script>
+    // The light or dark look chosen in this browser, set before anything is drawn (no flash).
+    try {
+      const look = localStorage.getItem('chroma-control-theme');
+      if (look === 'light' || look === 'dark') document.documentElement.dataset.theme = look;
+    } catch {}
+  </script>
 </head>
 <!--
   Visible text is marked with data-i18n (text), data-i18n-html (text with markup)
@@ -82,7 +89,14 @@
     </defs>
   </svg>
   <header>
-    <h1>Chroma Clash</h1>
+    <div class="title-row">
+      <h1>Chroma Clash</h1>
+      <div class="theme-switch" role="radiogroup" aria-label="Look of the control panel" data-i18n-aria-label="control.panelTheme.label">
+        <button type="button" role="radio" data-theme-choice="system" aria-checked="true" data-i18n="control.panelTheme.system">System</button>
+        <button type="button" role="radio" data-theme-choice="light" aria-checked="false" data-i18n="control.panelTheme.light">Light</button>
+        <button type="button" role="radio" data-theme-choice="dark" aria-checked="false" data-i18n="control.panelTheme.dark">Dark</button>
+      </div>
+    </div>
     <p id="source" class="muted" data-i18n="control.source.connecting">Connecting…</p>
     <p id="update" class="update" hidden></p>
     <p id="no-gpu" class="update warn-notice" hidden data-i18n-html="control.gpu.notice"></p>

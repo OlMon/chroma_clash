@@ -1336,3 +1336,39 @@ I18n.ready.then(() => {
   loadActions();
   connect();
 });
+
+// --- Light or dark ---------------------------------------------------------------
+
+/**
+ * The control panel's look: the system's choice, or light or dark, kept in
+ * this browser (an OBS dock may look different from the full panel). The
+ * page's head applies it before drawing; this keeps the switch in step.
+ */
+(() => {
+  const KEY = 'chroma-control-theme';
+  const buttons = [...document.querySelectorAll('[data-theme-choice]')];
+  const show = (choice) => {
+    if (choice === 'light' || choice === 'dark') document.documentElement.dataset.theme = choice;
+    else delete document.documentElement.dataset.theme;
+    for (const button of buttons) button.setAttribute('aria-checked', String(button.dataset.themeChoice === choice));
+  };
+  let current = 'system';
+  try {
+    current = localStorage.getItem(KEY) || 'system';
+  } catch {
+    // No storage (a private window): the switch still works for this visit.
+  }
+  show(current);
+  for (const button of buttons) {
+    button.addEventListener('click', () => {
+      current = button.dataset.themeChoice;
+      try {
+        if (current === 'system') localStorage.removeItem(KEY);
+        else localStorage.setItem(KEY, current);
+      } catch {
+        // Not kept, only shown.
+      }
+      show(current);
+    });
+  }
+})();

@@ -11,8 +11,22 @@
   color-scheme: light dark;
 }
 
+/* Dark: chosen in the panel's header, or by the system while "System" is chosen. */
+:root[data-theme="dark"] {
+  --bg: #111418;
+  --card: #1a1e24;
+  --text: #eef0f3;
+  --muted: #9aa3ae;
+  --line: #2b313a;
+  --accent: #8f7fff;
+  --accent-text: #111418;
+  --neutral-tile: #2b313a;
+  --error: #ff8a80;
+  color-scheme: dark;
+}
+:root[data-theme="light"] { color-scheme: light; }
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #111418;
     --card: #1a1e24;
     --text: #eef0f3;
@@ -24,6 +38,17 @@
     --error: #ff8a80;
   }
 }
+
+/* The title row: the name, and the light/dark switch on the right. */
+.title-row { display: flex; align-items: center; gap: 12px; }
+.title-row h1 { margin-right: auto; }
+.theme-switch { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 2px; background: var(--card); }
+.theme-switch button {
+  font: inherit; font-size: 0.85rem; color: var(--muted); background: transparent;
+  border: 0; border-radius: 999px; padding: 4px 10px; cursor: pointer;
+}
+.theme-switch button[aria-checked="true"] { background: var(--accent); color: var(--accent-text); }
+.theme-switch button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 * { box-sizing: border-box; }
 /* Hidden means hidden, whatever display a rule gives the element. */
