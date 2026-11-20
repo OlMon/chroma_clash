@@ -3688,6 +3688,10 @@ function pachinkoLayout(index, count) {
 
 const PIN_RADIUS = 6;
 const BALL_RADIUS = 21;
+/** How long a pin glows after a ball hits it. */
+const PIN_GLOW_MS = 420;
+/** A falling ball's trail: how many ghosts, how far apart in time, how strong the nearest. */
+const TRAIL = { length: 4, stepMs: 28, alpha: 0.32 };
 
 /** The center of a pin: row `r`, `c` of `r + 1` pins. */
 function pinAt(layout, r, c) {
@@ -3778,10 +3782,105 @@ function popIn(t) {
   return 1 + 2.7 * x * x * x + 1.7 * x * x;
 }
 
-/** A board's points from the balls that have landed by `elapsed`. */
+/** How long a board's total takes to count up to a ball's points after it lands. */
+const SCORE_ROLL_MS = 450;
+
+/** A board's points from the balls that have landed by `elapsed`, counting up over `SCORE_ROLL_MS` after each lands. */
 function pachinkoScore(board, elapsed) {
   const fall = (pachinko.rows + 1) * pachinko.hopMs;
-  return board.drops.reduce((sum, d) => sum + (elapsed - d.at >= fall ? d.points : 0), 0);
+  const sum = board.drops.reduce((total, d) => {
+    const since = elapsed - d.at - fall;
+    return since < 0 ? total : total + d.points * Math.min(1, since / SCORE_ROLL_MS);
+  }, 0);
+  return Math.round(sum);
+}
+
+/**
+ * When each pin of a board was last hit by `elapsed`, keyed "row,column":
+ * a ball rests on one pin per row on its way down.
+ */
+function pinHits(board, elapsed) {
+  const hop = pachinko.hopMs;
+  const hits = new Map();
+  for (const drop of board.drops) {
+    let c = 0;
+    for (let r = 0; r < pachinko.rows; r++) {
+      const at = drop.at + (r + 1) * hop;
+      if (at > elapsed) break;
+      const key = `${r},${c}`;
+      if ((hits.get(key) ?? -Infinity) < at) hits.set(key, at);
+      c += drop.path[r] || 0;
+    }
+  }
+  return hits;
+}
+
+/**
+ * A firework for a jackpot, `t` ms after the ball landed: a rocket climbs
+ * from the slot, then bursts into a ball of sparks in gold and the guild's
+ * color that drift down and fade.
+ */
+const FIREWORK = { climbMs: 520, burstMs: 1300, sparks: 26 };
+
+function drawFirework(fromX, x, fromY, toY, t, color, seed) {
+  ctx.save();
+  if (t < FIREWORK.climbMs) {
+    // The rocket: a bright head with a fading tail.
+    const p = t / FIREWORK.climbMs;
+    const along = 1 - (1 - p) * (1 - p);
+    const y = fromY + (toY - fromY) * along;
+    const hx = fromX + (x - fromX) * along + Math.sin(t / 40 + seed) * 3;
+    // The tail points back down the way it came.
+    const dx = x - fromX;
+    const dy = toY - fromY;
+    const length = Math.hypot(dx, dy) || 1;
+    const tx = hx - (dx / length) * 70;
+    const ty = y - (dy / length) * 70;
+    const tail = ctx.createLinearGradient(hx, y, tx, ty);
+    tail.addColorStop(0, 'rgba(255, 236, 160, 0.9)');
+    tail.addColorStop(1, 'rgba(255, 236, 160, 0)');
+    ctx.strokeStyle = tail;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(hx, y);
+    ctx.lineTo(tx, ty);
+    ctx.stroke();
+    circle(hx, y, 5);
+    ctx.fillStyle = '#FFF6CF';
+    ctx.fill();
+    ctx.restore();
+    return;
+  }
+  const b = (t - FIREWORK.climbMs) / FIREWORK.burstMs;
+  if (b >= 1) {
+    ctx.restore();
+    return;
+  }
+  // A flash, then the sparks.
+  if (b < 0.15) {
+    circle(x, toY, 30 + 140 * b);
+    ctx.fillStyle = `rgba(255, 250, 220, ${0.55 * (1 - b / 0.15)})`;
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1 - b * b;
+  for (let i = 0; i < FIREWORK.sparks; i++) {
+    const angle = (i / FIREWORK.sparks) * Math.PI * 2 + hash01(seed + i) * 0.3;
+    const speed = 150 + 70 * hash01(seed + i * 3);
+    const out = speed * (1 - Math.pow(1 - b, 2.2));
+    const sx = x + Math.cos(angle) * out;
+    const sy = toY + Math.sin(angle) * out + 90 * b * b;
+    ctx.fillStyle = i % 3 === 0 ? color : i % 3 === 1 ? '#FFD34A' : '#FFF6CF';
+    // A short streak behind each spark, along its way out.
+    ctx.strokeStyle = ctx.fillStyle;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(x + Math.cos(angle) * out * 0.82, toY + Math.sin(angle) * out * 0.82 + 90 * b * b);
+    ctx.lineTo(sx, sy);
+    ctx.stroke();
+    circle(sx, sy, 3.5 * (1 - b) + 1.2);
+    ctx.fill();
+  }
+  ctx.restore();
 }
 
 /** Lights all around the winning board, chasing each other like on a real machine. */
@@ -4191,12 +4290,20 @@ function drawBoards(elapsed) {
       ctx.fillText(dropping.name, layout.cx, layout.top + 140);
     }
 
-    // Pins.
+    // Pins: one lights up as a ball hits it, in a glow that fades.
+    const hits = pinHits(board, elapsed);
     for (let r = 0; r < layout.rows; r++) {
       for (let c = 0; c <= r; c++) {
         const pin = pinAt(layout, r, c);
-        circle(pin.x, pin.y, PIN_RADIUS);
-        ctx.fillStyle = '#D9DEE6';
+        const since = elapsed - (hits.get(`${r},${c}`) ?? -Infinity);
+        const glow = since < PIN_GLOW_MS ? 1 - since / PIN_GLOW_MS : 0;
+        if (glow > 0) {
+          circle(pin.x, pin.y, PIN_RADIUS * (1.6 + 1.6 * glow));
+          ctx.fillStyle = `rgba(255, 226, 122, ${0.45 * glow})`;
+          ctx.fill();
+        }
+        circle(pin.x, pin.y, PIN_RADIUS * (1 + 0.35 * glow));
+        ctx.fillStyle = glow > 0 ? `rgb(255, ${Math.round(222 + 24 * (1 - glow))}, ${Math.round(140 + 90 * (1 - glow))})` : '#D9DEE6';
         ctx.fill();
         ctx.lineWidth = 2;
         ctx.strokeStyle = '#2A2E36';
@@ -4235,6 +4342,17 @@ function drawBoards(elapsed) {
         drawBall(0, 0, drop, board.color);
         ctx.restore();
       } else {
+        // A short trail behind a falling ball, in its guild's color.
+        for (let k = TRAIL.length; k >= 1; k--) {
+          const back = t - k * TRAIL.stepMs;
+          if (back < 0) continue;
+          const ghost = ballAt(layout, drop, back);
+          circle(ghost.x, ghost.y, BALL_RADIUS * (1 - k * 0.13));
+          ctx.fillStyle = board.color;
+          ctx.globalAlpha = TRAIL.alpha * (1 - k / (TRAIL.length + 1));
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        }
         drawBall(ball.x, ball.y, drop, board.color);
       }
       // The ball's name, once it is below the players' list (the list marks it until then).
@@ -4257,9 +4375,24 @@ function drawBoards(elapsed) {
         ctx.globalAlpha = 1 - p;
         ctx.font = `800 ${drop.points === best ? 40 : 28}px ${FONT}`;
         ctx.fillStyle = drop.points === best ? '#FFD34A' : '#FFFFFF';
-        outlinedText(drop.points === best ? tr('overlay.pachinko.jackpot', { points: drop.points }) : `+${drop.points}`, ball.x, layout.slotTop - 20 - 50 * p);
+        const label = drop.points === best ? tr('overlay.pachinko.jackpot', { points: drop.points }) : `+${drop.points}`;
+        // Kept on the board above an edge slot.
+        const half = textWidth(label) / 2 + 12;
+        const labelX = Math.min(layout.left + layout.width - half, Math.max(layout.left + half, ball.x));
+        outlinedText(label, labelX, layout.slotTop - 20 - 50 * p);
         ctx.restore();
       }
+    }
+
+    // A jackpot sends up a firework from its slot, bursting over the pins.
+    for (const drop of board.drops) {
+      const after = elapsed - drop.at - fall;
+      if (drop.points !== best || after < 0 || after >= FIREWORK.climbMs + FIREWORK.burstMs) continue;
+      const x = layout.cx + (drop.slot - layout.rows / 2) * layout.spacing;
+      // It climbs a little toward the middle, so an edge slot's firework bursts over the pins, clear of the players' list.
+      const toX = x + (layout.cx - x) * 0.45;
+      const toY = layout.startY + 50 + layout.rows * layout.rowHeight * (0.32 + 0.12 * hash01(drop.at));
+      drawFirework(x, toX, layout.slotTop, toY, after, board.color, drop.at + index * 13);
     }
 
     // Where the name of the dropping chatter was, above the players' list.
@@ -4498,7 +4631,7 @@ function drawTrap(x, y, r, state, now) {
 const BATTLE_IN = { obstaclesMs: 450, popMs: 500, growMs: 260, hudMs: 600, leaveMs: 450 };
 
 /** How big a fighter is drawn as the battle comes in: 0 not yet there, overshooting a little, then 1. */
-function popIn(shown, index) {
+function fighterPopIn(shown, index) {
   if (shown >= BATTLE_IN.popMs + BATTLE_IN.growMs) return 1;
   const start = hash01(index * 7.3 + 1) * BATTLE_IN.popMs;
   return shown <= start ? 0 : easeOutBack((shown - start) / BATTLE_IN.growMs);
@@ -4604,7 +4737,7 @@ function renderBattle(now) {
       ctx.fillStyle = haze;
       ctx.fill();
     }
-    const pop = popIn(shown, d.index);
+    const pop = fighterPopIn(shown, d.index);
     if (pop <= 0) continue;
     if (pop < 1) {
       ctx.save();

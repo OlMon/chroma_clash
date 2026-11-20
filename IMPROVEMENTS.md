@@ -31,7 +31,7 @@ that pass should measure.
 3. **Pixel sprites for the new elements (S).** Pixel-style obstacles, pixel flames for burning tiles, and a pixel Pachinko board. Today these are drawn the plain way and only pixelated.
 4. **Readable crowds (M). Done differently (November 2026).** A switch in Settings turns fighters' names off (emotes only); the highlights (item 8) name the fighters who matter. Smarter name hiding was decided against: the streamer chooses.
 5. **Transitions (S). Done (November 2026).** The corner panels slide out toward their side when a battle, countdown or announcement takes the screen and slide back in after it; a battle's obstacles fade in, its fighters pop up one after another, the scoreboard drops in, and at the end the battlefield fades and the scoreboard rises away.
-6. **Pachinko polish (S).** Done: a jackpot bursts into sparks, the winner is celebrated (marquee lights, crown, confetti), and each board lists its players with their points and emotes. Left: pins light up when hit, balls leave a short trail, and the winning board's total counts up.
+6. **Pachinko polish (S). Done (November 2026).** A jackpot bursts into sparks and sends up a firework, the winner is celebrated (marquee lights, crown, confetti), each board lists its players with their points and emotes, pins light up when hit, balls leave a short trail, and the totals count up.
 7. **Show the land's nature (S).** Let fertile tiles look lush and barren ones dry, with a small grass or stone texture. Then fertility is something viewers can see.
 8. **A kill feed and damage numbers (S).** Done: the highlights, noteworthy deaths with who did it, in snarky lines beside the scoreboard (switchable). Left: floating numbers on big hits.
 

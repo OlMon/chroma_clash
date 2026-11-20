@@ -84,6 +84,9 @@ window.requestAnimationFrame = () => 0;
   // Images load when first drawn: draw, wait until they are in (a broken one counts as in), draw again.
   function settle() {
     render();
+    // The animation is off here, so a slide of the corner panels would wait for the picture: it is over by then
+    // (a scene that shows one sets it again in its tweak before every draw).
+    cornerShown.at = -1e9;
     const pending = [...emoteImages.values()].some((e) => !e.ready && !e.failed) || document.fonts.status !== 'loaded';
     if (pending && tries++ < 80) { setTimeout(settle, 50); return; }
     if (!shifted) {
@@ -509,8 +512,7 @@ export function generateScenes(outDir: string, lang = 'en'): Scene[] {
         : { name: `${g.name}Hero${i}`, emote: { url: `/emotes/twitch/${emoteIds[(i + gi) % emoteIds.length]}?animated=0` }, imp: false }),
   }));
   const game = playPachinko(teams, createRng(4));
-  page('pachinko', {
-    messages: [stateMessage, {
+  const pachinkoMessage = (game: ReturnType<typeof playPachinko<(typeof teams)[number]['players'][number]>>) => ({
       type: 'pachinko', title: t('mode.pachinko'), rows: config.pachinko.rows, slots: config.pachinko.slots, hopMs: config.pachinko.hopMs, durationMs: game.durationMs, winner: game.winner,
       banner: { place: 'bottom', height: config.battle.bannerHeight, width: config.battle.arena.width },
       boards: game.boards.map((b) => {
@@ -520,7 +522,19 @@ export function generateScenes(outDir: string, lang = 'en'): Scene[] {
           drops: b.drops.map((d) => ({ name: d.player.name, color: d.player.imp ? g?.color ?? null : null, emote: d.player.emote, imp: d.player.imp, path: d.path, slot: d.slot, points: d.points, at: d.at })),
         };
       }),
-    }],
+    });
+  // A jackpot's firework bursting over the pins, in another game that has one early.
+  const lucky = playPachinko(teams, createRng(12));
+  const jackpot = lucky.boards.flatMap((b) => b.drops).filter((d) => d.points === Math.max(...config.pachinko.slots)).sort((a, b) => a.at - b.at)[0]!;
+  const fall = (config.pachinko.rows + 1) * config.pachinko.hopMs;
+  page('jackpot', {
+    messages: [stateMessage, pachinkoMessage(lucky)],
+    moments: [Math.round(jackpot.at + fall + 300), Math.round(jackpot.at + fall + 800)],
+    // The game's clock starts at the first draw, not when the page loaded, so the moments are exact: the rocket climbing, then the burst.
+    tweak: 'if (pachinko && !window.__clock) { window.__clock = 1; pachinko.shownAt = performance.now(); }',
+  });
+  page('pachinko', {
+    messages: [stateMessage, pachinkoMessage(game)],
     // During the game, then the winner's celebration: the pop, the crown landing, the confetti raining.
     moments: [2500, 9000, 16000, game.durationMs + 300, game.durationMs + 1200, game.durationMs + 3500],
   });
