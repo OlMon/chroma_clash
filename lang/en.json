@@ -232,6 +232,9 @@
     "other": "{count} active"
   },
   "overlay.guild.xpBoost": "XP boost",
+  "overlay.layerOff.title": "Chroma Clash is ready",
+  "overlay.layerOff.text": "The background layer is off: switch it on in the control panel, and the map appears here.",
+  "overlay.layerOff.obs": "This note shows only in a browser. In OBS the overlay stays empty until the layer is on.",
   "overlay.guild.monument": "Monument · grows +{income}",
   "overlay.guild.fire": {
     "one": "Fire! 1 more chatter puts it out",

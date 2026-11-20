@@ -232,6 +232,9 @@
     "other": "{count} aktiv"
   },
   "overlay.guild.xpBoost": "XP-Boost",
+  "overlay.layerOff.title": "Chroma Clash ist bereit",
+  "overlay.layerOff.text": "Die Hintergrundebene ist aus: Schalte sie im Kontrollpanel an, dann erscheint hier die Karte.",
+  "overlay.layerOff.obs": "Dieser Hinweis erscheint nur im Browser. In OBS bleibt das Overlay leer, bis die Ebene an ist.",
   "overlay.guild.monument": "Monument · wächst +{income}",
   "overlay.guild.fire": {
     "one": "Feuer! Noch 1 Chatter löscht es",

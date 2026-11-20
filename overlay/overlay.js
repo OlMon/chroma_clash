@@ -1689,6 +1689,7 @@ function drawLineup(a) {
 
 /** The map panel in the corner: territory and cities. Hidden while the background layer is off. */
 function drawCorner(out = 0) {
+  if (state && !state.session.active) drawLayerOffHint();
   if (!state || !state.session.active) return;
   ctx.save();
   ctx.translate(slideAside(state.overlay.stats.x, state.overlay.stats.width, out), 0);
@@ -1700,6 +1701,30 @@ function drawCorner(out = 0) {
   ctx.translate(slideAside(box.x, PANEL.width, out), 0);
   drawMapPanel(box);
   ctx.restore();
+}
+
+/**
+ * The overlay draws nothing while the background layer is off. Opened in an
+ * ordinary browser rather than in OBS (which sets `window.obsstudio`), that
+ * looks broken, so there it says why and where to switch it on.
+ */
+function drawLayerOffHint() {
+  if (window.obsstudio) return;
+  const width = 860;
+  const left = (canvas.width - width) / 2;
+  const top = canvas.height / 2 - 90;
+  drawBox(left, top, width, 180, { radius: 18, strong: true });
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = `700 30px ${FONT}`;
+  ctx.fillText(tr('overlay.layerOff.title'), canvas.width / 2, top + 52, width - 60);
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+  ctx.font = `400 20px ${FONT}`;
+  ctx.fillText(tr('overlay.layerOff.text'), canvas.width / 2, top + 100, width - 60);
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+  ctx.font = `400 16px ${FONT}`;
+  ctx.fillText(tr('overlay.layerOff.obs'), canvas.width / 2, top + 140, width - 60);
 }
 
 /** The map panel: the map, and each guild's row beside it. */
