@@ -161,7 +161,9 @@ FIRST TIME
      Keep OBS's browser sources on the graphics card, or battles stutter:
        Settings > Advanced > Sources > Enable Browser Source Hardware Acceleration
      (on by default; the control panel warns when it is off).
-  3. Chat away. Control panel: http://localhost:4747/control/
+  3. When you go live, press "Start" under "Chat plays" in the control panel:
+     from then on chatting counts and the map shows on the overlay.
+     Control panel: http://localhost:4747/control/
 
 YOUR DATA
   Everything the game remembers is in the data/ folder next to ${exeName}.
