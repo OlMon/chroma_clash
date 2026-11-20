@@ -409,6 +409,14 @@ export function generateScenes(outDir: string, lang = 'en'): Scene[] {
     moments: [1500],
   });
 
+  // Big hits: the god's Leap landing in a crowd, its damage numbers rising (a killing blow in red).
+  page('bighits', {
+    messages: [battleState, ...recordBattle(versusTitle, godSetup(19, { ...god, skills: ['leap'] }), godSides, noEmotes,
+      (frames, i) => (castAt(frames[i + 11], 'leap') ? 100 - i / 100 : -1))],
+    moments: [0],
+    tweak: 'if (battle) { battle.numbers.forEach((n, k) => { n.start = performance.now() - 220 - (k % 4) * 60; }); }',
+  });
+
   // Shockwave: picked just after it hurled the nearest chatters, who fly off squashed by their speed.
   page('shockwave', {
     messages: [battleState, ...recordBattle(versusTitle, godSetup(13, { ...god, skills: ['shockwave'] }), godSides, noEmotes,

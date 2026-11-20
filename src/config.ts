@@ -241,6 +241,8 @@ export const config = {
     durationMs: 90_000,
     baseHealth: 100,
     baseDamage: 10,
+    /** A hit of at least this much damage shows its number on the overlay (a fight's toughness raises health, not damage). */
+    bigHit: 20,
     hitIntervalMs: 1_000,
     /** Health bonus per chatter level, and its cap. */
     levelHealthBonus: 0.02,

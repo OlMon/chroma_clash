@@ -334,8 +334,11 @@ export type Highlight = (typeof HIGHLIGHTS)[number];
 const NOTABLE_CAUSES: ReadonlySet<DeathCause> = new Set(['rampage', 'shockwave', 'leap', 'smite', 'fire', 'barrel', 'trap']);
 
 export interface BattleEvent {
-  /** `death`: a noteworthy death, for the highlights: `i` fell to `b` (-1: nobody) by `c`, worth a line for `h`. */
-  k: 'warn' | 'cast' | 'enter' | 'fx' | 'death';
+  /**
+   * `death`: a noteworthy death, for the highlights: `i` fell to `b` (-1: nobody) by `c`, worth a line for `h`.
+   * `hit`: a big hit (see `config.battle.bigHit`) on `i`, by `c`: `v` its damage, `l` 1 when it was the killing blow.
+   */
+  k: 'warn' | 'cast' | 'enter' | 'fx' | 'death' | 'hit';
   s?: SkillId;
   /** For `fx`: a class effect, one of spin, arrow, blast-warn, blast, heal, shadow. */
   fx?: string;
@@ -352,6 +355,8 @@ export interface BattleEvent {
   b?: number;
   c?: DeathCause;
   h?: Highlight;
+  v?: number;
+  l?: number;
 }
 
 export function levelHealthMultiplier(level: number): number {
@@ -1326,6 +1331,20 @@ export class Battle {
     if (source) source.damageDealt += Math.min(amount, Math.max(0, target.health));
     target.health -= amount;
     target.hit = true;
+    // A big hit shows its number on the overlay, in base units: the same in every kind of fight
+    // (only obstacle damage grows with the fight's toughness; fighters' damage does not).
+    const shown = cause === 'barrel' || cause === 'trap' ? amount / this.toughness : amount;
+    if (shown >= config.battle.bigHit) {
+      this.events.push({
+        k: 'hit',
+        i: this.fighters.indexOf(target),
+        x: Math.round(target.x),
+        y: Math.round(target.y),
+        v: Math.round(shown),
+        c: cause,
+        ...(target.health <= 0 ? { l: 1 } : {}),
+      });
+    }
     if (target.health <= 0) {
       target.alive = false;
       target.health = 0;

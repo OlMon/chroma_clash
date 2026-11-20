@@ -2111,6 +2111,8 @@ function onBattleStart(message) {
     // When the battle began on this page: the arena's name is introduced then (not to a page that joins late).
     startedAt: performance.now() - (message.elapsedMs || 0),
     broken: new Map(), // obstacle id → when it was first seen broken, for crumbling walls
+    numbers: [], // big hits' damage floating up: { x, y, v, l, c, start, seed } in arena units
+    knockouts: [], // where fighters fell, for a theme that marks it (the comic's "KO" bursts): { x, y, start, seed, big }
     // When this page began showing the battle: fighters pop in and the scoreboard drops in from then.
     shownAt: performance.now(),
   };
@@ -2122,7 +2124,9 @@ function onBattleFrame(message) {
   const now = performance.now();
   battle.previous = battle.latest;
   battle.latest = { t: message.t, f: message.f, o: message.o || null, receivedAt: now };
+  noteBigHits(message.e || [], now);
   for (const event of message.e || []) {
+    if (event.k === 'hit') continue;
     if (event.k === 'death') {
       if (highlightsOn()) battle.feed.queue.push({ ...event, at: now });
       continue;
@@ -2162,7 +2166,14 @@ function onBattleFrame(message) {
   }
   if (battle.previous) {
     message.f.forEach((fighter, i) => {
-      if (fighter[2] === 0 && battle.previous.f[i][2] > 0) battle.diedAt[i] = now;
+      if (fighter[2] === 0 && battle.previous.f[i][2] > 0) {
+        battle.diedAt[i] = now;
+        if (Theme.current.art.knockout && !battle.fighters[i].minion) {
+          battle.knockouts.push({ x: fighter[0], y: fighter[1], start: now, seed: i * 7 + battle.knockouts.length, big: false });
+          // A theme's knockout bursts: a few at a time, the newest.
+          if (battle.knockouts.length > NUMBERS.maxKnockouts) battle.knockouts.shift();
+        }
+      }
       // A fighter that steps in from the bench starts fresh: its last death is forgotten.
       if (fighter[2] > 0 && battle.previous.f[i][2] === 0) battle.diedAt[i] = 0;
     });
@@ -4725,6 +4736,65 @@ function fighterPopIn(shown, index) {
   return shown <= start ? 0 : easeOutBack((shown - start) / BATTLE_IN.growMs);
 }
 
+// --- Big hits ----------------------------------------------------------------------
+
+/**
+ * Damage numbers over big hits (the battle reports a hit of `config.battle.bigHit`
+ * or more): at most `perFrame` from one frame, the killing blows and the
+ * biggest first, and `max` on screen. Each pops up, rises and fades over `lifeMs`.
+ */
+const NUMBERS = { perFrame: 4, max: 12, lifeMs: 950, rise: 54, maxKnockouts: 4, knockoutMs: 700 };
+/** Causes that are the god's skills: their numbers glow orange. */
+const SKILL_CAUSES = new Set(['rampage', 'shockwave', 'leap', 'smite', 'fire']);
+
+function noteBigHits(events, now) {
+  const hits = events.filter((e) => e.k === 'hit').sort((a, b) => (b.l || 0) - (a.l || 0) || b.v - a.v);
+  for (const hit of hits.slice(0, NUMBERS.perFrame)) {
+    battle.numbers.push({ x: hit.x, y: hit.y, v: hit.v, l: hit.l === 1, c: hit.c, start: now, seed: hit.i * 13 + hit.v });
+  }
+  if (battle.numbers.length > NUMBERS.max) battle.numbers.splice(0, battle.numbers.length - NUMBERS.max);
+}
+
+function drawBigHits(now) {
+  const s = battle.scale;
+  battle.knockouts = battle.knockouts.filter((k) => now - k.start < NUMBERS.knockoutMs);
+  for (const k of battle.knockouts) {
+    ctx.save();
+    Theme.current.art.knockout(ctx, k.x * s, k.y * s, now - k.start, k.seed, { px: Theme.current.pixelScale, life: NUMBERS.knockoutMs });
+    ctx.restore();
+  }
+  battle.numbers = battle.numbers.filter((n) => now - n.start < NUMBERS.lifeMs);
+  for (const n of battle.numbers) {
+    const age = now - n.start;
+    const p = age / NUMBERS.lifeMs;
+    // Up and a little to one side, so numbers from one blow fan out.
+    const drift = (hash01(n.seed) - 0.5) * 40 * p;
+    const x = n.x * s + drift;
+    const y = n.y * s - 30 - NUMBERS.rise * (1 - (1 - p) * (1 - p));
+    const color = n.l ? '#FF5A4E' : SKILL_CAUSES.has(n.c) ? '#FFB13B' : '#FFFFFF';
+    ctx.save();
+    ctx.globalAlpha *= Math.min(1, (1 - p) / 0.3);
+    if (Theme.current.art.damageNumber) {
+      Theme.current.art.damageNumber(ctx, x, y, n.v, { age, life: NUMBERS.lifeMs, lethal: n.l, skill: SKILL_CAUSES.has(n.c), color, seed: n.seed, px: Theme.current.pixelScale });
+    } else {
+      const pop = easeOutBack(age / 180);
+      const size = Math.round((30 + Math.min(22, (n.v - 20) * 0.5)) * (n.l ? 1.2 : 1));
+      ctx.translate(x, y);
+      ctx.scale(pop, pop);
+      ctx.font = `800 ${size}px ${FONT}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = color;
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)';
+      ctx.lineJoin = 'round';
+      ctx.strokeText(String(n.v), 0, 0);
+      ctx.fillText(String(n.v), 0, 0);
+    }
+    ctx.restore();
+  }
+}
+
 /** The squash of a fighter that moved `dx`, `dy` pixels in `ms` milliseconds; null when it barely moves. */
 function squashFor(dx, dy, ms) {
   const speed = (Math.hypot(dx, dy) * 1000) / ms;
@@ -4840,6 +4910,7 @@ function renderBattle(now) {
     else if (d.x + d.r > canvas.width) drawFighter(d.fighter, d.x - canvas.width, d.y, d.health, d.flags, 1);
   }
   drawTopEffects(now, at);
+  drawBigHits(performance.now());
   ctx.restore();
 
   // The highlights keep left of the scoreboard; without one (the endless mode), in the corner.

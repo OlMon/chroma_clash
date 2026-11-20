@@ -66,7 +66,7 @@ test('a fighter without skills casts nothing', () => {
   for (let i = 0; i < 400 && !battle.finished; i++) {
     battle.step();
     // Deaths are reported for the highlights; no skill is.
-    assert.deepEqual(battle.events.filter((event) => event.k !== 'death'), []);
+    assert.deepEqual(battle.events.filter((event) => event.k !== 'death' && event.k !== 'hit'), []);
   }
   assert.equal(battle.fighters.length, 11, 'no minions wait off the field');
 });
@@ -293,7 +293,7 @@ test('Enrage sets in once, below 30% health, and makes the god faster and strong
   const god = battle.fighters[0]!;
   for (let i = 0; i < 120; i++) {
     battle.step();
-    assert.deepEqual(battle.events.filter((event) => event.k !== 'death'), [], 'nothing happens while the god is healthy');
+    assert.deepEqual(battle.events.filter((event) => event.k !== 'death' && event.k !== 'hit'), [], 'nothing happens while the god is healthy');
   }
   assert.equal(god.enraged, false);
 
@@ -302,7 +302,7 @@ test('Enrage sets in once, below 30% health, and makes the god faster and strong
   let events = 0;
   for (let i = 0; i < 200 && !battle.finished; i++) {
     battle.step();
-    for (const event of battle.events.filter((e) => e.k !== 'death')) {
+    for (const event of battle.events.filter((e) => e.k !== 'death' && e.k !== 'hit')) {
       assert.deepEqual([event.k, event.s], ['cast', 'enrage'], 'enrage is never announced, it sets in');
       assert.ok(god.health / god.maxHealth <= config.skills.enrage.below);
       events++;
