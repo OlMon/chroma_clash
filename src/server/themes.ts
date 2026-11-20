@@ -46,9 +46,12 @@ export function listThemes(root: string, now = Date.now()): ThemeInfo[] {
   return themes;
 }
 
-/** The theme in use: the chosen one if it still exists, else `pixel`, else the first there is. */
+/** The theme a new install starts with: Dark Fantasy Comic. */
+export const DEFAULT_THEME = 'comic';
+
+/** The theme in use: the chosen one if it still exists, else the default, else the first there is. */
 export function activeTheme(chosen: string | null, themes: readonly ThemeInfo[]): string {
   if (chosen && themes.some((theme) => theme.id === chosen)) return chosen;
-  if (themes.some((theme) => theme.id === 'pixel')) return 'pixel';
+  if (themes.some((theme) => theme.id === DEFAULT_THEME)) return DEFAULT_THEME;
   return themes[0]?.id ?? 'plain';
 }

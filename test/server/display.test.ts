@@ -71,7 +71,7 @@ function chat(userId: string, color: string, emote: string | null): ChatMessageE
 test('the snapshot carries the display settings and the installed themes', async () => {
   const state = (await (await fetch(`${base}/api/state`)).json()) as GameSnapshot;
   assert.ok(state.display.themes.some((theme) => theme.id === 'pixel'));
-  assert.equal(state.display.theme, 'pixel', 'the pixel theme by default');
+  assert.equal(state.display.theme, 'comic', 'Dark Fantasy Comic by default');
   assert.deepEqual(
     [state.display.pixelateEmotes, state.display.animatedEmotes, state.display.randomEmotes, state.display.emoteSources],
     [true, true, true, { bttv: true, ffz: true, '7tv': true }],
