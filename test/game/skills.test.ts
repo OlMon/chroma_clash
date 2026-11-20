@@ -313,15 +313,17 @@ test('Enrage sets in once, below 30% health, and makes the god faster and strong
   assert.ok(battle.frame()[0]![3] & FLAG.enraged);
 });
 
-test('the health factor averages the cast skills and multiplies Enrage on top', () => {
+test('the health factor averages the cast skills, multiplies Enrage on top, and mixes several skills', () => {
   const f = (skill: SkillId) => config.skills[skill].healthFactor;
+  const mix = (count: number) => config.skills.mixFactor ** ((count - 1) / (ALL.length - 1));
   assert.equal(skillHealthFactor([]), 1);
-  assert.equal(skillHealthFactor(['leap']), f('leap'));
-  assert.ok(Math.abs(skillHealthFactor(['leap', 'shield']) - Math.sqrt(f('leap') * f('shield'))) < 1e-9);
+  assert.equal(skillHealthFactor(['leap']), f('leap'), 'one skill: its own factor, no mixing');
   assert.ok(Math.abs(skillHealthFactor(['enrage']) - f('enrage')) < 1e-9);
-  assert.ok(Math.abs(skillHealthFactor(['leap', 'enrage']) - f('leap') * f('enrage')) < 1e-9);
-  const all = skillHealthFactor(ALL);
-  assert.ok(all > 0.6 && all < 0.9, `all eight give ${all}`);
+  assert.ok(Math.abs(skillHealthFactor(['leap', 'shield']) - Math.sqrt(f('leap') * f('shield')) * mix(2)) < 1e-9);
+  assert.ok(Math.abs(skillHealthFactor(['leap', 'enrage']) - f('leap') * f('enrage') * mix(2)) < 1e-9);
+  const cast = ALL.filter((skill) => skill !== 'enrage');
+  const geometric = Math.exp(cast.reduce((sum, skill) => sum + Math.log(f(skill)), 0) / cast.length);
+  assert.ok(Math.abs(skillHealthFactor(ALL) - geometric * f('enrage') * config.skills.mixFactor) < 1e-9, 'all eight: the mix factor in full');
 });
 
 test('Shockwave hurls the five nearest fighters across the arena, bouncing off the walls', () => {

@@ -239,6 +239,8 @@ export interface Fighter extends FighterSpec {
   alive: boolean;
   kills: number;
   damageDealt: number;
+  /** Health given back to allies (healers), in the same units as `damageDealt`: for the balancing tools. */
+  healingDone: number;
   /** True if the fighter was hit in the most recent step. */
   hit: boolean;
   /** Class behavior: when the class's special move is next ready, and a thief's dart back. */
@@ -438,10 +440,12 @@ export function godHealth(opponents: number): number {
 }
 
 /**
- * How much health a fighter with these skills should have, relative to having
- * none, for an even fight. Only one skill is cast at a time, so the cast skills
- * share their effect: their factors are averaged (geometrically). Enrage is
- * always active when enabled, so its factor multiplies on top.
+ * How much health a fighter with these skills should have, relative to the
+ * god's health curve, for an even fight. Only one skill is cast at a time, so
+ * the cast skills share their effect: their factors are averaged
+ * (geometrically). Enrage is always active when enabled, so its factor
+ * multiplies on top. Several skills together are worth less than that says:
+ * `mixFactor`, in full with every skill and by a share with fewer.
  */
 export function skillHealthFactor(skills: readonly SkillId[]): number {
   const cast = skills.filter((skill) => skill !== 'enrage');
@@ -450,7 +454,11 @@ export function skillHealthFactor(skills: readonly SkillId[]): number {
     const logSum = cast.reduce((sum, skill) => sum + Math.log(config.skills[skill].healthFactor), 0);
     factor = Math.exp(logSum / cast.length);
   }
-  return skills.includes('enrage') ? factor * config.skills.enrage.healthFactor : factor;
+  if (skills.includes('enrage')) factor *= config.skills.enrage.healthFactor;
+  // Several skills together: the mix factor, in full with every skill, not at all with one.
+  const all = Object.keys(config.skills.names).length;
+  const share = all > 1 ? Math.max(0, skills.length - 1) / (all - 1) : 0;
+  return factor * config.skills.mixFactor ** share;
 }
 
 /** Where each team gathers, as shares of the arena, by number of teams. */
@@ -484,6 +492,8 @@ export class Battle {
   readonly fortunes: Record<string, number>;
   /** What happened in the most recent step that the overlay should show. */
   events: BattleEvent[] = [];
+  /** Fighters killed by a barrel or a trap: for the balancing tools. */
+  obstacleDeaths = 0;
   /** A normal fighter's radius in this battle; skill distances are multiples of it. */
   private readonly unit: number;
   private readonly teams: string[];
@@ -584,6 +594,7 @@ export class Battle {
           alive: true,
           kills: 0,
           damageDealt: 0,
+          healingDone: 0,
           hit: false,
           slowUntil: 0,
           shieldUntil: 0,
@@ -671,6 +682,7 @@ export class Battle {
             alive: false,
             kills: 0,
             damageDealt: 0,
+            healingDone: 0,
             hit: false,
             slowUntil: 0,
             shieldUntil: 0,
@@ -1080,10 +1092,13 @@ export class Battle {
           walk(Math.min(speed * dt, plan.distance - range));
         } else if (now >= fighter.nextSpecialAt && plan.target.health < plan.target.maxHealth) {
           const { healPerSecond, tickMs } = classes.healer;
+          const before = plan.target.health;
           plan.target.health = Math.min(
             plan.target.maxHealth,
             plan.target.health + (healPerSecond * this.toughness * tickMs) / 1000,
           );
+          // Damage is not scaled by toughness, so neither is the healing counted here.
+          fighter.healingDone += (plan.target.health - before) / this.toughness;
           fighter.nextSpecialAt = now + tickMs;
           this.fx('heal', fighter, { t: [this.fighters.indexOf(plan.target)], ms: tickMs });
         }
@@ -1349,6 +1364,7 @@ export class Battle {
       target.alive = false;
       target.health = 0;
       if (source) source.kills++;
+      if ((cause === 'barrel' || cause === 'trap') && !target.minion) this.obstacleDeaths++;
       this.noteDeath(target, source, cause);
       if (this.field && !target.minion) {
         // The next fighter steps in after a moment, not in the same instant.

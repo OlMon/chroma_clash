@@ -226,11 +226,11 @@ export const config = {
     shortestFightMs: 60_000,
     reference: 30,
     kinds: {
-      war: { toughness: 4.3, exponent: 0.1 },
-      heroClash: { toughness: 6, exponent: 0 },
-      guildClash: { toughness: 1.25, exponent: 1 },
-      freeForAll: { toughness: 1.5, exponent: 1 },
-      god: { toughness: 5, exponent: 0.2 },
+      war: { toughness: 3.3, exponent: 0.1 },
+      heroClash: { toughness: 4.3, exponent: 0 },
+      guildClash: { toughness: 0.7, exponent: 1 },
+      freeForAll: { toughness: 1.1, exponent: 1 },
+      god: { toughness: 3.6, exponent: 0.3 },
     },
   },
   battle: {
@@ -339,7 +339,7 @@ export const config = {
   /**
    * Obstacles in battles, when switched on in the control panel. Sizes are
    * multiples of a fighter's radius in that battle (the unit).
-   * - A team battle is fought in an arena with `chance`: a named place with a
+   * - Half of all team battles (`chance`) are fought in an arena: a named place with a
    *   plan of its own (see ARENAS in src/game/obstacles.ts), so each battle
    *   of a War can look different. After `arena.changeAfterMs` it changes
    *   every `arena.changeEveryMs`: an obstacle that fits it comes or goes.
@@ -350,11 +350,11 @@ export const config = {
    * traps strike everyone on them every `periodMs`, after a warning.
    */
   obstacles: {
-    chance: 0.4,
+    chance: 0.5,
     wall: { length: [4, 7] as [number, number], thickness: 0.8 },
     bumper: { radius: 1.3, flingMs: 220 },
-    barrel: { radius: 0.9, speed: 300, everyMs: [2_200, 4_500] as [number, number], damage: 8, knock: 2.5 },
-    trap: { radius: 1.4, periodMs: 3_200, warnMs: 800, strikeMs: 300, damage: 16 },
+    barrel: { radius: 0.9, speed: 300, everyMs: [2_200, 4_500] as [number, number], damage: 5, knock: 2.5 },
+    trap: { radius: 1.4, periodMs: 3_200, warnMs: 800, strikeMs: 300, damage: 12 },
     /** Arenas: after `changeAfterMs` an arena changes every `changeEveryMs`. */
     arena: { changeAfterMs: 20_000, changeEveryMs: [8_000, 14_000] as [number, number] },
     /** Bumpers and traps do nothing for this long after a battle starts, while the teams find their feet. */
@@ -384,7 +384,8 @@ export const config = {
    * changes a fighter's stats a little and its behavior a lot, so fights keep
    * moving. `health`, `damage` and `speed` multiply the base values. Distances
    * given as a "factor" are multiples of a normal fighter's radius in that battle.
-   * All numbers are first guesses, to be balanced in the final pass.
+   * Balanced (November 2026) with `node src/cli/balance.ts classes`: every class survives
+   * and kills within about a quarter of the average fighter (the healer heals instead).
    */
   classes: {
     /** How often each class is dealt, as shares that need not add up to 1. */
@@ -398,12 +399,12 @@ export const config = {
       healer: 'Healer',
     } as Record<ClassId, string>,
     /** Walks to the nearest enemy; now and then a spin that hits everyone around it for part of its damage. */
-    fighter: { health: 1, damage: 1, speed: 1, spinEveryMs: 4_000, spinRadiusFactor: 2.8, spinDamage: 0.6 },
+    fighter: { health: 1, damage: 0.9, speed: 1, spinEveryMs: 4_000, spinRadiusFactor: 2.8, spinDamage: 0.4 },
     /**
      * Slow and tough. Enemies within `tauntRadiusFactor` prefer to attack it.
      * Now and then, with an enemy close, it cannot be hurt for `shieldMs`.
      */
-    tank: { health: 1.5, damage: 0.9, speed: 0.7, tauntRadiusFactor: 6, shieldEveryMs: 7_000, shieldMs: 1_800 },
+    tank: { health: 2, damage: 1, speed: 0.7, tauntRadiusFactor: 6, shieldEveryMs: 7_000, shieldMs: 1_800 },
     /**
      * Fast and weak. Goes for archers, mages and healers first; after each
      * strike it darts back for `retreatMs`. Every `shadowEveryMs` it slips
@@ -411,37 +412,36 @@ export const config = {
      * it moves `shadowSpeed` times as fast. Its own strike brings it back out.
      */
     thief: {
-      health: 0.85, damage: 0.7, speed: 1.55, retreatMs: 800,
+      health: 1, damage: 0.7, speed: 1.55, retreatMs: 800,
       shadowEveryMs: 6_000, shadowMs: 2_500, shadowSpeed: 1.6,
     },
     /** Shoots from `rangeFactor` away and backs off from enemies closer than `retreatFactor`. */
-    archer: { health: 0.7, damage: 0.8, speed: 0.95, rangeFactor: 11, retreatFactor: 5 },
+    archer: { health: 0.6, damage: 0.55, speed: 0.95, rangeFactor: 11, retreatFactor: 5 },
     /**
      * Keeps its distance like an archer. Every `castEveryMs` it marks a circle on
      * the ground at its target, which blasts everyone in it `warnMs` later.
      */
     mage: {
-      health: 0.7, damage: 1, speed: 0.8, rangeFactor: 10, retreatFactor: 5,
-      castEveryMs: 4_000, warnMs: 900, blastRadiusFactor: 3.2, blastDamage: 18,
+      health: 0.6, damage: 0.8, speed: 0.8, rangeFactor: 10, retreatFactor: 5,
+      castEveryMs: 4_000, warnMs: 900, blastRadiusFactor: 3.2, blastDamage: 16,
     },
     /**
      * Follows the ally with the least health and heals it from `rangeFactor`
      * away. It heals neither itself nor other healers. A healer left without
      * such allies fights for itself, weakly (`damage`), so a fight can always end.
      */
-    healer: { health: 0.75, damage: 0.5, speed: 1.05, rangeFactor: 3.5, healPerSecond: 7, tickMs: 500 },
+    healer: { health: 1.3, damage: 0.5, speed: 1.05, rangeFactor: 5, healPerSecond: 18, tickMs: 500 },
   },
   /**
    * Skills of special fighters, today only the god. A fighter casts one of its
    * enabled skills at random intervals; each cast is announced `warnMs` ahead.
    * Distances given as a "factor" are multiples of a normal fighter's radius in
    * that battle, so skills keep their proportions in small and large fights.
-   * `healthFactor` is the god health, relative to a god without skills, at
-   * which a god with only that skill wins half its fights; measured by a search
-   * over chat sizes 8, 25 and 60. A value below 1 means the skill makes the god
-   * stronger. Vortex is above 1: pulling chat in lets more fighters reach the
-   * god. Enrage is slightly above 1 too: the god's growth lets more fighters
-   * reach it, which outweighs its speed and damage.
+   * `healthFactor` is the god health, relative to the curve in `god`, at
+   * which a god with only that skill wins half its fights; found in the
+   * balancing pass (November 2026) by `node src/cli/balance.ts god --fit`, a
+   * search over chats of 3, 8 and 20 per guild. A higher factor means the
+   * skill alone helps the god less, so it needs more health.
    * See `skillHealthFactor` for how the factors of several skills combine.
    */
   skills: {
@@ -469,13 +469,13 @@ export const config = {
       minions: 'Summons small copies of itself that fight on its side.',
       enrage: 'Below 30% health it grows, moves faster and hits harder. Always active, not cast.',
     } as Record<SkillId, string>,
-    rampage: { speed: 1_400, bounces: 3, /** Long enough for the bounces and the way back to the middle. */ maxMs: 5_000, damage: 25, knockbackFactor: 5, rehitMs: 500, healthFactor: 0.74 },
+    rampage: { speed: 1_400, bounces: 3, /** Long enough for the bounces and the way back to the middle. */ maxMs: 5_000, damage: 25, knockbackFactor: 5, rehitMs: 500, healthFactor: 1.15 },
     shockwave: {
       radiusFactor: 7, pushFactor: 9, slow: 0.45, slowMs: 3_000, damage: 10,
       /** The nearest fighters are hurled across the arena and bounce off its walls. */
       launchCount: 5, launchSpeed: 1_300, launchMs: 1_500,
-      healthFactor: 0.81 },
-    leap: { radiusFactor: 5, damage: 45, knockbackFactor: 3, healthFactor: 0.79 },
+      healthFactor: 1.13 },
+    leap: { radiusFactor: 5, damage: 45, knockbackFactor: 3, healthFactor: 1.05 },
     vortex: {
       /** One whirlwind per this many enemies, at least one and at most `maxWhirlwinds`. */
       enemiesPerWhirlwind: 6,
@@ -486,16 +486,22 @@ export const config = {
       /** How fast a whirlwind wanders, in arena units per second, and how fast it turns, in radians per second. */
       driftSpeed: 90,
       spin: 5,
-      healthFactor: 1.26,
+      healthFactor: 1.07,
     },
     smite: {
       targets: 3, damage: 60, /** How long a struck fighter stays visibly scorched. */ scorchMs: 4_000,
       /** Each strike leaves burning ground: its size, how long it burns, and what it does to enemies standing in it. */
       fireRadiusFactor: 2.2, fireMs: 5_000, fireDamage: 6, fireTickMs: 500,
-      healthFactor: 0.92 },
-    shield: { durationMs: 3_000, healthFactor: 0.69 },
-    minions: { count: 4, casts: 2, health: 50, damage: 5, radiusFactor: 0.8, healthFactor: 0.73 },
-    enrage: { below: 0.3, speed: 1.5, damage: 1.5, /** The enraged fighter grows by this factor. */ grow: 1.3, healthFactor: 1.04 },
+      healthFactor: 1.03 },
+    shield: { durationMs: 3_000, healthFactor: 1.01 },
+    minions: { count: 4, casts: 2, health: 50, damage: 5, radiusFactor: 0.8, healthFactor: 1.25 },
+    enrage: { below: 0.3, speed: 1.5, damage: 1.5, /** The enraged fighter grows by this factor. */ grow: 1.3, healthFactor: 1.53 },
+    /**
+     * Skills together are worth less than their factors say: the god casts one
+     * at a time. With every skill on, health is multiplied by this; with fewer,
+     * by a share of it (none with one skill). See `skillHealthFactor`.
+     */
+    mixFactor: 0.58,
   },
   /**
    * Countdown fights: the streamer starts a countdown, chatters who write
@@ -527,7 +533,10 @@ export const config = {
    * fewer drops some again, so all guilds drop as many balls. A ball bounces
    * down `rows` rows of pins, left or right at each, into one of `rows + 1`
    * slots worth `slots` points. The highest sum wins. It changes nothing in
-   * the game: it is for fun, and for betting in chat.
+   * the game: it is for fun, and for betting in chat. The slot values were
+   * checked in the balancing pass (`node src/cli/balance.ts pachinko`): a
+   * jackpot falls in 22% of games and decides 17%, and the leader at
+   * half-time wins 65%; flatter or steeper values change little.
    */
   pachinko: {
     rows: 8,
@@ -598,10 +607,10 @@ export const config = {
     maxPictureBytes: 400_000,
     /**
      * The god's health is `healthBase * fighters ^ healthExponent`, varied by
-     * `healthVariation` up or down per fight. Found with a search over chat
-     * sizes from 3 to 120 (`node src/cli/fight-durations.ts --kinds god`): at
-     * these values the god wins about half its fights (33 to 67% per size in
-     * 30 fights each), with fights of 60 to 90 seconds (see `pace`).
+     * `healthVariation` up or down per fight, times its skills' factor (see
+     * `skills`). With every skill on, the god wins about half its fights
+     * (`node src/cli/balance.ts god`: 57, 40 and 63% at 3, 8 and 20 chatters
+     * per guild), with fights of 60 to 90 seconds (see `pace`).
      */
     healthBase: 17.5,
     healthExponent: 1.3,

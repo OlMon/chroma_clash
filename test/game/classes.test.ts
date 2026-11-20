@@ -302,7 +302,8 @@ test('Healer: heals the ally with the least health, never itself, and strikes no
   assert.ok(hurt.health <= hurt.maxHealth);
   assert.equal(healer.health, 40, 'it does not heal itself');
   assert.equal(healer.damageDealt, 0);
-  assert.ok(distance(healer, hurt) < 200, 'it went to its patient');
+  // Within its healing range of its patient (a fighter's radius is the battle's unit), from much further away.
+  assert.ok(distance(healer, hurt) < config.classes.healer.rangeFactor * hurt.radius + hurt.radius + 20, 'it went to its patient');
 });
 
 test('Healers left alone fight for themselves, so a battle of healers still ends', () => {

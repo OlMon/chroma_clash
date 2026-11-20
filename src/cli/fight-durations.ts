@@ -7,9 +7,9 @@
  *   node src/cli/fight-durations.ts [--runs 6] [--sizes 6,15,40]
  */
 import { parseArgs } from 'node:util';
-import { config, type GuildId } from '../config.ts';
-import { Store, type UserRow } from '../db/store.ts';
-import { Battle, type BattleSetup } from '../game/battle.ts';
+import { config } from '../config.ts';
+import type { UserRow } from '../db/store.ts';
+import { Battle } from '../game/battle.ts';
 import { playPachinko } from '../game/pachinko.ts';
 import { ClashEngine } from '../server/clash-engine.ts';
 import { DraftEngine, drawFighters } from '../server/draft-engine.ts';
@@ -17,6 +17,7 @@ import type { EventEngine } from '../server/event-runner.ts';
 import { GodEngine } from '../server/god-engine.ts';
 import { WarEngine } from '../server/war-engine.ts';
 import { createRng } from '../util/rng.ts';
+import { T0, asRunner, channel } from './sim-support.ts';
 
 const { values } = parseArgs({
   options: {
@@ -29,43 +30,6 @@ const { values } = parseArgs({
 const kinds = new Set(values.kinds.split(','));
 const runs = Number(values.runs);
 const sizes = values.sizes.split(',').map(Number);
-
-const T0 = 1_800_000_000_000;
-const COLORS: Record<GuildId, string> = { red: '#FF0000', green: '#00FF00', blue: '#0000FF' };
-
-/** A channel with `perGuild` chatters in each guild, all active now, with a few minutes of ticks. */
-function channel(perGuild: number, seed: number): Store {
-  const store = Store.open(':memory:');
-  store.setManualChatters(perGuild * 3);
-  store.startSession(T0 - 60 * 60_000);
-  const rng = createRng(seed);
-  let id = 1;
-  for (const guild of ['red', 'green', 'blue'] as const) {
-    for (let i = 0; i < perGuild; i++, id++) {
-      // A few windows each, so the most active chatters differ.
-      const windows = 1 + Math.floor(rng() * 6);
-      for (let w = 0; w < windows; w++) {
-        store.recordMessage({
-          type: 'chat', channel: 'c', userId: String(id), login: `u${id}`, displayName: `U${id}`, color: COLORS[guild],
-          badges: [], isBroadcaster: false, isModerator: false, text: 'hi', emoteIds: [],
-          sentAt: T0 - w * config.ticks.windowMs - 1000,
-        });
-      }
-    }
-  }
-  return store;
-}
-
-/** The setup as the battle runner would start it: with obstacles and the map banner's shorter arena. */
-function asRunner(setup: BattleSetup): BattleSetup {
-  const teams = new Set(setup.sides.map((side) => side.team ?? side.id)).size;
-  const arena = config.battle.arena;
-  return {
-    ...setup,
-    obstacles: setup.obstacles ?? (setup.endless || teams > 3 ? 'changing' : 'fixed'),
-    arena: setup.arena ?? { ...arena, height: arena.height - config.battle.bannerHeight },
-  };
-}
 
 const lengths = new Map<string, { ms: number[]; byTime: number; godWins: number }>();
 function note(kind: string, ms: number, byTime: boolean, godWon = false): void {

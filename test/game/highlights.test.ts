@@ -19,7 +19,7 @@ function war(seed: number, extra: Partial<FighterSpec>[] = []): Battle {
   for (const side of ['red', 'blue']) for (let i = 0; i < 20; i++) fighters.push({ id: `${side}${i}`, name: `${side}${i}`, color: null, side, level: 0, crown: side === 'red' && i === 0 });
   extra.forEach((spec, i) => fighters.push({ id: `x${i}`, name: `x${i}`, color: null, side: 'blue', level: 0, ...spec }));
   assignClasses(fighters, createRng(seed));
-  return new Battle({ seed, toughness: 3, sides: ['red', 'blue'].map((id) => ({ id, damageBonus: 0, healthBonus: 0 })), fighters, obstacles: 'fixed' });
+  return new Battle({ seed, toughness: 2, sides: ['red', 'blue'].map((id) => ({ id, damageBonus: 0, healthBonus: 0 })), fighters, obstacles: 'fixed' });
 }
 
 test('a battle reports its noteworthy deaths: who fell, to whom, how, and why it matters', () => {

@@ -129,8 +129,11 @@ test('a team battle with obstacles is fought in a named arena, built to its plan
   // Barrels roll in the Brewery and down the Gauntlet's corridor, and only there.
   for (const place of ARENAS) {
     const battle = new Battle(setup(4, { obstacles: 'fixed', place }));
-    while (battle.timeMs < 8_000 && !battle.finished) battle.step();
-    const rolled = (battle.obstacleFrame() ?? []).some((o) => o[1] === barrel);
+    let rolled = false;
+    while (battle.timeMs < 12_000 && !battle.finished) {
+      battle.step();
+      rolled ||= (battle.obstacleFrame() ?? []).some((o) => o[1] === barrel);
+    }
     assert.equal(rolled, place === 'brewery' || place === 'gauntlet', place);
   }
   // By chance, every arena comes up; a battle without obstacles has none.

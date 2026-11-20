@@ -149,7 +149,7 @@ function ring(kind: Spot['kind'], count: number, rx: number, ry: number, turn: n
 const ARENA_PLANS: Record<ArenaId, ArenaPlan> = {
   pinball: {
     spots: () => [
-      [0.5, 0.24], [0.5, 0.76], [0.36, 0.5], [0.64, 0.5], [0.43, 0.37], [0.57, 0.37], [0.43, 0.63], [0.57, 0.63], [0.29, 0.27], [0.71, 0.73],
+      [0.5, 0.24], [0.5, 0.76], [0.43, 0.37], [0.57, 0.37], [0.43, 0.63], [0.57, 0.63],
     ].map(([x, y]) => ({ kind: 'bumper' as const, x: x!, y: y! })),
     adds: [{ kind: 'bumper' }],
   },
@@ -170,7 +170,7 @@ const ARENA_PLANS: Record<ArenaId, ArenaPlan> = {
       { kind: 'wall', x: 0.62, y: 0.3, length: 2.5, across: false },
       { kind: 'wall', x: 0.38, y: 0.7, length: 2.5, across: false },
     ],
-    barrels: { edges: [0, 1], everyMs: [1_800, 3_600], wave: [1, 3], along: [0.1, 0.9], slant: 0.3 },
+    barrels: { edges: [0, 1], everyMs: [2_600, 4_600], wave: [1, 2], along: [0.1, 0.9], slant: 0.3 },
     adds: [{ kind: 'wall', length: [2, 3] }],
   },
   spikepit: {
@@ -182,7 +182,7 @@ const ARENA_PLANS: Record<ArenaId, ArenaPlan> = {
   ruins: {
     spots: (rng) =>
       // More than are kept: those that land too near the teams or each other are left out.
-      Array.from({ length: 10 + Math.floor(rng() * 4) }, () => ({
+      Array.from({ length: 6 + Math.floor(rng() * 3) }, () => ({
         kind: 'wall' as const,
         x: 0.15 + rng() * 0.7,
         y: 0.15 + rng() * 0.7,
@@ -192,7 +192,7 @@ const ARENA_PLANS: Record<ArenaId, ArenaPlan> = {
     adds: [{ kind: 'wall', length: [2.5, 4.5] }],
   },
   funhouse: {
-    spots: () => [...ring('bumper', 6, 0.2, 0.3, 0), ...ring('trap', 3, 0.33, 0.38, 1 / 12)],
+    spots: () => [...ring('bumper', 5, 0.2, 0.3, 0), ...ring('trap', 3, 0.33, 0.38, 1 / 12)],
     adds: [{ kind: 'bumper' }, { kind: 'trap' }],
   },
   gauntlet: {
@@ -200,7 +200,7 @@ const ARENA_PLANS: Record<ArenaId, ArenaPlan> = {
       { kind: 'wall', x: 0.5, y: 0.36, span: 0.26, across: true },
       { kind: 'wall', x: 0.5, y: 0.64, span: 0.26, across: true },
     ],
-    barrels: { edges: [0, 1], everyMs: [2_000, 3_800], wave: [2, 3], along: [0.45, 0.55], slant: 0 },
+    barrels: { edges: [0, 1], everyMs: [3_400, 5_400], wave: [1, 2], along: [0.45, 0.55], slant: 0 },
     adds: [{ kind: 'trap' }],
   },
 };
