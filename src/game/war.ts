@@ -29,7 +29,9 @@ export function battleOrder(tiles: readonly MapTile[], rng: Rng): GuildId[] {
 /**
  * What a guild attacks in its battle.
  * 1. If its territory touches enemy tiles (cities cannot be taken), it attacks
- *    the neighbor that owns the most tiles, on a random tile it touches.
+ *    the neighbor that owns the most tiles, on the most developed tile of
+ *    theirs it touches: developed land is the prize (a taken tile keeps half
+ *    its level). Equal levels are drawn by lot.
  * 2. Otherwise it raids the neutral tile it would claim next: a skirmish.
  * 3. Otherwise there is nothing in reach and the result is null.
  */
@@ -53,7 +55,9 @@ export function chooseTarget(tiles: readonly MapTile[], attacker: GuildId, rng: 
       .map((guild) => ({ id: guild.id, tiles: counts[guild.id], tieBreak: rng() }))
       .sort((a, b) => b.tiles - a.tiles || a.tieBreak - b.tieBreak);
     const defender = neighbors[0]!.id;
-    const options = [...touched.get(defender)!.values()].sort((a, b) => (a.id < b.id ? -1 : 1));
+    const touchedTiles = [...touched.get(defender)!.values()];
+    const best = Math.max(...touchedTiles.map((tile) => tile.level ?? 0));
+    const options = touchedTiles.filter((tile) => (tile.level ?? 0) === best).sort((a, b) => (a.id < b.id ? -1 : 1));
     return { kind: 'attack', defender, tile: options[Math.floor(rng() * options.length)]! };
   }
 

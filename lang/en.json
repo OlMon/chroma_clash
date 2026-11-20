@@ -46,6 +46,8 @@
   "server.war.noFighters": "{guild} has no active fighters",
   "server.war.skipped": "{reason}; its attack is skipped",
   "server.war.attacks": "{attacker} attacks {defender}",
+  "server.war.attacksLevel": "{attacker} attacks {defender}'s level {level}",
+  "server.war.stake": "At stake: a level-{level} tile, which keeps level {kept} if taken · {defender} defends with +{bonus}% health",
   "server.war.raids": "{attacker} raids neutral land",
   "server.war.raidSubtitle": "{title}: every guild may fight for it",
   "server.war.didNotAttack": "{guild} did not attack",

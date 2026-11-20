@@ -1,6 +1,7 @@
 import { config, type GuildId } from '../config.ts';
 import type { Store } from '../db/store.ts';
 import type { BattleResult, BattleSetup } from '../game/battle.ts';
+import { defenseBonus, levelAfterCapture } from '../game/land.ts';
 import { battleOrder, chooseTarget } from '../game/war.ts';
 import { createRng, type Rng } from '../util/rng.ts';
 import type { BattleMeta } from './battle-runner.ts';
@@ -101,10 +102,22 @@ export class WarEngine {
       target.kind === 'attack'
         ? [attacker, target.defender]
         : [attacker, ...config.guilds.list.map((g) => g.id).filter((id) => id !== attacker)];
+    // A developed tile is the stake: named in the title, and what it means in the subtitle.
+    const level = target.tile.level ?? 0;
+    const staked = target.kind === 'attack' && level > 0;
     const title =
       target.kind === 'attack'
-        ? this.t('server.war.attacks', { attacker: this.guild(attacker), defender: this.guild(target.defender) })
+        ? this.t(staked ? 'server.war.attacksLevel' : 'server.war.attacks', { attacker: this.guild(attacker), defender: this.guild(target.defender), level })
         : this.t('server.war.raids', { attacker: this.guild(attacker) });
+    const stake =
+      target.kind === 'attack' && staked
+        ? this.t('server.war.stake', {
+            level,
+            kept: levelAfterCapture(level),
+            defender: this.guild(target.defender),
+            bonus: Math.round(defenseBonus(level) * 100),
+          })
+        : title;
     const { setup, meta } = prepareBattle(this.store, {
       title,
       sides,
@@ -123,7 +136,7 @@ export class WarEngine {
       kind: target.kind,
       tileId: target.tile.id,
       defender: target.kind === 'attack' ? target.defender : undefined,
-      subtitle: target.kind === 'attack' ? title : this.t('server.war.raidSubtitle', { title }),
+      subtitle: target.kind === 'attack' ? stake : this.t('server.war.raidSubtitle', { title }),
       map: { targets: [{ tile: target.tile.id, by: attacker }] },
       setup,
       meta,

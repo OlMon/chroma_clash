@@ -76,3 +76,18 @@ test('a guild that is walled in by cities and own land has no target', () => {
   assert.equal(chooseTarget(map, 'red', createRng(1)), null);
   assert.equal(chooseTarget(map, 'blue', createRng(1))?.kind, 'attack');
 });
+
+test('a guild goes for the most developed tile it touches; equal levels are drawn by lot', () => {
+  const map = makeMap({ '0,0': 'red', '1,-1': 'red', '0,1': 'green', '1,0': 'green', '-1,1': 'green' });
+  const level = (id: string, value: number) => (map.find((tile) => tile.id === id)!.level = value);
+  level('0,1', 2);
+  level('1,0', 8);
+  for (let seed = 1; seed <= 20; seed++) {
+    const target = chooseTarget(map, 'red', createRng(seed));
+    assert.equal(target?.kind === 'attack' && target.tile.id, '1,0', 'the level-8 tile is the prize');
+  }
+  level('0,1', 8);
+  const picked = new Set<string>();
+  for (let seed = 1; seed <= 40; seed++) picked.add(chooseTarget(map, 'red', createRng(seed))!.tile.id);
+  assert.deepEqual([...picked].sort(), ['0,1', '1,0'], 'two level-8 tiles: either');
+});

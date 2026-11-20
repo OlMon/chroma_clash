@@ -74,6 +74,18 @@ test('a War has one battle per guild; with the land dealt, each is an attack on 
   store.close();
 });
 
+test('an attack on developed land names the stake: the level, what a taken tile keeps, the defender\'s bonus', () => {
+  const store = setupStore({ red: 20, green: 20, blue: 20 });
+  // Every guild's land at level 8, so whatever is attacked is a level-8 tile.
+  for (const tile of store.tiles()) if (!tile.is_city && tile.tile_id !== '0,0') store.setTileLevel(tile.tile_id, 8);
+  const engine = new WarEngine(store, () => T0 + 60_000, 3);
+  const step = engine.next()!;
+  assert.equal(step.kind, 'attack');
+  assert.match(step.meta!.title, /^\w+ attacks \w+'s level 8$/);
+  assert.match(step.subtitle, /^At stake: a level-8 tile, which keeps level 4 if taken · \w+ defends with \+24% health$/);
+  store.close();
+});
+
 test('on neutral land a guild raids: a won raid takes the tile, a lost one changes nothing', () => {
   const store = setupStore({ red: 20, green: 20, blue: 20 });
   clearLand(store);

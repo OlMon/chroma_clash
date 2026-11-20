@@ -46,6 +46,8 @@
   "server.war.noFighters": "{guild} hat keine aktiven Kämpfer",
   "server.war.skipped": "{reason}, der Angriff fällt aus",
   "server.war.attacks": "{attacker} greift {defender} an",
+  "server.war.attacksLevel": "{attacker} greift das Level-{level}-Feld von {defender} an",
+  "server.war.stake": "Es geht um ein Feld auf Level {level}; erobert behält es Level {kept} · {defender} verteidigt mit +{bonus}% Leben",
   "server.war.raids": "{attacker} überfällt neutrales Land",
   "server.war.raidSubtitle": "{title}: Jede Gilde darf darum kämpfen",
   "server.war.didNotAttack": "{guild} greift nicht an",
