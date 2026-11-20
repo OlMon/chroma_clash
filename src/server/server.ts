@@ -16,6 +16,7 @@ import type { Store } from '../db/store.ts';
 import { BattleRunner, bannerStrip, type BannerPlace } from './battle-runner.ts';
 import { prepareBattle, toughnessFor } from './battles.ts';
 import { applyTuning, setTuning } from './tuning.ts';
+import { recapMessage } from './recap.ts';
 import type { UserRow } from '../db/store.ts';
 import type { ChatMessageEvent } from '../irc/events.ts';
 import { assignClasses, type FighterSpec } from '../game/battle.ts';
@@ -399,7 +400,9 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
         return { emote: emotes.fighterEmote(user.emote_id, user.user_id, { sources: display.emoteSources, random: display.randomEmotes, special: false }) };
       };
       war.start(
-        new PachinkoEngine(seed, picks, look, languageOf(store), bannerPlace(store.getSetting('map_banner'))),
+        new PachinkoEngine(seed, picks, look, languageOf(store), bannerPlace(store.getSetting('map_banner')), (name, points) =>
+          store.notePachinkoRun(name, points, now()),
+        ),
         countdownTitle(mode),
       );
     } else {
@@ -1030,10 +1033,34 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
   });
   let lastSent = '';
 
+  /** Until when the overlay shows an announcement: the season's recap waits for the screen to be free. */
+  let announcedUntil = 0;
+
   function sendAll(message: string): void {
+    if (message.startsWith('{"type":"announce"')) {
+      const { title, holdMs } = JSON.parse(message) as { title?: string | null; holdMs?: number };
+      announcedUntil = title ? Date.now() + (holdMs ?? 0) : 0;
+    }
     for (const client of sockets.clients) {
       if (client.readyState === client.OPEN) client.send(message);
     }
+  }
+
+  /**
+   * A season that ended gets its recap once the screen is free: after the
+   * Monument's celebration or the god's last fight, at once when the streamer
+   * ended it. Only seasons that end while the server runs.
+   */
+  let recapDone = store.lastSeason()?.season_id ?? 0;
+  function recapWhenFree(): void {
+    if (closing) return;
+    const last = store.lastSeason();
+    if (!last || last.season_id <= recapDone) return;
+    if (war.running || runner.running || countdown || Date.now() < announcedUntil) return;
+    recapDone = last.season_id;
+    const season = store.seasonHistory().find((s) => s.id === last.season_id);
+    const message = season ? recapMessage(season, store.godIdentity(getSource().channel), languageOf(store)) : null;
+    if (message) send(message);
   }
 
   /** Set once the server shuts down: its store may already be closed, so nothing reads it any more. */
@@ -1086,7 +1113,10 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
     if (running) socket.send(JSON.stringify(running));
   });
 
-  const timer = setInterval(broadcast, config.server.broadcastIntervalMs);
+  const timer = setInterval(() => {
+    broadcast();
+    recapWhenFree();
+  }, config.server.broadcastIntervalMs);
 
   return new Promise((resolve, reject) => {
     http.once('error', reject);

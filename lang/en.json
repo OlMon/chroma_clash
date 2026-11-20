@@ -106,6 +106,23 @@
     "other": "Every guild drops {count} balls. The most points win."
   },
   "server.pachinko.wins": "{guild} wins Pachinko",
+  "server.recap.title": "Season {season}: the recap",
+  "server.recap.winner": "Winner",
+  "server.recap.godWon": "{god}, with {wins} wins against chat",
+  "server.recap.monumentDone": "{guild} · Monument finished",
+  "server.recap.monumentAt": "{guild} · Monument {percent}%",
+  "server.recap.topKiller": "Most kills",
+  "server.recap.highestLevel": "Highest level",
+  "server.recap.clashWins": "Most Clash wins",
+  "server.recap.wins": {
+    "one": "{name} · {count} win",
+    "other": "{name} · {count} wins"
+  },
+  "server.recap.pachinko": "Best Pachinko run",
+  "server.recap.points": {
+    "one": "{name} · {count} point",
+    "other": "{name} · {count} points"
+  },
   "server.stats.leading": "Leading",
   "server.stats.nobodyYet": "nobody yet",
   "server.stats.tied": "tied",
@@ -468,6 +485,11 @@
     "other": "{name}, {count} wins"
   },
   "control.history.noClash": "no Clash was won",
+  "control.history.pachinko": "Best Pachinko run",
+  "control.history.points": {
+    "one": "{name}, {count} point",
+    "other": "{name}, {count} points"
+  },
   "control.history.players": "Chatters playing",
   "control.history.guild": "Monument {share}%, {tiles}, land level {development}, {members}",
   "control.history.tiles": {

@@ -147,6 +147,8 @@ export interface SeasonSummary {
   topLevel: { displayName: string; level: number } | null;
   topKiller: { displayName: string; kills: number } | null;
   champion: { displayName: string; wins: number } | null;
+  /** The most points one chatter scored in a game of Pachinko; missing in seasons from before it was kept. */
+  pachinko?: { displayName: string; points: number } | null;
   /** How many chatters played in the season. */
   players: number;
   /** Final standings per guild: Monument progress, the goal it was measured against, tiles and land level. */
@@ -309,6 +311,7 @@ export class Store {
       topLevel: this.seasonTopLevel(),
       topKiller: this.seasonTopKiller(),
       champion: champion ? { ...champion } : null,
+      pachinko: this.bestPachinkoRun(seasonId),
       players: this.seasonPlayers(),
       monumentGoal: this.monumentGoal(),
       guilds,
@@ -396,6 +399,27 @@ export class Store {
     });
   }
 
+  /**
+   * Notes a chatter's points in a game of Pachinko: the season keeps its best
+   * run (the first to reach a score keeps it on a tie).
+   */
+  notePachinkoRun(displayName: string, points: number, now: number): void {
+    const seasonId = this.currentSeasonId(now);
+    const best = this.bestPachinkoRun(seasonId);
+    if (best && best.points >= points) return;
+    this.setSetting('pachinko_best', JSON.stringify({ seasonId, displayName, points }));
+  }
+
+  /** The season's best Pachinko run, or null when nobody played. */
+  bestPachinkoRun(seasonId: number): { displayName: string; points: number } | null {
+    try {
+      const stored = JSON.parse(this.getSetting('pachinko_best') ?? 'null') as { seasonId: number; displayName: string; points: number } | null;
+      return stored && stored.seasonId === seasonId ? { displayName: stored.displayName, points: stored.points } : null;
+    } catch {
+      return null;
+    }
+  }
+
   /** How the tiles are handed out when the next season starts. */
   seasonStart(): SeasonStart {
     return this.getSetting('season_start') === 'random' ? 'random' : 'equal';
@@ -448,6 +472,7 @@ export class Store {
         UPDATE tiles SET owner_guild_id = NULL, scorched = 0, level = 0, points = 0, burning = 0 WHERE is_city = 0;
         DELETE FROM settings WHERE key = 'mishaps';
         DELETE FROM settings WHERE key = 'season_pace';
+        DELETE FROM settings WHERE key = 'pachinko_best';
         DELETE FROM guild_windows;
         UPDATE guilds SET monument = 0, xp_boost_until = NULL;
         UPDATE users SET xp = 0, level = 0, season_kills = 0, guild_id = NULL;

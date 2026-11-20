@@ -37,7 +37,20 @@ export class PachinkoEngine implements EventEngine {
   /** Where the map banner is during the game, as in a battle; null for none. */
   private readonly banner: BannerPlace;
 
-  constructor(seed: number, picks: UserRow[], look: BallLook, lang = DEFAULT_LANGUAGE, banner: BannerPlace = null) {
+  /** Told the best chatter's run when the game has been shown to its end: the season keeps its best. */
+  private readonly onBest: ((name: string, points: number) => void) | null;
+  private finished = false;
+  private played = false;
+
+  constructor(
+    seed: number,
+    picks: UserRow[],
+    look: BallLook,
+    lang = DEFAULT_LANGUAGE,
+    banner: BannerPlace = null,
+    onBest: ((name: string, points: number) => void) | null = null,
+  ) {
+    this.onBest = onBest;
     this.banner = banner;
     this.picks = picks;
     this.look = look;
@@ -76,7 +89,11 @@ export class PachinkoEngine implements EventEngine {
   }
 
   next(): EventStep | null {
-    if (this.started) return null;
+    if (this.started) {
+      // Asked again: the game was shown to its end (a stopped one is never asked).
+      this.played = true;
+      return null;
+    }
     this.started = true;
     const { rows, slots, hopMs } = config.pachinko;
     return {
@@ -125,8 +142,27 @@ export class PachinkoEngine implements EventEngine {
     // Nothing is fought: the game was played when it started.
   }
 
+  /** The chatter with the most points in this game (not an imp), and the points; null when no chatter dropped. */
+  bestRun(): { name: string; points: number } | null {
+    const points = new Map<string, { name: string; points: number; first: number }>();
+    for (const board of this.game.boards) {
+      for (const drop of board.drops) {
+        if (isImp(drop.player)) continue;
+        const entry = points.get(drop.player.user_id) ?? { name: drop.player.display_name, points: 0, first: drop.at };
+        entry.points += drop.points;
+        points.set(drop.player.user_id, entry);
+      }
+    }
+    const best = [...points.values()].sort((a, b) => b.points - a.points || a.first - b.first)[0];
+    return best ? { name: best.name, points: best.points } : null;
+  }
+
   finish(): void {
-    // Pachinko changes nothing in the game.
+    // Pachinko changes nothing in the game; the season only remembers its best run.
+    if (this.finished || !this.played) return;
+    this.finished = true;
+    const best = this.bestRun();
+    if (best) this.onBest?.(best.name, best.points);
   }
 
   closing(): { title: string; subtitle: string } {

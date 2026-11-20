@@ -21,6 +21,7 @@ import { playPachinko } from '../../src/game/pachinko.ts';
 import { SimulatedChat } from '../../src/sim/chat.ts';
 import { createRng } from '../../src/util/rng.ts';
 import { guildName, text } from '../../src/i18n.ts';
+import { recapMessage } from '../../src/server/recap.ts';
 
 export interface Scene {
   name: string;
@@ -276,6 +277,25 @@ export function generateScenes(outDir: string, lang = 'en'): Scene[] {
     messages: [stateMessage, { type: 'announce', title: t('server.season.wins', { guild: guild('blue'), season: 3 }), subtitle: t('server.season.winsSubtitle'), map: {}, celebrate: { guild: 'blue', design: 2 }, holdMs: 600000 }],
     moments: [800, 3000],
   });
+
+  // The season's recap after it: the first rows coming in, then all of them; and the god's season.
+  const ended = {
+    id: 3, startedAt: 0, endedAt: 1, winner: 'blue' as const, wars: 4, godWins: 2, godLosses: 5,
+    summary: {
+      endedBy: 'monument' as const, players: 87, monumentGoal: 20_000,
+      topLevel: { displayName: 'TinyMoth4', level: 9 }, topKiller: { displayName: 'SaltyOtter23', kills: 41 },
+      champion: { displayName: 'RustyPigeon2', wins: 3 }, pachinko: { displayName: 'LuckyRaven14', points: 100 },
+      guilds: {
+        red: { monument: 14_000, tiles: 5, development: 20, members: 30, design: 0 },
+        green: { monument: 9_000, tiles: 4, development: 12, members: 20, design: 1 },
+        blue: { monument: 20_050, tiles: 6, development: 25, members: 37, design: 2 },
+      },
+    },
+  };
+  const recapOf = (record: typeof ended | (Omit<typeof ended, 'winner'> & { winner: 'god' })) =>
+    ({ ...recapMessage(record, { name: 'TheStreamer', color: '#9146FF' }, lang)!, holdMs: 600000 });
+  page('recap', { messages: [stateMessage, recapOf(ended)], moments: [2000, 12000] });
+  page('recapgod', { messages: [stateMessage, recapOf({ ...ended, winner: 'god', godWins: 5 })], moments: [12000] });
 
   // Fighters: simulated chatters with their colors and favorite emotes.
   const chat = new SimulatedChat({ seed: 1, channel: 'x', startAt: 0, chatterCount: 45 });

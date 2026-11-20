@@ -179,6 +179,12 @@ export const config = {
     setback: 0.15,
   },
   /**
+   * The recap when a season ends: its rows appear `stepMs` apart, then all of
+   * them stay for `holdMs`. It follows whatever the ending showed first (a
+   * Monument's celebration, the god's last fight).
+   */
+  recap: { stepMs: 1_400, holdMs: 9_000 },
+  /**
    * How long a season lasts: the streamer's one balance setting. The
    * Monument goal is worked out from `hours` of stream time (time with the
    * background layer on and chat writing; time between streams does not

@@ -316,6 +316,8 @@ When a season ends:
 - Guild locks are cleared, so chatters are assigned again from their current color.
 - Lifetime statistics are kept (kills, battles, Hero Clash wins, seasons won), and the winner is recorded. A season the god won counts for no guild.
 
+**The recap.** Every season that ends while the game runs gets a recap on the overlay, once the screen is free: after the Monument's celebration, after the god's last fight and its closing banner, or at once when the streamer ended it (it also waits for a running event or countdown; endless mode hides it, as it hides every announcement). Its rows appear one after another, 1.4 seconds apart, and then all stay for 9 seconds: the winner ("Blue · Monument finished"; ended by hand, the furthest Monument and its share; "TheStreamer, with 5 wins against chat"), the most kills, the highest level, the most Clash wins, the best Pachinko run, the god's score against chat, and how many chatters played. A row nobody earned is left out. Beside them the winning guild's Monument rises, or a crown for the god. The map banner shows, as for an event's closing words. The best Pachinko run is the most points one chatter scored in a single game (imps aside), kept from games shown to their end; History shows it too, for seasons from now on.
+
 ## 11. Tech stack and architecture
 
 Default stack:

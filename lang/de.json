@@ -106,6 +106,23 @@
     "other": "Jede Gilde wirft {count} Kugeln. Die meisten Punkte gewinnen."
   },
   "server.pachinko.wins": "{guild} gewinnt Pachinko",
+  "server.recap.title": "Saison {season}: der Rückblick",
+  "server.recap.winner": "Sieger",
+  "server.recap.godWon": "{god}, mit {wins} Siegen gegen den Chat",
+  "server.recap.monumentDone": "{guild} · Monument fertig",
+  "server.recap.monumentAt": "{guild} · Monument {percent}%",
+  "server.recap.topKiller": "Meiste Kills",
+  "server.recap.highestLevel": "Höchstes Level",
+  "server.recap.clashWins": "Meiste Clash-Siege",
+  "server.recap.wins": {
+    "one": "{name} · {count} Sieg",
+    "other": "{name} · {count} Siege"
+  },
+  "server.recap.pachinko": "Bester Pachinko-Lauf",
+  "server.recap.points": {
+    "one": "{name} · {count} Punkt",
+    "other": "{name} · {count} Punkte"
+  },
   "server.stats.leading": "In Führung",
   "server.stats.nobodyYet": "noch niemand",
   "server.stats.tied": "Gleichstand",
@@ -468,6 +485,11 @@
     "other": "{name}, {count} Siege"
   },
   "control.history.noClash": "kein Heldenkampf gewonnen",
+  "control.history.pachinko": "Bester Pachinko-Lauf",
+  "control.history.points": {
+    "one": "{name}, {count} Punkt",
+    "other": "{name}, {count} Punkte"
+  },
   "control.history.players": "Mitspielende Chatter",
   "control.history.guild": "Monument {share} %, {tiles}, Landlevel {development}, {members}",
   "control.history.tiles": {

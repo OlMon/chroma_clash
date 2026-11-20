@@ -594,6 +594,13 @@ function renderHistory() {
           ? tr('control.history.wins', { name: summary.champion.displayName, count: summary.champion.wins })
           : tr('control.history.noClash'),
       );
+      // Seasons from before the best Pachinko run was kept have none.
+      if (summary.pachinko !== undefined) {
+        fact(
+          tr('control.history.pachinko'),
+          summary.pachinko ? tr('control.history.points', { name: summary.pachinko.displayName, count: summary.pachinko.points }) : nobody,
+        );
+      }
       fact(tr('control.history.players'), String(summary.players));
       for (const guild of state.guilds) {
         const final = summary.guilds[guild.id];

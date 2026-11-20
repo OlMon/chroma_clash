@@ -867,7 +867,7 @@ let panelAnimating = false;
 let panelDrawnAt = 0;
 
 function panelBlocked() {
-  return Boolean(pachinko || battle || (announcement && (announcement.map || announcement.lineup || announcement.celebrate)));
+  return Boolean(pachinko || battle || (announcement && (announcement.map || announcement.lineup || announcement.celebrate || announcement.recap)));
 }
 
 function panelNeedsAnimation() {
@@ -970,13 +970,13 @@ function onAnnounce(message) {
       if (!battle) drawPanel();
     }, message.holdMs);
     // The event map is animated, so it is redrawn every frame while it shows.
-    if (announcement.map || announcement.lineup || announcement.celebrate) requestAnimationFrame(animateAnnouncement);
+    if (announcement.map || announcement.lineup || announcement.celebrate || announcement.recap) requestAnimationFrame(animateAnnouncement);
   }
   if (!battle) drawPanel();
 }
 
 function animateAnnouncement() {
-  if (!announcement || !(announcement.map || announcement.lineup || announcement.celebrate) || battle) return;
+  if (!announcement || !(announcement.map || announcement.lineup || announcement.celebrate || announcement.recap) || battle) return;
   drawPanel();
   requestAnimationFrame(animateAnnouncement);
 }
@@ -1270,6 +1270,12 @@ function renderPanel() {
   }
   if (announcement && announcement.celebrate) {
     drawCelebration(announcement, performance.now() - announcement.shownAt);
+    return;
+  }
+  if (announcement && announcement.recap) {
+    drawRecap(announcement, performance.now() - announcement.shownAt);
+    const strip = bannerOnScreen(state && state.mapStrip);
+    if (strip) drawOnTop(() => drawMapBanner(strip));
     return;
   }
   if (countdown) {
@@ -1821,6 +1827,67 @@ function drawCelebration(a, elapsed) {
     size -= 1;
   } while (size > 14 && textWidth(a.subtitle || '') > 980);
   ctx.fillText(a.subtitle || '', cx, 830, 980);
+}
+
+/**
+ * A season's recap: its title, then one row after another (`stepMs` apart),
+ * sliding in from the right, beside the winning guild's Monument (or a large
+ * crown for the god). Worked out from the time since it appeared.
+ */
+function drawRecap(a, elapsed) {
+  const { rows, stepMs, design, color } = a.recap;
+  const rowHeight = 58;
+  const width = 1240;
+  const height = 150 + rows.length * rowHeight + 36;
+  const left = (canvas.width - width) / 2;
+  const top = Math.max(30, (canvas.height - height) / 2 - 30);
+  drawBox(left, top, width, height, { radius: 28, strong: true, accent: color });
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = color;
+  ctx.font = `700 46px ${FONT}`;
+  ctx.fillText(a.title, canvas.width / 2, top + 70, width - 80);
+
+  // The winner's Monument rises on the left; the god gets a crown.
+  const art = { x: left + 215, base: top + height - 40, height: Math.min(330, height - 170) };
+  const rise = ease(Math.min(1, elapsed / 1000));
+  ctx.save();
+  ctx.globalAlpha = rise;
+  if (design !== null) {
+    drawMonument(design, 1, art.x, art.base + (1 - rise) * 40, art.height, color);
+  } else if (a.recap.winner === 'god') {
+    ctx.translate(art.x, art.base - art.height / 2);
+    ctx.scale(6, 6);
+    ctx.fillStyle = color;
+    drawCrown(0, 0);
+    ctx.fill();
+  }
+  ctx.restore();
+
+  const listLeft = left + 400;
+  const listRight = left + width - 50;
+  rows.forEach((row, index) => {
+    const since = elapsed - index * stepMs;
+    if (since < 0) return;
+    const p = ease(Math.min(1, since / 400));
+    const y = top + 150 + index * rowHeight + rowHeight / 2;
+    ctx.save();
+    ctx.globalAlpha = p;
+    ctx.translate((1 - p) * 60, 0);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
+    ctx.fillRect(listLeft, y + rowHeight / 2 - 1, listRight - listLeft, 2);
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+    ctx.font = `400 24px ${FONT}`;
+    ctx.fillText(row.label, listLeft, y, 330);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = row.color || '#FFFFFF';
+    ctx.font = `700 ${index === 0 ? 30 : 26}px ${FONT}`;
+    ctx.fillText(row.value, listRight, y, listRight - listLeft - 340);
+    ctx.restore();
+  });
 }
 
 // --- Battle ------------------------------------------------------------------
