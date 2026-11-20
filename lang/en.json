@@ -254,6 +254,7 @@
     "other": "{count} on the field"
   },
   "overlay.hud.alive": "{alive} of {total}",
+  "overlay.hud.overtime": "Overtime",
   "overlay.result.wins": "{name} wins",
   "overlay.result.noWinner": "No winner",
   "overlay.result.survived": "{survivors} of {fighters} survived",

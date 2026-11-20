@@ -194,7 +194,7 @@ function recordBattle(
   const battle = new Battle(setup);
   const start = {
     type: 'battle-start', title, durationMs: battle.durationMs, arena: config.battle.arena, enrageGrow: config.skills.enrage.grow, ambient: false, sides,
-    place: battle.place, elapsedMs: 0,
+    place: battle.place, elapsedMs: 0, overtimeMs: battle.overtimeAt,
     fighters: battle.fighters.map((f) => ({
       name: f.name, color: f.color, emote: emotes.get(f.doubleOf ?? f.id) ?? null, image: null, cls: f.class ?? null, crown: false,
       minion: f.minion, imp: f.imp === true, leader: f.leader === true, double: f.doubleOf ? battle.fighters.findIndex((o) => o.id === f.doubleOf) : -1, side: f.side, radius: f.radius * config.battle.drawnRadiusShare,
@@ -337,6 +337,14 @@ export function generateScenes(outDir: string, lang = 'en'): Scene[] {
   assignClasses(fighters, createRng(3));
   const twoSides = guildSides.filter((g) => g.id !== 'green');
   const teamSides = () => twoSides.map((g) => ({ id: g.id, damageBonus: 0, healthBonus: 0 }));
+  // Healers at work: the arc of light, its motes, and the crosses rising from the patient.
+  page('heals', {
+    messages: [battleState, ...recordBattle(redAttacksBlue, { seed: 7, sides: teamSides(), fighters }, twoSides, emotes,
+      (frames, i) => countFx(frames, i, 'heal') * 10 - i / 1000)],
+    moments: [0],
+    tweak: 'if (battle) battle.effects.forEach((e, k) => { if (e.fx === "heal") e.start = performance.now() - 180 - (k % 3) * 60; });',
+  });
+
   page('classes', {
     messages: [battleState, ...recordBattle(redAttacksBlue, { seed: 7, sides: teamSides(), fighters }, twoSides, emotes,
       (frames, i) => countFx(frames, i, 'arrow') * 3 + countFx(frames, i, 'blast-warn') * 6 + countFx(frames, i, 'blast') * 6 + countFx(frames, i, 'heal') * 4)],
@@ -369,6 +377,16 @@ export function generateScenes(outDir: string, lang = 'en'): Scene[] {
   page('imps', {
     messages: [battleState, ...recordBattle(t('mode.guildClash'), { seed: 5, sides: teamSides(), fighters: [...fewBlue, ...blueImps], sizeBalance: false }, twoSides, emotes,
       (_frames, i) => (i === 60 ? 1 : 0))],
+    moments: [250],
+  });
+
+  // Overtime in a Hero Clash match: a tank and two others, late in the match, the clock red.
+  const trio: FighterSpec[] = fighters.filter((f) => f.side === 'red').slice(0, 3).map((f, i) => ({ ...f, side: f.id, class: (['tank', 'tank', 'healer'] as const)[i]! }));
+  page('overtime', {
+    messages: [battleState, ...recordBattle(t('server.clash.heatBattle', { n: 1, total: 3 }), {
+      seed: 8, durationMs: config.clash.matchMs, toughness: 30, sizeBalance: false, fortune: false, levelBonus: false, overtime: config.clash.overtime,
+      sides: trio.map((f) => ({ id: f.side, damageBonus: 0, healthBonus: 0 })), fighters: trio,
+    }, trio.map((f) => ({ id: f.side, name: f.name, color: '#E5484D' })), emotes, (frames, i) => (frames[i]!.t >= config.clash.overtime.afterMs + 4_000 ? 100 - i / 1000 : -1))],
     moments: [250],
   });
 

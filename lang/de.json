@@ -254,6 +254,7 @@
     "other": "{count} im Kampf"
   },
   "overlay.hud.alive": "{alive} von {total}",
+  "overlay.hud.overtime": "Verlängerung",
   "overlay.result.wins": "{name} gewinnt",
   "overlay.result.noWinner": "Kein Sieger",
   "overlay.result.survived": "{survivors} von {fighters} überlebt",

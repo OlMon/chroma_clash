@@ -2161,6 +2161,7 @@ function onBattleStart(message) {
     end: null, // the battle-end message, with shownAt
     feed: { queue: [], lines: [], lastAt: -Infinity }, // the highlights: deaths waiting to be shown, and the lines shown
     place: message.place || null, // the arena's id, or null
+    overtimeMs: message.overtimeMs ?? null, // when overtime begins in battle time, or null
     // When the battle began on this page: the arena's name is introduced then (not to a page that joins late).
     startedAt: performance.now() - (message.elapsedMs || 0),
     broken: new Map(), // obstacle id → when it was first seen broken, for crumbling walls
@@ -3146,6 +3147,79 @@ function skillCaption(skill) {
   return skill === 'enrage' ? tr('overlay.caption.enraged') : tr(`skill.${skill}.name`);
 }
 
+/**
+ * A healer at work, one tick (`p` from 0 to 1): a gentle arc of light from
+ * the healer to its patient, soft glow under a bright core, motes of light
+ * flowing along it, and on the patient a soft halo with small crosses rising.
+ */
+function drawHealBeam(healer, patient, p, now, seed) {
+  // From the healer's edge to the patient's ring, never across their emotes.
+  const ux = (patient.x - healer.x) / (Math.hypot(patient.x - healer.x, patient.y - healer.y) || 1);
+  const uy = (patient.y - healer.y) / (Math.hypot(patient.x - healer.x, patient.y - healer.y) || 1);
+  const from = { x: healer.x + ux * healer.r, y: healer.y + uy * healer.r };
+  const to = { x: patient.x - ux * (patient.r + 5), y: patient.y - uy * (patient.r + 5), r: patient.r };
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const length = Math.hypot(dx, dy) || 1;
+  // The arc bows a little to one side, the same side for the same pair.
+  const bow = Math.min(60, length * 0.25) * (hash01(seed) < 0.5 ? -1 : 1);
+  const cx = (from.x + to.x) / 2 - (dy / length) * bow;
+  const cy = (from.y + to.y) / 2 + (dx / length) * bow;
+  const point = (t) => ({
+    x: (1 - t) * (1 - t) * from.x + 2 * (1 - t) * t * cx + t * t * to.x,
+    y: (1 - t) * (1 - t) * from.y + 2 * (1 - t) * t * cy + t * t * to.y,
+  });
+  const fade = Math.sin(Math.PI * Math.min(1, p * 1.15));
+  ctx.lineCap = 'round';
+  const arc = () => {
+    ctx.beginPath();
+    ctx.moveTo(from.x, from.y);
+    ctx.quadraticCurveTo(cx, cy, to.x, to.y);
+  };
+  // Glow, then the core.
+  ctx.globalAlpha = 0.28 * fade;
+  ctx.strokeStyle = '#7CF29A';
+  ctx.lineWidth = 12;
+  arc();
+  ctx.stroke();
+  ctx.globalAlpha = 0.85 * fade;
+  ctx.strokeStyle = '#E9FFF0';
+  ctx.lineWidth = 2.5;
+  arc();
+  ctx.stroke();
+  // Motes of light flowing toward the patient.
+  for (let i = 0; i < 5; i++) {
+    const t = (now / 520 + i / 5 + hash01(seed + i)) % 1;
+    const m = point(t);
+    ctx.globalAlpha = fade * Math.sin(Math.PI * t);
+    circle(m.x, m.y, 3.2);
+    ctx.fillStyle = i % 2 === 0 ? '#FFFFFF' : '#B8F7C8';
+    ctx.fill();
+  }
+  // The patient: a soft ring of light around it (never over its emote), and small crosses rising and fading.
+  const ring = patient.r + 5 + 3 * Math.sin(now / 140);
+  ctx.globalAlpha = 0.3 * fade;
+  circle(patient.x, patient.y, ring);
+  ctx.strokeStyle = '#7CF29A';
+  ctx.lineWidth = 9;
+  ctx.stroke();
+  ctx.globalAlpha = 0.8 * fade;
+  ctx.strokeStyle = '#E9FFF0';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  for (let i = 0; i < 3; i++) {
+    const rise = (p + i / 3) % 1;
+    const px = patient.x + (hash01(seed * 3 + i) - 0.5) * patient.r * 1.4;
+    const py = patient.y - patient.r * 0.4 - rise * patient.r * 1.6;
+    const size = 4 + 2 * (1 - rise);
+    ctx.globalAlpha = fade * (1 - rise);
+    ctx.fillStyle = '#E9FFF0';
+    ctx.fillRect(px - size / 2, py - size * 1.5, size, size * 3);
+    ctx.fillRect(px - size * 1.5, py - size / 2, size * 3, size);
+  }
+  ctx.globalAlpha = 1;
+}
+
 /** A small number from 0 to 1 that is always the same for the same seed: for effects that must not jitter. */
 function hash01(seed) {
   const value = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
@@ -3643,17 +3717,7 @@ function drawTopEffects(now, at) {
       const angle = Math.atan2(dy - Math.cos(Math.PI * flight) * Math.PI * lift, dx);
       drawArrowProjectile(x, y, angle, Math.max(30, from.r * 1.6));
     } else {
-      // A soft green beam from the healer, and a ring around the one being healed.
-      ctx.globalAlpha = 0.75 * (1 - p * 0.6);
-      ctx.lineWidth = 5;
-      ctx.strokeStyle = '#7CF29A';
-      ctx.beginPath();
-      ctx.moveTo(from.x, from.y);
-      ctx.lineTo(to.x, to.y);
-      ctx.stroke();
-      circle(to.x, to.y, to.r + 4 + 6 * p);
-      ctx.lineWidth = 3;
-      ctx.stroke();
+      drawHealBeam(from, to, p, now, e.i * 7 + (e.t || [0])[0]);
     }
     ctx.restore();
   }
@@ -3792,11 +3856,29 @@ function drawBattleHud(frame) {
     ctx.font = `600 20px ${FONT}`;
     ctx.fillStyle = '#FFFFFF';
   }
+  // Overtime: hits land harder from now on. The clock turns red and pulses, and says so.
+  const overtime = battle.overtimeMs !== null && frame.t >= battle.overtimeMs;
+  if (overtime) {
+    const label = tr('overlay.hud.overtime');
+    ctx.font = `700 16px ${FONT}`;
+    const labelWidth = textWidth(label);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#FF6B5E';
+    ctx.fillText(label, left + width - 24 - clockWidth - 18 - placeWidth, 51);
+    placeWidth += labelWidth + 18;
+    ctx.font = `600 20px ${FONT}`;
+    ctx.fillStyle = '#FFFFFF';
+  }
   ctx.textAlign = 'left';
   // Room is left for the clock on the right.
   ctx.fillText(battle.title, left + 24, 50, width - 48 - clockWidth - 24 - placeWidth);
   ctx.textAlign = 'right';
-  ctx.fillText(clock, left + width - 24, 50);
+  if (overtime) {
+    ctx.save();
+    ctx.fillStyle = `rgb(255, ${Math.round(90 + 60 * (0.5 + 0.5 * Math.sin(performance.now() / 160)))}, 80)`;
+    ctx.fillText(clock, left + width - 24, 50);
+    ctx.restore();
+  } else ctx.fillText(clock, left + width - 24, 50);
 
   battle.sides.forEach((side, index) => {
     let total = 0;

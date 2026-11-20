@@ -611,6 +611,12 @@ export const config = {
     heroesPerGuild: 3,
     /** Time limit of one heat or the final. */
     matchMs: 90_000,
+    /**
+     * Overtime in a match: from `afterMs`, every hit deals `perSecond` more
+     * of its damage for each second past it. Two tough heroes (a tank and
+     * another) otherwise often stand each other off until the time limit.
+     */
+    overtime: { afterMs: 55_000, perSecond: 0.1 },
     /** The champion's guild earns `ticks.boostMultiplier` times the tick XP for this long. */
     boostMs: 30 * 60_000,
   },
@@ -634,7 +640,8 @@ export const config = {
      * god wins, so it needs less health than the curve for smaller chats says.
      */
     largeChat: 70,
-    largeChatExponent: 0.4,
+    /** Raised from 0.4 after a live test with a big chat (`node src/cli/balance.ts god --sizes 40 --large`). */
+    largeChatExponent: 0.72,
     healthVariation: 0.3,
     damage: 30,
     /** The god's size and the reach of its sweeping blow, as multiples of a fighter's radius. */

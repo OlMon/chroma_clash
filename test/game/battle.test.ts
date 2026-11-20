@@ -340,3 +340,15 @@ test('fighters stay out of a corner that must be kept clear', () => {
   // The rest of the arena is still used: fighters reach its right and lower parts.
   assert.ok(battle.fighters.some((f) => f.alive && (f.x > corner.left || f.y > corner.top)));
 });
+
+test('overtime: from its start every hit lands harder, more each second; without it, never', () => {
+  const fighters = ['a', 'b'].map((id) => ({ id, name: id, color: null, side: id, level: 0 }));
+  const sides = ['a', 'b'].map((id) => ({ id, damageBonus: 0, healthBonus: 0 }));
+  const plain = new Battle({ seed: 1, sides, fighters });
+  assert.equal(plain.overtimeAt, null);
+  assert.equal(plain.overtimeFactor(80_000), 1);
+  const timed = new Battle({ seed: 1, sides, fighters, overtime: { afterMs: 50_000, perSecond: 0.1 } });
+  assert.equal(timed.overtimeAt, 50_000);
+  assert.equal(timed.overtimeFactor(50_000), 1, 'not before it begins');
+  assert.ok(Math.abs(timed.overtimeFactor(60_000) - 2) < 1e-9, 'ten seconds in: twice the damage');
+});

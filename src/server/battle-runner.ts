@@ -85,6 +85,8 @@ export class BattleRunner {
       ambient: this.meta.ambient === true,
       // The arena's name, for the scoreboard and the highlights; null without one.
       place: this.battle.place,
+      // When overtime begins (hits land harder from then on), or null.
+      overtimeMs: this.battle.overtimeAt,
       enrageGrow: config.skills.enrage.grow,
       sides: this.meta.sides.filter((side) => this.battle!.sides.some((s) => s.id === side.id)),
       fighters: this.battle.fighters.map((f) => ({

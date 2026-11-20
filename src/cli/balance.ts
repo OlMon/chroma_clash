@@ -7,6 +7,8 @@
  *     size (chatters per guild). With --fit, searches each skill's
  *     `healthFactor` for half the fights won. With --mix, searches only
  *     `skills.mixFactor`, so a god with every skill wins half its fights.
+ *     With --large (and --sizes 40, a big chat), searches only
+ *     `god.largeChatExponent`, the god's health above 70 fighters.
  *   node src/cli/balance.ts classes [--runs 30] [--sizes 6,15,40]
  *     War battles: per class, how many survive, kills, damage and healing per
  *     fighter, against the average.
@@ -36,6 +38,7 @@ const { values, positionals } = parseArgs({
     sizes: { type: 'string' },
     fit: { type: 'boolean', default: false },
     mix: { type: 'boolean', default: false },
+    large: { type: 'boolean', default: false },
   },
 });
 const mode = positionals[0] ?? 'god';
@@ -91,6 +94,21 @@ function god(): void {
     console.log(`${label.padEnd(10)}${rates.map(pct).join(' ')}   mean ${pct(mean(rates))}`);
     return mean(rates);
   };
+  if (values.large) {
+    // Only the god's health above `largeChat` fighters, with every skill on: Streamer vs Chat in a big chat.
+    let low = 0;
+    let high = 1.5;
+    for (let i = 0; i < 6; i++) {
+      const middle = (low + high) / 2;
+      config.god.largeChatExponent = middle;
+      const rate = mean(godWins(SKILLS, sizes, runs));
+      console.log(`  largeChatExponent ${middle.toFixed(3)}: ${pct(rate)}`);
+      if (rate > 0.5) high = middle;
+      else low = middle;
+    }
+    console.log(`largeChatExponent → ${((low + high) / 2).toFixed(2)}`);
+    return;
+  }
   if (values.mix) {
     // Only the factor for skills together, with the single skills' factors as they are.
     let low = Math.log(0.2);

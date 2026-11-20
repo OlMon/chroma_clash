@@ -136,6 +136,7 @@ export class ClashEngine implements EventEngine<ClashStep> {
       setup: {
         seed: Math.floor(this.rng() * 2 ** 31),
         durationMs: config.clash.matchMs,
+        overtime: config.clash.overtime,
         toughness: toughnessFor('heroClash', fighters.length),
         sizeBalance: false,
         fortune: false,

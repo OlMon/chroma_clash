@@ -128,6 +128,12 @@ export interface BattleSetup {
    */
   toughness?: number;
   /**
+   * Overtime: from `afterMs` on, every hit deals `perSecond` more of its
+   * damage for each second past it, so a stalled fight ends (a Hero Clash
+   * match between two tough fighters). Without it, none.
+   */
+  overtime?: { afterMs: number; perSecond: number };
+  /**
    * The arena of this battle, when it is not `config.battle.arena`: shorter,
    * for example, when the map banner takes a strip of the screen.
    */
@@ -501,6 +507,8 @@ export class Battle {
   readonly arena: Arena;
   /** See `BattleSetup.toughness`. */
   private readonly toughness: number;
+  /** See `BattleSetup.overtime`. */
+  private readonly setupOvertime: { afterMs: number; perSecond: number } | null;
   /** Each side's fortune of battle: its damage multiplier for this fight. */
   readonly fortunes: Record<string, number>;
   /** What happened in the most recent step that the overlay should show. */
@@ -560,6 +568,7 @@ export class Battle {
     this.keepClear = setup.keepClear ?? [];
     this.durationMs = setup.durationMs ?? config.battle.durationMs;
     this.toughness = setup.toughness ?? 1;
+    this.setupOvertime = setup.overtime ?? null;
 
     const counts = new Map<string, number>();
     for (const fighter of setup.fighters) counts.set(fighter.side, (counts.get(fighter.side) ?? 0) + 1);
@@ -1370,6 +1379,7 @@ export class Battle {
    */
   private hurt(source: Fighter | null, target: Fighter, amount: number, now: number, cause: DeathCause = 'strike'): void {
     if (!target.alive || target.shieldUntil > now || target.hiddenUntil > now) return;
+    amount *= this.overtimeFactor(now);
     if (source) source.damageDealt += Math.min(amount, Math.max(0, target.health));
     target.health -= amount;
     target.hit = true;
@@ -1520,6 +1530,18 @@ export class Battle {
     }
     fighter.x = clamp(fighter.x, limits.minX, limits.maxX);
     fighter.y = clamp(fighter.y, limits.minY, limits.maxY);
+  }
+
+  /** How much harder every hit lands at this moment: 1, or more in overtime (see `BattleSetup.overtime`). */
+  overtimeFactor(now: number): number {
+    const overtime = this.setupOvertime;
+    if (!overtime || now <= overtime.afterMs) return 1;
+    return 1 + (overtime.perSecond * (now - overtime.afterMs)) / 1000;
+  }
+
+  /** When overtime begins, or null for a fight without it. */
+  get overtimeAt(): number | null {
+    return this.setupOvertime?.afterMs ?? null;
   }
 
   /** The arena the battle is fought in, or null for none (no obstacles, or ones that come and go). */
