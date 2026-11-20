@@ -162,6 +162,10 @@ export interface DisplaySettings {
   animatedEmotes: boolean;
   /** Whether a chatter who never used an emote fights as a random one. */
   randomEmotes: boolean;
+  /** Fighters' names above them in battles. */
+  names: boolean;
+  /** The highlights beside the scoreboard: noteworthy deaths, and who did it. */
+  highlights: boolean;
   emoteSources: Record<ThirdPartySource, boolean>;
 }
 
@@ -364,6 +368,8 @@ export class Store {
       pixelateEmotes: flag('display_pixelate_emotes'),
       animatedEmotes: flag('display_animated_emotes'),
       randomEmotes: flag('display_random_emotes'),
+      names: flag('display_names'),
+      highlights: flag('display_highlights'),
       emoteSources,
     };
   }
@@ -376,6 +382,8 @@ export class Store {
         ['pixelateEmotes', 'display_pixelate_emotes'],
         ['animatedEmotes', 'display_animated_emotes'],
         ['randomEmotes', 'display_random_emotes'],
+        ['names', 'display_names'],
+        ['highlights', 'display_highlights'],
       ] as const;
       for (const [field, key] of flags) {
         const value = change[field];

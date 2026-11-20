@@ -298,6 +298,26 @@ export function generateScenes(outDir: string, lang = 'en'): Scene[] {
     moments: [250],
   });
 
+  // The highlights beside the scoreboard, and the same battle with names switched off.
+  const classesBattle = recordBattle(redAttacksBlue, { seed: 7, sides: teamSides(), fighters }, twoSides, emotes,
+    (frames, i) => countFx(frames, i, 'arrow') * 3 + countFx(frames, i, 'blast-warn') * 6 + countFx(frames, i, 'blast') * 6 + countFx(frames, i, 'heal') * 4);
+  page('highlights', {
+    messages: [battleState, ...classesBattle],
+    moments: [1200],
+    // Three lines shown a moment ago, newest on top.
+    tweak: `const of = (side) => battle.fighters.map((f, i) => [f, i]).filter(([f]) => f.side === side).map(([, i]) => i);
+      const [red, blue] = [of('red'), of('blue')];
+      const now = performance.now();
+      battle.feed.lastAt = now;
+      battle.feed.lines = [[red[2], blue[3], 'spin', 'streak'], [blue[1], -1, 'trap', 'cause'], [red[0], blue[0], 'strike', 'crown']]
+        .map(([i, b, c, h], row) => ({ parts: feedLine({ k: 'death', i, b, c, h }), shownAt: now - 1000 - row * 900 }));`,
+  });
+  page('nonames', {
+    messages: [battleState, ...classesBattle],
+    moments: [250],
+    tweak: 'state.display = { ...state.display, names: false };',
+  });
+
   // A Guild Clash in which Blue drew few chatters: the streamer's imps fight in its color.
   const fewBlue = [...fighters.filter((f) => f.side === 'red').slice(0, 8), ...fighters.filter((f) => f.side === 'blue').slice(0, 3)];
   const blueImps: FighterSpec[] = Array.from({ length: 5 }, (_, i) => ({ id: `imp:blue:${i + 1}`, name: t('server.imp.name', { n: i + 1 }), color: null, class: null, side: 'blue', level: 0, imp: true }));

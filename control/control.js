@@ -290,6 +290,8 @@ function renderDisplay() {
   $('display-pixelate').checked = display.pixelateEmotes;
   $('display-animated').checked = display.animatedEmotes;
   $('display-random').checked = display.randomEmotes;
+  $('display-names').checked = display.names;
+  $('display-highlights').checked = display.highlights;
   for (const input of document.querySelectorAll('[data-source]')) {
     input.checked = display.emoteSources[input.dataset.source];
   }
@@ -889,6 +891,8 @@ $('language-select').addEventListener('change', (event) => post('/api/display', 
 $('display-pixelate').addEventListener('change', (event) => post('/api/display', { pixelateEmotes: event.target.checked }));
 $('display-animated').addEventListener('change', (event) => post('/api/display', { animatedEmotes: event.target.checked }));
 $('display-random').addEventListener('change', (event) => post('/api/display', { randomEmotes: event.target.checked }));
+$('display-names').addEventListener('change', (event) => post('/api/display', { names: event.target.checked }));
+$('display-highlights').addEventListener('change', (event) => post('/api/display', { highlights: event.target.checked }));
 for (const input of document.querySelectorAll('[data-source]')) {
   input.addEventListener('change', () => {
     post('/api/display', { emoteSources: { [input.dataset.source]: input.checked } });

@@ -26,6 +26,9 @@ export interface DisplayState {
   pixelateEmotes: boolean;
   animatedEmotes: boolean;
   randomEmotes: boolean;
+  /** Fighters' names in battles, and the highlights beside the scoreboard. */
+  names: boolean;
+  highlights: boolean;
   emoteSources: { bttv: boolean; ffz: boolean; '7tv': boolean };
   /** The language of the overlay, the control panel and the texts the server writes, such as `en` or `de`. */
   language: string;
@@ -252,6 +255,8 @@ export function buildSnapshot(
       pixelateEmotes: display.pixelateEmotes,
       animatedEmotes: display.animatedEmotes,
       randomEmotes: display.randomEmotes,
+      names: display.names,
+      highlights: display.highlights,
       emoteSources: display.emoteSources,
       language: languageOf(store),
       languages: languageList(),

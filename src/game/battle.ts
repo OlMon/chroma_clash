@@ -309,8 +309,29 @@ export type FrameFighter = [x: number, y: number, health: number, flags: number]
  * `dx`, `dy` a direction, `g` groups of fighter indices (one per whirlwind),
  * and `d` how long each group's effect lasts.
  */
+/** What dealt a fighter's last blow: a class's attack, one of the god's skills, its fire, or an obstacle. */
+export type DeathCause =
+  | 'strike' | 'arrow' | 'spin' | 'blast'
+  | 'rampage' | 'shockwave' | 'leap' | 'smite' | 'fire'
+  | 'barrel' | 'trap';
+
+/**
+ * Why a death is worth a line in the overlay's highlights, most important
+ * first: the god falls, the last fighter of a side, the crown holder, a
+ * fighter on a streak of kills, a killer reaching a spree, a death by the
+ * god's skills or an obstacle, the battle's first death, and an ordinary
+ * kill after a quiet while (`config.highlights.quietMs`), so a large fight
+ * where kills spread thin still gets a line now and then.
+ */
+export const HIGHLIGHTS = ['godFalls', 'last', 'crown', 'streak', 'spree', 'cause', 'firstBlood', 'kill'] as const;
+export type Highlight = (typeof HIGHLIGHTS)[number];
+
+/** Deaths whose cause alone makes them a highlight. */
+const NOTABLE_CAUSES: ReadonlySet<DeathCause> = new Set(['rampage', 'shockwave', 'leap', 'smite', 'fire', 'barrel', 'trap']);
+
 export interface BattleEvent {
-  k: 'warn' | 'cast' | 'enter' | 'fx';
+  /** `death`: a noteworthy death, for the highlights: `i` fell to `b` (-1: nobody) by `c`, worth a line for `h`. */
+  k: 'warn' | 'cast' | 'enter' | 'fx' | 'death';
   s?: SkillId;
   /** For `fx`: a class effect, one of spin, arrow, blast-warn, blast, heal, shadow. */
   fx?: string;
@@ -324,6 +345,9 @@ export interface BattleEvent {
   dy?: number;
   g?: number[][];
   d?: number[];
+  b?: number;
+  c?: DeathCause;
+  h?: Highlight;
 }
 
 export function levelHealthMultiplier(level: number): number {
@@ -459,6 +483,9 @@ export class Battle {
   private readonly moveRng: Rng;
   /** For breaking out of crowds: separate, so these rolls leave every other roll of the battle as it was. */
   private readonly roamRng: Rng;
+  /** Deaths so far, for first blood, and when the last highlight was. */
+  private deaths = 0;
+  private lastHighlightAt = 0;
   /** Varies each throw (see `config.flight`); its own, so the other draws of a battle stay as they were. */
   private readonly flightRng: Rng;
   private readonly timeLimitWinner: string | null;
@@ -814,7 +841,7 @@ export class Battle {
 
     const alive = this.fighters.filter((f) => f.alive);
     /** Attacker, target, and optionally a factor on the attacker's damage. */
-    const attacks: [Fighter, Fighter, number?][] = [];
+    const attacks: [Fighter, Fighter, number?, DeathCause?][] = [];
 
     // Fighters hurled through the air fly in a straight line, slowing down, and bounce off the walls.
     for (const fighter of alive) {
@@ -870,7 +897,7 @@ export class Battle {
 
     // Obstacles: barrels roll, bumpers fling, traps strike, and some come and go.
     this.obstacles?.update(now, dt, alive, {
-      hurt: (fighter, amount) => this.hurt(null, fighter, amount * this.toughness, now),
+      hurt: (fighter, amount, kind) => this.hurt(null, fighter, amount * this.toughness, now, kind),
       fling: (fighter, vx, vy, ms) => {
         fighter.flight = { vx, vy, speed: config.skills.shockwave.launchSpeed, from: now, until: now + ms };
       },
@@ -884,7 +911,7 @@ export class Battle {
       for (const fighter of alive) {
         if (!fighter.alive || fighter.team === fire.owner.team) continue;
         if ((fighter.x - fire.x) ** 2 + (fighter.y - fire.y) ** 2 > fire.r * fire.r) continue;
-        this.hurt(fire.owner, fighter, config.skills.smite.fireDamage, now);
+        this.hurt(fire.owner, fighter, config.skills.smite.fireDamage, now, 'fire');
       }
     }
     this.fires = this.fires.filter((fire) => fire.until > now);
@@ -896,7 +923,7 @@ export class Battle {
         if (fighter.team === blast.owner.team) continue;
         const reach = blast.r + fighter.radius * 0.5;
         if ((fighter.x - blast.x) ** 2 + (fighter.y - blast.y) ** 2 > reach * reach) continue;
-        this.hurt(blast.owner, fighter, config.classes.mage.blastDamage, now);
+        this.hurt(blast.owner, fighter, config.classes.mage.blastDamage, now, 'blast');
       }
       this.fx('blast', blast.owner, { x: blast.x, y: blast.y, r: blast.r, ms: 350 });
     }
@@ -1050,7 +1077,7 @@ export class Battle {
         else if (plan.distance > range) walk(Math.min(speed * dt, plan.distance - range * 0.9));
         if (plan.distance > range) return;
         if (cls === 'archer' && fighter.cooldownMs <= 0) {
-          attacks.push([fighter, plan.target]);
+          attacks.push([fighter, plan.target, 1, 'arrow']);
           fighter.cooldownMs = hitIntervalMs;
           this.fx('arrow', fighter, { t: [this.fighters.indexOf(plan.target)], ms: 180 });
         }
@@ -1111,7 +1138,7 @@ export class Battle {
           return (at.x - fighter.x) ** 2 + (at.y - fighter.y) ** 2 <= within * within;
         });
         if (around.length >= 2) {
-          for (const other of around) attacks.push([fighter, other, classes.fighter.spinDamage]);
+          for (const other of around) attacks.push([fighter, other, classes.fighter.spinDamage, 'spin']);
           fighter.nextSpecialAt = now + classes.fighter.spinEveryMs;
           this.fx('spin', fighter, { r: radius, ms: 350 });
         }
@@ -1161,10 +1188,10 @@ export class Battle {
 
     // All strikes of a step land together, so the order of fighters gives no advantage.
     const { damageVariation } = config.battle;
-    for (const [attacker, target, factor] of attacks) {
+    for (const [attacker, target, factor, cause] of attacks) {
       let dealt = attacker.damage * (factor ?? 1) * (1 - damageVariation + 2 * damageVariation * this.rng());
       if (attacker.enraged) dealt *= config.skills.enrage.damage;
-      this.hurt(attacker, target, dealt, now);
+      this.hurt(attacker, target, dealt, now, cause ?? 'strike');
     }
 
     // Enrage: a wounded fighter with this skill turns faster and stronger, once.
@@ -1279,7 +1306,7 @@ export class Battle {
    * Applies damage, unless the target is shielded. Counts the damage and the
    * kill for the source; an obstacle's damage (no source) counts for nobody.
    */
-  private hurt(source: Fighter | null, target: Fighter, amount: number, now: number): void {
+  private hurt(source: Fighter | null, target: Fighter, amount: number, now: number, cause: DeathCause = 'strike'): void {
     if (!target.alive || target.shieldUntil > now || target.hiddenUntil > now) return;
     if (source) source.damageDealt += Math.min(amount, Math.max(0, target.health));
     target.health -= amount;
@@ -1288,6 +1315,7 @@ export class Battle {
       target.alive = false;
       target.health = 0;
       if (source) source.kills++;
+      this.noteDeath(target, source, cause);
       if (this.field && !target.minion) {
         // The next fighter steps in after a moment, not in the same instant.
         // A death while someone is already about to step in does not delay them further.
@@ -1307,6 +1335,47 @@ export class Battle {
         }
       }
     }
+  }
+
+  /**
+   * Adds a `death` event when a death is worth a highlight (see `HIGHLIGHTS`);
+   * minions and the streamer's imps are not. `deaths` counts the others, so
+   * the first of them is first blood.
+   */
+  private noteDeath(victim: Fighter, killer: Fighter | null, cause: DeathCause): void {
+    if (victim.minion || victim.imp) return;
+    this.deaths++;
+    const sideSize = this.fighters.filter((f) => f.side === victim.side && !f.minion).length;
+    const standing = this.fighters.some((f) => f !== victim && f.side === victim.side && !f.minion && (f.alive || f.benched));
+    const { streakKills, spreeKills, quietMs } = config.highlights;
+    const reason: Highlight | null = victim.holdsCenter
+      ? 'godFalls'
+      : sideSize > 1 && !standing && !this.endless
+        ? 'last'
+        : victim.crown
+          ? 'crown'
+          : victim.kills >= streakKills
+            ? 'streak'
+            : killer && !killer.minion && spreeKills.includes(killer.kills)
+              ? 'spree'
+              : NOTABLE_CAUSES.has(cause)
+                ? 'cause'
+                : this.deaths === 1
+                  ? 'firstBlood'
+                  : killer && this.timeMs - this.lastHighlightAt >= quietMs
+                    ? 'kill'
+                    : null;
+    if (!reason) return;
+    this.lastHighlightAt = this.timeMs;
+    this.events.push({
+      k: 'death',
+      i: this.fighters.indexOf(victim),
+      x: Math.round(victim.x),
+      y: Math.round(victim.y),
+      b: killer ? this.fighters.indexOf(killer) : -1,
+      c: cause,
+      h: reason,
+    });
   }
 
   private keepInArena(fighter: Fighter): void {
@@ -1577,7 +1646,7 @@ export class Battle {
           if ((enemy.x - caster.x) ** 2 + (enemy.y - caster.y) ** 2 > reach * reach) continue;
           if (now - (active.lastHit.get(enemy) ?? -Infinity) < skills.rampage.rehitMs) continue;
           active.lastHit.set(enemy, now);
-          this.hurt(caster, enemy, skills.rampage.damage, now);
+          this.hurt(caster, enemy, skills.rampage.damage, now, 'rampage');
           this.pushAway(enemy, caster.x, caster.y, this.unit * skills.rampage.knockbackFactor);
         }
       }
@@ -1722,7 +1791,7 @@ export class Battle {
         const launched: Fighter[] = [];
         caught.forEach(({ enemy, d }, index) => {
           enemy.slowUntil = now + skills.shockwave.slowMs;
-          this.hurt(caster, enemy, skills.shockwave.damage, now);
+          this.hurt(caster, enemy, skills.shockwave.damage, now, 'shockwave');
           if (!enemy.alive) return;
           if (index < skills.shockwave.launchCount) {
             // The nearest are hurled straight away from the caster, across the arena.
@@ -1757,7 +1826,7 @@ export class Battle {
         for (const enemy of enemies) {
           const d = Math.hypot(enemy.x - caster.x, enemy.y - caster.y);
           if (d > radius + enemy.radius) continue;
-          this.hurt(caster, enemy, skills.leap.damage, now);
+          this.hurt(caster, enemy, skills.leap.damage, now, 'leap');
           this.pushAway(enemy, caster.x, caster.y, this.unit * skills.leap.knockbackFactor);
         }
         this.emit('cast', 'leap', caster, { r: radius, ms: 500 });
@@ -1767,7 +1836,7 @@ export class Battle {
         const struck = active.targets.filter((f) => f.alive);
         const fireRadius = this.unit * skills.smite.fireRadiusFactor;
         for (const target of struck) {
-          this.hurt(caster, target, skills.smite.damage, now);
+          this.hurt(caster, target, skills.smite.damage, now, 'smite');
           target.scorchedUntil = now + skills.smite.scorchMs;
           // The ground keeps burning where the lightning struck.
           this.fires.push({

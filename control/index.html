@@ -430,7 +430,6 @@
         <p class="muted" data-i18n-html="control.actions.text">Each link does one thing, like pressing the button here. On a Stream Deck, add a
           <em>Website</em> action, paste the link and tick <em>GET request in background</em>. In OBS, the script
           <code>tools/obs/chroma-clash-hotkeys.py</code> turns the links into hotkeys (Tools, Scripts).</p>
-        <p class="warning" data-i18n="control.actions.warning">The links contain a secret key: anyone who has them can start fights. Do not show them on stream.</p>
         <table id="actions" class="actions">
           <thead><tr><th data-i18n="control.actions.does">Does</th><th data-i18n="control.actions.link">Link</th><th></th></tr></thead>
           <tbody></tbody>
@@ -485,6 +484,10 @@
               <span class="sub" data-i18n="control.look.animatedText">Moving emotes move in the fight. Off shows them still.</span></label>
             <label><input type="checkbox" id="display-random"> <span data-i18n="control.look.random">Random emote for chatters without one</span>
               <span class="sub" data-i18n="control.look.randomText">A chatter who never used an emote fights as a random global emote, always the same one. Off: a plain circle.</span></label>
+            <label><input type="checkbox" id="display-names"> <span data-i18n="control.look.names">Names above fighters</span>
+              <span class="sub" data-i18n="control.look.namesText">Each fighter's name in battles. Off: emotes only, which keeps a crowded fight clean.</span></label>
+            <label><input type="checkbox" id="display-highlights"> <span data-i18n="control.look.highlights">Highlights</span>
+              <span class="sub" data-i18n="control.look.highlightsText">Noteworthy deaths beside the scoreboard, and who did it: first blood, ended streaks, the crown falling, lightning, traps and barrels.</span></label>
           </div>
           <h3 class="spaced" data-i18n="control.look.sources">Emote sources</h3>
           <p class="muted" data-i18n="control.look.sourcesText">Twitch emotes are always on. Chatters who use these emotes fight as them; a source switched off is neither recognised nor shown.</p>

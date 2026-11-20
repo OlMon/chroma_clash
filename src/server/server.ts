@@ -888,9 +888,9 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
         throw new HttpError(400, 'Send `active` (true or false), `concurrent` (a number), or both.');
       }
     } else if (pathname === '/api/display') {
-      // Any subset of: theme, pixelateEmotes, animatedEmotes, randomEmotes, emoteSources, language.
+      // Any subset of: theme, pixelateEmotes, animatedEmotes, randomEmotes, names, highlights, emoteSources, language.
       const change: Parameters<Store['setDisplay']>[0] = {};
-      const known = ['theme', 'pixelateEmotes', 'animatedEmotes', 'randomEmotes', 'emoteSources', 'language'];
+      const known = ['theme', 'pixelateEmotes', 'animatedEmotes', 'randomEmotes', 'names', 'highlights', 'emoteSources', 'language'];
       const unknown = Object.keys(body).filter((key) => !known.includes(key));
       if (unknown.length > 0 || Object.keys(body).length === 0) {
         throw new HttpError(400, `Send any of: ${known.join(', ')}.`);
@@ -901,7 +901,7 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
         }
         change.theme = body.theme;
       }
-      for (const flag of ['pixelateEmotes', 'animatedEmotes', 'randomEmotes'] as const) {
+      for (const flag of ['pixelateEmotes', 'animatedEmotes', 'randomEmotes', 'names', 'highlights'] as const) {
         if (body[flag] === undefined) continue;
         if (typeof body[flag] !== 'boolean') throw new HttpError(400, `\`${flag}\` must be true or false.`);
         change[flag] = body[flag];

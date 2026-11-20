@@ -63,7 +63,8 @@ export interface ObstacleTarget {
 
 /** What obstacles do to fighters; the battle carries it out. */
 export interface ObstacleActions<F extends ObstacleTarget> {
-  hurt(fighter: F, amount: number): void;
+  /** `kind` names what did it, for the battle's highlights. */
+  hurt(fighter: F, amount: number, kind: 'barrel' | 'trap'): void;
   fling(fighter: F, vx: number, vy: number, ms: number): void;
   /** Keeps a moved fighter inside the arena and out of walls. */
   settle(fighter: F): void;
@@ -354,12 +355,12 @@ export class Obstacles {
       if (fighter.weight > 3) {
         // The god stops a barrel dead: it breaks on it.
         barrel.brokenAt = now;
-        act.hurt(fighter, damage);
+        act.hurt(fighter, damage, 'barrel');
         return;
       }
       if (barrel.hits.has(fighter)) continue;
       barrel.hits.add(fighter);
-      act.hurt(fighter, damage);
+      act.hurt(fighter, damage, 'barrel');
       // Knocked to the side of the barrel's path it stood on.
       const side = (dx * -barrel.vy + dy * barrel.vx) / speed >= 0 ? 1 : -1;
       act.fling(fighter, (-barrel.vy / speed) * side, (barrel.vx / speed) * side, (knock * this.unit * 1000) / config.skills.shockwave.launchSpeed);
@@ -375,7 +376,7 @@ export class Obstacles {
     if (phase < periodMs - strikeMs || cycle === trap.cycle) return;
     trap.cycle = cycle;
     for (const fighter of fighters) {
-      if (Math.hypot(fighter.x - trap.x, fighter.y - trap.y) <= trap.r + fighter.radius * 0.4) act.hurt(fighter, damage);
+      if (Math.hypot(fighter.x - trap.x, fighter.y - trap.y) <= trap.r + fighter.radius * 0.4) act.hurt(fighter, damage, 'trap');
     }
   }
 

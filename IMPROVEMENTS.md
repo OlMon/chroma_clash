@@ -29,11 +29,11 @@ that pass should measure.
    - **Effects:** "POW" and "KRAK" bursts on heavy hits and kills. Inked outlines on obstacles, monuments and mage circles. A hard-edged celebration with flat rays instead of soft gradients.
    - **Halftone:** heavier shading on the dark side of shapes.
 3. **Pixel sprites for the new elements (S).** Pixel-style obstacles, pixel flames for burning tiles, and a pixel Pachinko board. Today these are drawn the plain way and only pixelated.
-4. **Readable crowds (M).** Above about 60 fighters, names overlap. Show names only for heroes, the crown and the god's current target, and fade the rest in on hits.
+4. **Readable crowds (M). Done differently (November 2026).** A switch in Settings turns fighters' names off (emotes only); the highlights (item 8) name the fighters who matter. Smarter name hiding was decided against: the streamer chooses.
 5. **Transitions (S).** The panels vanish at the start of a battle and pop back after it. Slide them out and in, and fade the arena in.
 6. **Pachinko polish (S).** Done: a jackpot bursts into sparks, the winner is celebrated (marquee lights, crown, confetti), and each board lists its players with their points and emotes. Left: pins light up when hit, balls leave a short trail, and the winning board's total counts up.
 7. **Show the land's nature (S).** Let fertile tiles look lush and barren ones dry, with a small grass or stone texture. Then fertility is something viewers can see.
-8. **A kill feed and damage numbers (S).** A small corner list ("Archer TinyMoth4 felled SaltyOtter23") and floating numbers on big hits. Both can be switched off.
+8. **A kill feed and damage numbers (S).** Done: the highlights, noteworthy deaths with who did it, in snarky lines beside the scoreboard (switchable). Left: floating numbers on big hits.
 
 ## Handling
 

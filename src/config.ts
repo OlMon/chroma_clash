@@ -300,17 +300,6 @@ export const config = {
     resultHoldMs: 7_000,
   },
   /**
-   * Obstacles in battles, when switched on in the control panel. Sizes are
-   * multiples of a fighter's radius in that battle (the unit).
-   * - A team battle gets a layout with `chance`; it stays for the whole fight,
-   *   so each battle of a War can look different.
-   * - A free-for-all or the endless mode has obstacles appear now and then
-   *   (`changing.everyMs`) and disappear again after `changing.lifeMs`.
-   * Walls stand in the way; bumpers fling whoever touches them away like a
-   * pinball; barrels roll across, knock fighters aside and hurt them; spike
-   * traps strike everyone on them every `periodMs`, after a warning.
-   */
-  /**
    * Fighters thrown through the air: hurled by Shockwave, flung by a bumper or
    * a barrel, pushed aside by the god. A throw starts at `start` times its
    * average speed and slows down evenly to `2 - start` times it at the end, so
@@ -326,6 +315,29 @@ export const config = {
     speedVariation: 0.25,
     durationVariation: 0.3,
   },
+  /**
+   * The overlay's highlights: noteworthy deaths, with who did it (see
+   * `HIGHLIGHTS` in src/game/battle.ts).
+   */
+  highlights: {
+    /** A fighter who falls after this many kills ends a streak. */
+    streakKills: 3,
+    /** A killer reaching one of these kill counts is on a spree. */
+    spreeKills: [5, 10, 15],
+    /** After this long without a highlight, the next ordinary kill gets a line. */
+    quietMs: 6_000,
+  },
+  /**
+   * Obstacles in battles, when switched on in the control panel. Sizes are
+   * multiples of a fighter's radius in that battle (the unit).
+   * - A team battle gets a layout with `chance`; it stays for the whole fight,
+   *   so each battle of a War can look different.
+   * - A free-for-all or the endless mode has obstacles appear now and then
+   *   (`changing.everyMs`) and disappear again after `changing.lifeMs`.
+   * Walls stand in the way; bumpers fling whoever touches them away like a
+   * pinball; barrels roll across, knock fighters aside and hurt them; spike
+   * traps strike everyone on them every `periodMs`, after a warning.
+   */
   obstacles: {
     chance: 0.4,
     wall: { count: [2, 3] as [number, number], length: [4, 7] as [number, number], thickness: 0.8 },

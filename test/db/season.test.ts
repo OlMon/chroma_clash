@@ -383,15 +383,19 @@ test('display settings: everything on by default, each switch stored on its own'
     pixelateEmotes: true,
     animatedEmotes: true,
     randomEmotes: true,
+    names: true,
+    highlights: true,
     emoteSources: { bttv: true, ffz: true, '7tv': true },
   });
-  store.setDisplay({ theme: 'plain', animatedEmotes: false, emoteSources: { ffz: false } });
+  store.setDisplay({ theme: 'plain', animatedEmotes: false, names: false, emoteSources: { ffz: false } });
   store.setDisplay({ emoteSources: { '7tv': false } });
   assert.deepEqual(store.displaySettings(), {
     theme: 'plain',
     pixelateEmotes: true,
     animatedEmotes: false,
     randomEmotes: true,
+    names: false,
+    highlights: true,
     emoteSources: { bttv: true, ffz: false, '7tv': false },
   });
   store.close();

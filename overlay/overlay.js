@@ -1851,6 +1851,7 @@ function onBattleStart(message) {
     caption: null, // the name of the skill being cast, shown above the caster
     trail: { index: -1, until: 0, points: [] }, // afterimages behind a rampaging fighter
     end: null, // the battle-end message, with shownAt
+    feed: { queue: [], lines: [], lastAt: -Infinity }, // the highlights: deaths waiting to be shown, and the lines shown
   };
   requestAnimationFrame(drawBattle);
 }
@@ -1861,6 +1862,10 @@ function onBattleFrame(message) {
   battle.previous = battle.latest;
   battle.latest = { t: message.t, f: message.f, o: message.o || null, receivedAt: now };
   for (const event of message.e || []) {
+    if (event.k === 'death') {
+      if (highlightsOn()) battle.feed.queue.push({ ...event, at: now });
+      continue;
+    }
     battle.effects.push({ ...event, start: now });
     if (event.k === 'warn' || event.s === 'enrage') {
       battle.caption = { text: skillCaption(event.s), index: event.i, start: now };
@@ -2566,7 +2571,7 @@ function drawFighter(fighter, x, y, health, flags, alpha, squash) {
     ctx.fillRect(x - width / 2, y - r - 12, width * health, 5);
   }
 
-  if (fighter.name) {
+  if (fighter.name && namesOn()) {
     ctx.font = `600 14px ${FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
@@ -2595,6 +2600,117 @@ const FLAG = {
   hidden: 256,
   jumped: 512,
 };
+// --- Highlights: noteworthy deaths beside the scoreboard ------------------------
+
+/** Whether the streamer shows fighters' names, and the highlights (both on unless switched off). */
+function namesOn() {
+  return !state || !state.display || state.display.names !== false;
+}
+
+function highlightsOn() {
+  return !state || !state.display || state.display.highlights !== false;
+}
+
+/**
+ * The highlights: a new line at most every `gapMs`, the most important
+ * waiting death first (in the order of `RANKS`); a death that waited longer
+ * than `waitMs` is dropped. At most `max` lines, newest on top, each for `lifeMs`.
+ */
+// Three rows fit in the strip kept free for the scoreboard, above the fighters' names.
+const FEED = { gapMs: 800, waitMs: 3000, lifeMs: 6500, inMs: 250, fadeMs: 600, max: 3, font: 16, height: 26, gap: 4 };
+const RANKS = ['godFalls', 'last', 'crown', 'streak', 'spree', 'cause', 'firstBlood', 'kill'];
+
+/** A fighter's name for a highlight: a minion is "the god's minion". */
+function feedName(fighter) {
+  if (!fighter.minion) return fighter.name;
+  const god = battle.fighters.find((f) => f.side === fighter.side && !f.minion);
+  return tr('overlay.feed.minion', { god: god ? god.name : '' });
+}
+
+/**
+ * The line for a death, as pieces of text with their colors: the names in
+ * their side's color. Its kind is the reason; a death by an obstacle, which
+ * has no killer, and one noteworthy by its cause alone, take the cause's lines.
+ * One of the kind's variants is picked at random.
+ */
+function feedLine(event) {
+  const victim = battle.fighters[event.i];
+  const killer = event.b >= 0 ? battle.fighters[event.b] : null;
+  const kind = !killer || event.h === 'cause' || event.h === 'kill' ? event.c : event.h;
+  let count = 0;
+  while (tr(`overlay.feed.${kind}.${count + 1}`) !== `overlay.feed.${kind}.${count + 1}`) count++;
+  if (!victim || count === 0) return null;
+  const key = `overlay.feed.${kind}.${1 + Math.floor(Math.random() * count)}`;
+  const color = (fighter) => battle.sideColors[fighter.side] || '#FFFFFF';
+  const names = {
+    '\u0001': { text: feedName(victim), color: color(victim) },
+    '\u0002': killer ? { text: feedName(killer), color: color(killer) } : { text: '', color: '#FFFFFF' },
+  };
+  return tr(key, { victim: '\u0001', killer: '\u0002' })
+    .split(/(\u0001|\u0002)/)
+    .filter((part) => part !== '')
+    .map((part) => names[part] || { text: part, color: null });
+}
+
+/** Moves waiting deaths into the shown lines, and lets old lines go. */
+function updateFeed(now) {
+  const feed = battle.feed;
+  feed.queue = feed.queue.filter((event) => now - event.at <= FEED.waitMs);
+  if (feed.queue.length > 0 && now - feed.lastAt >= FEED.gapMs) {
+    const best = feed.queue.reduce((a, b) => (RANKS.indexOf(b.h) < RANKS.indexOf(a.h) ? b : a));
+    feed.queue.splice(feed.queue.indexOf(best), 1);
+    const parts = feedLine(best);
+    if (parts) {
+      feed.lines.unshift({ parts, shownAt: now });
+      feed.lastAt = now;
+    }
+  }
+  feed.lines = feed.lines.filter((line) => now - line.shownAt < FEED.lifeMs).slice(0, FEED.max);
+}
+
+/** The highlights, from (`left`, `top`) down, no wider than `maxWidth`. */
+function drawFeed(now, left, top, maxWidth) {
+  updateFeed(now);
+  battle.feed.lines.forEach((line, row) => {
+    const age = now - line.shownAt;
+    const alpha = Math.min(1, age / FEED.inMs, (FEED.lifeMs - age) / FEED.fadeMs);
+    const slide = (1 - Math.min(1, age / FEED.inMs)) * -30;
+    let size = FEED.font;
+    ctx.font = `600 ${size}px ${FONT}`;
+    let width = line.parts.reduce((sum, part) => sum + textWidth(part.text), 0);
+    // A long line gets smaller letters rather than running into the scoreboard.
+    if (width > maxWidth - 24) {
+      size = Math.max(11, Math.floor((size * (maxWidth - 24)) / width));
+      ctx.font = `600 ${size}px ${FONT}`;
+      width = line.parts.reduce((sum, part) => sum + textWidth(part.text), 0);
+    }
+    const y = top + row * (FEED.height + FEED.gap);
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, alpha);
+    ctx.translate(slide, 0);
+    ctx.beginPath();
+    ctx.roundRect(left, y, Math.min(maxWidth, width + 24), FEED.height, FEED.height / 2);
+    ctx.fillStyle = 'rgba(17, 20, 24, 0.78)';
+    ctx.fill();
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+    let x = left + 12;
+    for (const part of line.parts) {
+      ctx.fillStyle = part.color || '#FFFFFF';
+      ctx.fillText(part.text, x, y + FEED.height / 2 + 1, maxWidth - 24);
+      x += textWidth(part.text);
+    }
+    ctx.restore();
+  });
+}
+
+/** Where the scoreboard is: its left edge, so the highlights keep left of it. */
+function hudLeft() {
+  if (battle.sides.length > 4) return (canvas.width - 520) / 2;
+  const width = battle.sides.length * 230 + (battle.sides.length - 1) * 24 + 48;
+  return (canvas.width - width) / 2;
+}
+
 /**
  * The caption over a caster: the skill's name from the language files. Enrage
  * is not cast but a state the god falls into, so it reads as one ("Enraged").
@@ -4191,6 +4307,14 @@ function renderBattle(now) {
   drawTopEffects(now, at);
   ctx.restore();
 
+  // The highlights keep left of the scoreboard; without one (the endless mode), in the corner.
+  drawOnTop(() => {
+    ctx.save();
+    ctx.translate(0, view.top);
+    const right = battle.ambient ? 24 + 560 : hudLeft() - 24;
+    drawFeed(now, 24, 24, right - 24);
+    ctx.restore();
+  });
   if (!battle.ambient) {
     drawOnTop(() => {
       ctx.save();
