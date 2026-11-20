@@ -110,7 +110,7 @@
     <!-- The compact layout for a narrow OBS dock: the main buttons only. -->
     <section id="dock" class="dock" aria-label="Quick controls" data-i18n-aria-label="control.dock.label" hidden>
       <div class="dock-grid">
-        <button type="button" data-quick="layer"><svg class="illus" aria-hidden="true"><use href="#ill-layer"/></svg><span data-i18n="control.layer.title">Background layer</span></button>
+        <button type="button" data-quick="layer"><svg class="illus" aria-hidden="true"><use href="#ill-layer"/></svg><span data-i18n="control.layer.title">Chat plays</span></button>
         <button type="button" data-quick="war"><svg class="illus" aria-hidden="true"><use href="#ill-war"/></svg><span data-i18n="mode.war">War</span></button>
         <button type="button" data-quick="guild-clash"><svg class="illus" aria-hidden="true"><use href="#ill-guild-clash"/></svg><span data-i18n="mode.guildClash">Guild Clash</span></button>
         <button type="button" data-quick="hero-clash"><svg class="illus" aria-hidden="true"><use href="#ill-hero-clash"/></svg><span data-i18n="mode.heroClash">Hero Clash</span></button>
@@ -162,7 +162,7 @@
             <span class="muted step-check" id="step-obs-check"></span>
           </li>
           <li id="step-layer">
-            <strong data-i18n="control.guide.layer">Turn on the background layer</strong>
+            <strong data-i18n="control.guide.layer">Start "Chat plays"</strong>
             <span class="muted" data-i18n="control.guide.layerText">From then on chatters earn ticks, join guilds and develop the land.</span>
             <span><button type="button" id="guide-layer" data-i18n="control.turnOn">Turn on</button></span>
           </li>
@@ -200,8 +200,9 @@
       <section class="card" id="layer-card">
         <div class="row">
           <div>
-            <h2 data-i18n="control.layer.title">Background layer</h2>
-            <p id="layer-status" class="muted"></p>
+            <h2 data-i18n="control.layer.title">Chat plays</h2>
+            <p class="muted" data-i18n="control.layer.what">While it is on, chatting counts: chatters join their guild by name colour, earn XP, build the land and the Monuments, and the map shows on the overlay. Start it when you go live, pause it when the stream ends.</p>
+            <p id="layer-status"></p>
           </div>
           <button id="layer-toggle" type="button" disabled>…</button>
         </div>
@@ -432,7 +433,7 @@
         <h2 data-i18n="control.address.title">Overlay address</h2>
         <p class="muted" data-i18n="control.address.text">Add this address in OBS as a browser source, 1920 × 1080:</p>
         <p class="copy-row"><code class="overlay-url" id="overlay-url"></code> <button type="button" data-copy-overlay data-i18n="control.copy">Copy</button></p>
-        <p class="muted"><span data-i18n="control.address.empty">The overlay is empty while the background layer is off.</span>
+        <p class="muted"><span data-i18n="control.address.empty">The overlay is empty while "Chat plays" is paused.</span>
           <button type="button" class="link" id="guide-show" data-i18n="control.guide.show">Show the setup guide again</button></p>
         <p class="muted" data-i18n="control.address.dock">The control panel also works as an OBS dock (Docks, Custom Browser Docks) with this address; in a narrow
           dock it shows only the main buttons:</p>

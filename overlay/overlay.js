@@ -1687,7 +1687,7 @@ function drawLineup(a) {
   });
 }
 
-/** The map panel in the corner: territory and cities. Hidden while the background layer is off. */
+/** The map panel in the corner: territory and cities. Hidden while "Chat plays" is paused. */
 function drawCorner(out = 0) {
   if (state && !state.session.active) drawLayerOffHint();
   if (!state || !state.session.active) return;
@@ -1704,7 +1704,7 @@ function drawCorner(out = 0) {
 }
 
 /**
- * The overlay draws nothing while the background layer is off. Opened in an
+ * The overlay draws nothing while "Chat plays" (the background layer) is paused. Opened in an
  * ordinary browser rather than in OBS (which sets `window.obsstudio`), that
  * looks broken, so there it says why and where to switch it on.
  */

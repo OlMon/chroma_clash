@@ -357,7 +357,7 @@ function render(next) {
   const toggle = $('layer-toggle');
   // Without a channel there is no chat to play with.
   toggle.disabled = source.kind === 'none';
-  toggle.textContent = tr(session.active ? 'control.turnOff' : 'control.turnOn');
+  toggle.textContent = tr(session.active ? 'control.layer.pause' : 'control.layer.start');
   toggle.classList.toggle('primary', !session.active);
   $('layer-status').textContent = session.active
     ? tr('control.layer.on', { time: new Date(session.startedAt).toLocaleTimeString(I18n.language) })

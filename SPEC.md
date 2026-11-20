@@ -12,7 +12,7 @@ A stream overlay game for Twitch in which the chatters of one channel are the pl
 
 Three guilds, derived from each chatter's Twitch name color, each own a city on a corner of a hex map. The streamer takes part as a god (section 9). The game has four parts:
 
-1. **Background layer.** Runs quietly whenever the streamer has the game on. Chatters who are active in chat earn XP, build up their guild's city, and slowly claim neutral land. Nothing dramatic appears on screen.
+1. **Background layer** ("Chat plays" in the control panel, with Start and Pause; renamed in November 2026 so streamers see what it does). Runs quietly whenever the streamer has the game on. Chatters who are active in chat earn XP, build up their guild's city, and slowly claim neutral land. Nothing dramatic appears on screen.
 2. **War.** An event the streamer starts on purpose, typically during breaks, intros, and outros. Each guild attacks a border tile of a neighbor in a short automatic battle.
 3. **Hero Clash.** A second, shorter event the streamer can start. The most active chatters of each guild fight a small tournament for a temporary guild XP boost.
 4. **God events.** The streamer descends as a god: either against the leading guild to knock a tile back to neutral, or against all of chat as a boss fight.

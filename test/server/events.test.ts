@@ -65,7 +65,7 @@ function resultFor(setup: { sides: { id: string; team?: string }[]; fighters: { 
 
 test('Hero Clash needs a session and chatters with ticks', () => {
   const store = Store.open(':memory:');
-  assert.throws(() => new ClashEngine(store, () => T0, 1), /background layer/);
+  assert.throws(() => new ClashEngine(store, () => T0, 1), /Chat plays/);
   store.startSession(T0);
   assert.throws(() => new ClashEngine(store, () => T0, 1), /earned ticks/);
   store.close();
@@ -266,7 +266,7 @@ test("God's Wrath: a win turns the tile neutral, scorched and half developed; a 
 
 test('Streamer vs Chat: over the map once per session; a friendly fight any time, changing nothing', () => {
   const store = Store.open(':memory:');
-  assert.throws(() => new GodEngine(store, () => T0, 1, 'versus', 'streamer'), /background layer/);
+  assert.throws(() => new GodEngine(store, () => T0, 1, 'versus', 'streamer'), /Chat plays/);
   store.close();
 
   const active = setupStore(5);
@@ -325,7 +325,7 @@ test('Streamer vs Chat: over the map once per session; a friendly fight any time
 
   // Without a running session there is no friendly fight either.
   active.endSession(T0 + 3 * WINDOW);
-  assert.throws(() => new GodEngine(active, () => T0 + 3 * WINDOW, 4, 'friendly', 'streamer'), /background layer/);
+  assert.throws(() => new GodEngine(active, () => T0 + 3 * WINDOW, 4, 'friendly', 'streamer'), /Chat plays/);
   active.close();
 });
 
