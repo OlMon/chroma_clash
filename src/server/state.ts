@@ -1,6 +1,7 @@
 import { config, type GuildId, type SeasonStart, type SkillId, type StatId } from '../config.ts';
 import type { GodRecord, MishapRecord, SeasonWinner, Store } from '../db/store.ts';
 import { monumentIncome } from '../game/land.ts';
+import { windowStartOf } from '../game/ticks.ts';
 import type { SeasonForecast } from '../game/season.ts';
 import { activeTheme, type ThemeInfo } from './themes.ts';
 import { guildName, languageList, languageOf, translator } from '../i18n.ts';
@@ -107,6 +108,12 @@ export interface GameSnapshot {
     development: number;
     /** Ticks the guild's chatters earned since the server started: a "+1" pops on the overlay for each new one. */
     ticks: number;
+    /**
+     * While the guild's land burns: how many of its tiles, how many of its
+     * members wrote in the current window, and how many it takes to put the
+     * fires out when the window ends. Null while nothing of it burns.
+     */
+    fire: { tiles: number; writers: number; needed: number } | null;
     /** Progress toward the Monument that wins the season, and what one window adds to it now. */
     monument: {
       progress: number;
@@ -187,6 +194,9 @@ export function buildSnapshot(
   const session = store.activeSession();
   const sizes = store.guildSizes();
   const active = store.activeByGuild(now - config.server.activeWindowMs, now);
+  // Who wrote in this window: enough of a guild put out the fires on its land when it ends.
+  const thisWindow = windowStartOf(now);
+  const writers = store.activeByGuild(thisWindow, thisWindow);
   const tiles = store.tiles();
   const marks = store.tileMarks();
   const ticks = store.ticksSinceOpen();
@@ -326,6 +336,9 @@ export function buildSnapshot(
         tiles: own.length,
         development: own.reduce((sum, t) => sum + t.level, 0),
         ticks: ticks[guild.id],
+        fire: own.some((t) => t.burning > 0)
+          ? { tiles: own.filter((t) => t.burning > 0).length, writers: writers[guild.id], needed: config.mishaps.fire.douse }
+          : null,
         monument: {
           progress: Math.round(monuments[guild.id]),
           goal,

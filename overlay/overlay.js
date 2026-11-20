@@ -936,11 +936,15 @@ function drawGuildRows(x, y, width) {
     if (textWidth(info) > tw - nameWidth - 14) info = tiles;
     ctx.fillText(info, tx + tw, top + 22);
 
-    // The Monument: the race that decides the season.
+    // The Monument: the race that decides the season. While the guild's land burns, the line
+    // tells chat how to put it out instead: enough of the guild writing before the window ends.
     ctx.textAlign = 'left';
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-    ctx.font = `400 16px ${FONT}`;
-    ctx.fillText(tr('overlay.guild.monument', { income: guild.monument.income }), tx, top + 54, tw - 60);
+    if (guild.fire) drawFireLine(guild.fire, tx, top + 54, tw - 60, index);
+    else {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+      ctx.font = `400 16px ${FONT}`;
+      ctx.fillText(tr('overlay.guild.monument', { income: guild.monument.income }), tx, top + 54, tw - 60);
+    }
     ctx.textAlign = 'right';
     ctx.fillStyle = '#FFFFFF';
     ctx.font = `600 16px ${FONT}`;
@@ -950,6 +954,26 @@ function drawGuildRows(x, y, width) {
     ctx.fillStyle = guild.color;
     ctx.fillRect(tx, top + 70, tw * share, 9);
   });
+}
+
+/**
+ * A guild's fire line, at x and the text's middle y: small flames, then how
+ * many more of the guild must write in chat to put the fire out, pulsing; or,
+ * once enough wrote, that chat is putting it out.
+ */
+function drawFireLine(fire, x, y, width, seed) {
+  const now = performance.now();
+  const missing = Math.max(0, fire.needed - fire.writers);
+  drawTileFlames(x + 10, y - 5, 17, now, seed * 5 + 1);
+  ctx.font = `600 16px ${FONT}`;
+  if (missing > 0) {
+    const pulse = 0.5 + 0.5 * Math.sin(now / 260);
+    ctx.fillStyle = `rgb(255, ${Math.round(150 + 60 * pulse)}, ${Math.round(70 + 50 * pulse)})`;
+    ctx.fillText(tr('overlay.guild.fire', { count: missing }), x + 26, y, width - 26);
+  } else {
+    ctx.fillStyle = '#BFE3FF';
+    ctx.fillText(tr('overlay.guild.fireDousing'), x + 26, y, width - 26);
+  }
 }
 
 /** A running countdown before a fight, as last reported by the server; null when none runs. */

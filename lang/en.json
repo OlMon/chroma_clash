@@ -227,6 +227,11 @@
   },
   "overlay.guild.xpBoost": "XP boost",
   "overlay.guild.monument": "Monument · grows +{income}",
+  "overlay.guild.fire": {
+    "one": "Fire! 1 more chatter puts it out",
+    "other": "Fire! {count} more chatters put it out"
+  },
+  "overlay.guild.fireDousing": "Fire: chat is putting it out",
   "overlay.countdown.joined": {
     "one": "{count} chatter is in",
     "other": "{count} chatters are in"

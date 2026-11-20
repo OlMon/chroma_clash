@@ -4,6 +4,7 @@ import { config } from '../../src/config.ts';
 import { Store } from '../../src/db/store.ts';
 import { fertility, homeTile, levelCost } from '../../src/game/land.ts';
 import type { ChatMessageEvent } from '../../src/irc/events.ts';
+import { buildSnapshot } from '../../src/server/state.ts';
 
 const MIN = 60_000;
 /** A time that lies exactly on a window boundary. */
@@ -288,4 +289,30 @@ test('lightning leaves a mark on its tile for a few windows, fading', () => {
     Object.assign(mishaps.fire, saved.fire);
     Object.assign(mishaps.harvest, saved.harvest);
   }
+});
+
+test('a guild whose land burns tells chat how many more writers put it out', () => {
+  const store = openStore();
+  store.startSession(T0);
+  const fireOf = (now: number) => {
+    const guilds = buildSnapshot(store, { kind: 'sim', channel: 'test', status: '' }, now).guilds;
+    return Object.fromEntries(guilds.map((g) => [g.id, g.fire]));
+  };
+  assert.deepEqual(fireOf(T0 + 1_000), { red: null, green: null, blue: null }, 'nothing burns');
+
+  const [tile] = redTiles(store);
+  store.db.prepare('UPDATE tiles SET level = 2, burning = 1 WHERE tile_id = ?').run(tile!.tile_id);
+  const needed = config.mishaps.fire.douse;
+  assert.deepEqual(fireOf(T0 + 1_000).red, { tiles: 1, writers: 0, needed });
+
+  store.recordMessage(message(T0 + 2_000));
+  store.recordMessage(message(T0 + 3_000, { userId: '43', login: 'bob', displayName: 'Bob' }));
+  store.db.prepare("UPDATE users SET guild_id = 'red' WHERE user_id = '43'").run();
+  store.recordMessage(message(T0 + 4_000));
+  assert.deepEqual(fireOf(T0 + 5_000).red, { tiles: 1, writers: 2, needed }, 'each writer counts once');
+  assert.equal(fireOf(T0 + 5_000).green, null, 'only the guild whose land burns');
+  // A new window: the writers before it put the fire out, and nobody has written in it yet.
+  store.db.prepare('UPDATE tiles SET burning = 1 WHERE tile_id = ?').run(tile!.tile_id);
+  assert.equal(fireOf(T0 + 5 * MIN + 1_000).red!.writers, 0);
+  store.close();
 });

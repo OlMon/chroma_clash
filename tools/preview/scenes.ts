@@ -252,7 +252,20 @@ export function generateScenes(outDir: string, lang = 'en'): Scene[] {
     '1,1': { kind: 'fire', age: 0.33 },
   };
   page('mishaps', {
-    messages: [{ type: 'state', state: { ...state, tiles: state.tiles.map((t) => ({ ...t, burning: burning.has(t.id), mark: marks[t.id] ?? null })) } }],
+    // Green's fire still needs a writer; Blue has enough writing to put its fire out.
+    messages: [
+      {
+        type: 'state',
+        state: {
+          ...state,
+          tiles: state.tiles.map((t) => ({ ...t, burning: burning.has(t.id), mark: marks[t.id] ?? null })),
+          guilds: state.guilds.map((g) => ({
+            ...g,
+            fire: g.id === 'green' ? { tiles: 1, writers: 1, needed: 2 } : g.id === 'blue' ? { tiles: 1, writers: 3, needed: 2 } : null,
+          })),
+        },
+      },
+    ],
     moments: [0],
     tweak: `if (state && !window.__mishaps) { window.__mishaps = 1; const now = performance.now();
       monumentPops.push({ guild: 'red', amount: 3, start: now - 500 }, { guild: 'blue', amount: 2, start: now - 1200 },

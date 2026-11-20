@@ -227,6 +227,11 @@
   },
   "overlay.guild.xpBoost": "XP-Boost",
   "overlay.guild.monument": "Monument · wächst +{income}",
+  "overlay.guild.fire": {
+    "one": "Feuer! Noch 1 Chatter löscht es",
+    "other": "Feuer! Noch {count} Chatter löschen es"
+  },
+  "overlay.guild.fireDousing": "Feuer: der Chat löscht es",
   "overlay.countdown.joined": {
     "one": "{count} Chatter ist dabei",
     "other": "{count} Chatter sind dabei"
