@@ -715,7 +715,7 @@ export const config = {
    * 'https://<group>.gitlab.io/<project>/version.json'. Empty: never checks.
    */
   updates: {
-    url: '' as string,
+    url: 'https://olmon.gitlab.io/chroma_clash/version.json' as string,
     everyMs: 6 * 60 * 60_000,
     /** How long a check waits for the website before giving up quietly. */
     timeoutMs: 5_000,
