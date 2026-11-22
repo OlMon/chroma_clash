@@ -345,6 +345,7 @@ h3 .new { font-size: 0.42em; vertical-align: 0.4em; }
 .card h3 { margin-top: 0; }
 .card p { font-size: 0.97rem; color: #cdd1df; }
 .card .tag { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--gold); margin: -0.2em 0 0.7em; }
+.cards.roadmap { grid-template-columns: repeat(2, 1fr); }
 .roadmap .tag { color: #9aa1b5; }
 .road-now { border-color: rgba(255, 213, 74, 0.45); }
 .road-now .tag { color: var(--gold); }
@@ -543,7 +544,7 @@ h3 .new { font-size: 0.42em; vertical-align: 0.4em; }
   .wrap { padding: 0 16px; }
   .hero { padding: 36px 0 44px; }
   .section { padding: 52px 0; }
-  .steps, .class-grid, .skills, .cards.five, .cards.three { grid-template-columns: 1fr; }
+  .steps, .class-grid, .skills, .cards.five, .cards.three, .cards.roadmap { grid-template-columns: 1fr; }
   .setup li { padding-left: 62px; }
   .setup li::before { left: 14px; }
   .stage { padding: 6px; }
