@@ -1,5 +1,5 @@
 {
-  "version": "0.2.0",
+  "version": "0.2.1",
   "url": "https://github.com/OlMon/chroma_clash/releases",
-  "notes": "The Brawl: an Intro Fighters style Arena mode, where you can join as a fighter or as the god with the ban hammer. Livelier battles with weapons, shoves, charges and rallies. Jelly balls in Pachinko. \"Chat plays\" is on at every start. A starter for trying it offline with a simulated chat."
+  "notes": "The game now only reads chat: no Twitch login or token, and it never writes in chat (the optional results in chat are gone)."
 }
