@@ -19,7 +19,6 @@ let dbPath: string;
 let store: Store;
 let server: GameServer;
 let base: string;
-const said: string[] = [];
 const changes: ({ kind: 'reset' } | { kind: 'import'; file: string })[] = [];
 
 before(async () => {
@@ -34,7 +33,6 @@ before(async () => {
     getSource: () => ({ kind: 'irc', channel: 'testchannel', status: 'joined' }),
     databasePath: dbPath,
     actionKey: KEY,
-    chat: { canSay: () => true, say: (text) => (said.push(text), true) },
     onDatabase: (change) => changes.push(change),
     version: () => ({ current: '1.0.0', latest: null }),
   });
@@ -162,16 +160,8 @@ test('a file that is not a game is turned away', () => {
   assert.match(checkDatabaseFile(empty) ?? '', /not a Chroma Clash database/);
 });
 
-test('results go to chat only when switched on', async () => {
-  const snapshot = await state();
-  assert.deepEqual(snapshot.chatAnnounce, { available: true, enabled: false });
-  assert.equal((await post('/api/settings', { chatAnnounce: true })).status, 200);
-  assert.equal((await state()).chatAnnounce.enabled, true);
-  assert.equal((await post('/api/settings', { chatAnnounce: 'yes' })).status, 400);
-});
-
-test('an event that runs to its end reports its closing summary', () => {
-  const finished: string[] = [];
+test('an event that runs to its end shows its closing summary', () => {
+  const sent: { type: string; title?: string; subtitle?: string }[] = [];
   const engine: EventEngine = {
     next: () => null,
     apply: () => undefined,
@@ -180,12 +170,13 @@ test('an event that runs to its end reports its closing summary', () => {
   } as unknown as EventEngine;
   const runner = new EventRunner({
     battles: new BattleRunner(() => {}),
-    send: () => {},
+    send: (message) => sent.push(message as (typeof sent)[number]),
     onChange: () => {},
-    onFinish: (closing) => finished.push(`${closing.title}. ${closing.subtitle}`),
   });
   runner.start(engine, 'Pachinko');
-  assert.deepEqual(finished, ['Red wins Pachinko. Red 120 · Blue 80']);
+  const closing = sent.find((message) => message.type === 'announce' && message.title);
+  assert.equal(closing?.title, 'Red wins Pachinko');
+  assert.equal(closing?.subtitle, 'Red 120 · Blue 80');
 });
 
 test('a server that closes with an overlay open does not touch its closed database', async () => {

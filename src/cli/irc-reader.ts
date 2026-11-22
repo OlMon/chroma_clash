@@ -3,7 +3,7 @@
  *
  *   node src/cli/irc-reader.ts <channel>
  *
- * Logs in anonymously unless TWITCH_TOKEN and TWITCH_LOGIN are set.
+ * Logs in anonymously and only reads.
  */
 import { IrcClient } from '../irc/client.ts';
 
@@ -15,8 +15,6 @@ if (!channel) {
 
 const client = new IrcClient({
   channel,
-  token: process.env.TWITCH_TOKEN,
-  login: process.env.TWITCH_LOGIN,
   onStatus: (status) => console.error(`[irc] ${JSON.stringify(status)}`),
   onChat: (event) => console.log(JSON.stringify(event)),
 });

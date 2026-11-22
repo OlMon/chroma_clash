@@ -329,7 +329,6 @@ function sourceStatus(status) {
     connected: 'connected',
     joined: 'joined',
     disconnected: 'disconnected',
-    'auth-failed': 'authFailed',
   };
   return known[status] ? tr(`control.sourceStatus.${known[status]}`) : status;
 }
@@ -1115,11 +1114,6 @@ function renderExtras() {
   // An overlay drawing without the graphics card stutters: say how to fix it, on every tab.
   $('no-gpu').hidden = !(state.guide.withoutGpu > 0);
 
-  const announce = state.chatAnnounce;
-  $('chat-announce').disabled = !announce.available;
-  $('chat-announce').checked = announce.enabled;
-  $('chat-announce-status').textContent = tr(announce.available ? 'control.announce.available' : 'control.announce.unavailable');
-
   const resettable = state.data.resettable;
   $('data-import').disabled = !resettable;
   $('data-import-label').classList.toggle('disabled', !resettable);
@@ -1129,8 +1123,6 @@ function renderExtras() {
     ? tr('control.data.kept', { channel: state.source.channel })
     : tr('control.data.none');
 }
-
-$('chat-announce').addEventListener('change', (event) => post('/api/settings', { chatAnnounce: event.target.checked }));
 
 $('reset-confirm').addEventListener('input', () => {
   if (state) renderExtras();
@@ -1259,10 +1251,6 @@ function renderStatus(status) {
       chat.lastMessageAt
         ? tr('control.status.messagesLast', { count: chat.messages, ago: ago(chat.lastMessageAt) })
         : String(chat.messages),
-    ],
-    [
-      tr('control.status.writing'),
-      tr(chat.canSay ? (chat.announce ? 'control.status.writingOn' : 'control.status.writingOff') : 'control.status.writingNone'),
     ],
   ]);
 

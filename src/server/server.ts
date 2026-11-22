@@ -72,8 +72,6 @@ export interface GameServerOptions {
   onDatabase?: (change: { kind: 'reset' } | { kind: 'import'; file: string }) => void;
   /** The secret of the action links (/api/action/<name>?key=…). Without it, the links are off. */
   actionKey?: string;
-  /** Writing in chat: only with a Twitch token. Results are announced there when the streamer switches it on. */
-  chat?: { canSay(): boolean; say(text: string): boolean };
   /** The program's version, and a newer one when the update check found it. */
   version?: () => { current: string; latest: { version: string; url: string; notes?: string } | null };
 }
@@ -125,7 +123,6 @@ export type ServerSnapshot = GameSnapshot & {
   mapStrip: ReturnType<typeof bannerStrip>;
   /** `withoutGpu`: open overlays that draw without the graphics card, which makes battles stutter. */
   guide: { overlays: number; testBattleRun: boolean; withoutGpu: number };
-  chatAnnounce: { available: boolean; enabled: boolean };
   /** The Arena's brawl: on or off, how many chatters fight at once, and how the streamer is on the field. */
   brawl: { active: boolean; fighters: number; min: number; max: number; streamer: 'streamer' | 'god' | null };
   /** Expected runtime of each event from the click, shortest and longest, in ms. */
@@ -282,15 +279,7 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
     battles: runner,
     send: (message: object) => sendAll(JSON.stringify(withEmotes(message))),
     onChange: () => broadcast(),
-    // The closing was written in the language chosen when the event started.
-    onFinish: (closing) => announceInChat(tr('server.chat.closing', closing)),
   });
-
-  /** Writes a result in chat, if the streamer switched that on and a token allows it. */
-  function announceInChat(text: string): void {
-    if (store.getSetting('chat_announce') !== '1' || !options.chat?.canSay()) return;
-    options.chat.say(tr('server.chat.announce', { text }));
-  }
 
   /**
    * How long the server was ever too busy to answer, over the last minute: a
@@ -577,7 +566,6 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
       testBattleRun: store.getSetting('test_battle_run') === '1',
       withoutGpu: [...overlayPages.values()].filter((page) => page.gpu === false).length,
     },
-    chatAnnounce: { available: options.chat?.canSay() ?? false, enabled: store.getSetting('chat_announce') === '1' },
     brawl: {
       active: brawl.running,
       fighters: store.brawlFighters(),
@@ -741,8 +729,6 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
         status: source.status,
         messages: chatSeen.messages,
         lastMessageAt: chatSeen.lastAt,
-        canSay: options.chat?.canSay() ?? false,
-        announce: store.getSetting('chat_announce') === '1',
       },
       emotes: emotes.status(),
       overlays: [...overlayPages.values()],
@@ -1060,13 +1046,12 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
         throw new HttpError(400, error instanceof Error ? error.message : 'Invalid value.');
       }
     } else if (pathname === '/api/settings') {
-      const known = ['warCommand', 'obstacles', 'chatAnnounce'].filter((key) => key in body);
+      const known = ['warCommand', 'obstacles'].filter((key) => key in body);
       if (known.length === 0 || known.some((key) => typeof body[key] !== 'boolean')) {
-        throw new HttpError(400, '`warCommand`, `obstacles` and `chatAnnounce` must be true or false.');
+        throw new HttpError(400, '`warCommand` and `obstacles` must be true or false.');
       }
       if ('warCommand' in body) store.setSetting('war_command', body.warCommand ? '1' : '0');
       if ('obstacles' in body) store.setSetting('obstacles', body.obstacles ? '1' : '0');
-      if ('chatAnnounce' in body) store.setSetting('chat_announce', body.chatAnnounce ? '1' : '0');
     } else if (pathname === '/api/map-banner') {
       if (body.place !== 'top' && body.place !== 'bottom' && body.place !== 'off') {
         throw new HttpError(400, '`place` must be "top", "bottom" or "off".');
@@ -1264,7 +1249,6 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
             celebrate: { guild: winner, design },
             holdMs: config.war.summaryHoldMs,
           });
-          announceInChat(tr('server.season.winsChat', { guild, season: season?.season_id ?? '' }));
           broadcast();
         },
         close: () =>

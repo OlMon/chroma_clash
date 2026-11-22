@@ -66,8 +66,6 @@ export interface EventRunnerOptions {
   send: (message: object) => void;
   /** Called whenever the game state changed and should be pushed to the pages. */
   onChange: () => void;
-  /** Called with the closing summary when an event ran to its end (not when it was stopped). */
-  onFinish?: (closing: { title: string; subtitle: string }) => void;
 }
 
 /**
@@ -139,10 +137,8 @@ export class EventRunner {
     if (!step) {
       engine.finish();
       this.engine = null;
-      const closing = engine.closing();
-      send({ type: 'announce', ...closing, holdMs: config.war.summaryHoldMs });
+      send({ type: 'announce', ...engine.closing(), holdMs: config.war.summaryHoldMs });
       onChange();
-      this.options.onFinish?.(closing);
       return;
     }
 

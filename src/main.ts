@@ -9,7 +9,7 @@
  * Without a channel yet, the server starts and the control panel asks for it.
  * Options: --port 4747, --data <folder> (default data/), --db <file>, --chatters 60, --seed 1,
  * --open / --no-open (open the control panel in the browser; default on only in the packaged build).
- * A real chat logs in anonymously unless TWITCH_TOKEN and TWITCH_LOGIN are set.
+ * A real chat is read anonymously; the game never writes in it.
  */
 import { mkdirSync, renameSync, rmSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
@@ -77,8 +77,6 @@ let server: GameServer | null = null;
 let now: () => number = Date.now;
 let stopSource: () => void = () => {};
 let dbPath = '';
-/** Writing in chat: with a Twitch token, or the simulator's pretend chat (printed to the console). */
-let chat: { canSay(): boolean; say(text: string): boolean } | null = null;
 
 function onChat(event: ChatMessageEvent): void {
   emotes.setChannel(event.roomId);
@@ -110,7 +108,6 @@ function openChannel(): void {
     source = { kind: 'none', channel: '', status: 'waiting for the channel name' };
     now = Date.now;
     stopSource = () => {};
-    chat = null;
     return;
   }
   dbPath = values.db ?? join(dataDir, `${values.sim ? 'sim-' : ''}${channel}.sqlite`);
@@ -136,13 +133,6 @@ function openChannel(): void {
     source.status = `simulating ${sim.chat.chatters.length} chatters at x${values.speed}`;
     sim.start();
     stopSource = () => sim.stop();
-    chat = {
-      canSay: () => true,
-      say: (text) => {
-        console.log(`[chat] ${text}`);
-        return true;
-      },
-    };
     return;
   }
   now = Date.now;
@@ -150,8 +140,6 @@ function openChannel(): void {
   store.startStream(now());
   const irc = new IrcClient({
     channel,
-    token: process.env.TWITCH_TOKEN,
-    login: process.env.TWITCH_LOGIN,
     onChat,
     onStatus: (status) => {
       if (status.type === 'notice') return;
@@ -162,7 +150,6 @@ function openChannel(): void {
   });
   irc.start();
   stopSource = () => irc.stop();
-  chat = { canSay: () => irc.canSay, say: (text) => irc.say(text) };
 }
 
 async function startServer(): Promise<void> {
@@ -179,7 +166,6 @@ async function startServer(): Promise<void> {
     databasePath: dbPath,
     onDatabase: (change) => void changeDatabase(change),
     actionKey,
-    chat: { canSay: () => chat?.canSay() ?? false, say: (text) => chat?.say(text) ?? false },
     version: () => ({
       current: appVersion,
       latest: update ? { version: update.latest, url: update.url, ...(update.notes ? { notes: update.notes } : {}) } : null,

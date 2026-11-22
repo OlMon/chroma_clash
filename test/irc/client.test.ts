@@ -24,14 +24,13 @@ class FakeSocket implements SocketLike {
   }
 }
 
-function setup(options: { token?: string; login?: string } = {}) {
+function setup() {
   const sockets: FakeSocket[] = [];
   const scheduled: { callback: () => void; delayMs: number }[] = [];
   const statuses: IrcStatus[] = [];
   const chats: ChatMessageEvent[] = [];
   const client = new IrcClient({
     channel: '#SomeChannel',
-    ...options,
     onChat: (event) => chats.push(event),
     onStatus: (status) => statuses.push(status),
     createSocket: () => {
@@ -70,17 +69,6 @@ test('logs in anonymously, joins after the welcome, and reports status', () => {
   ]);
 });
 
-test('sends PASS before NICK when a token is given', () => {
-  const { client, sockets } = setup({ token: 'oauth:abc', login: 'MyBot' });
-  client.start();
-  sockets[0]!.onopen?.();
-  assert.deepEqual(sockets[0]!.sent, [
-    'CAP REQ :twitch.tv/tags twitch.tv/commands',
-    'PASS oauth:abc',
-    'NICK mybot',
-  ]);
-});
-
 test('answers PING and emits chat events, also for several lines in one frame', () => {
   const { client, sockets, chats } = setup();
   client.start();
@@ -116,14 +104,17 @@ test('reconnects on RECONNECT and backs off on repeated connection loss', () => 
   assert.equal(scheduled[2]!.delayMs, 1000, 'backoff resets after a successful login');
 });
 
-test('does not reconnect after an authentication failure or after stop()', () => {
-  const failed = setup({ token: 'bad', login: 'bot' });
-  failed.client.start();
-  failed.sockets[0]!.onopen?.();
-  failed.sockets[0]!.receive(':tmi.twitch.tv NOTICE * :Login authentication failed');
-  failed.sockets[0]!.close();
-  assert.equal(failed.scheduled.length, 0);
-  assert.deepEqual(failed.statuses.at(-1), { type: 'disconnected', retryInMs: null });
+test('never writes in chat, and does not reconnect after stop()', () => {
+  const { client, sockets } = setup();
+  client.start();
+  sockets[0]!.onopen?.();
+  sockets[0]!.receive(
+    ':tmi.twitch.tv 001 justinfan10000 :Welcome, GLHF!',
+    '@room-id=1 :tmi.twitch.tv ROOMSTATE #somechannel',
+    '@color=#FF0000;display-name=A;user-id=1 :a!a@a.tmi.twitch.tv PRIVMSG #somechannel :hi',
+  );
+  assert.ok(sockets[0]!.sent.every((line) => !/^(PASS|PRIVMSG)/.test(line)));
+  assert.ok(!('say' in client));
 
   const stopped = setup();
   stopped.client.start();
