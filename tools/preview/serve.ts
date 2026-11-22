@@ -34,7 +34,9 @@ export function startServer(root: string, pagesDir: string, emoteCache: string, 
     return file === base || file.startsWith(base + sep) ? file : null;
   };
   const server: Server = createServer(async (req, res) => {
-    const url = decodeURIComponent(new URL(req.url ?? '/', 'http://x').pathname);
+    const path = decodeURIComponent(new URL(req.url ?? '/', 'http://x').pathname);
+    // A folder serves its index.html.
+    const url = path.endsWith('/') ? `${path}index.html` : path;
     const emote = /^\/emotes\/twitch\/(\w+)$/.exec(url);
     if (emote) {
       const cached = join(emoteCache, `${emote[1]}.png`);
