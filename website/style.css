@@ -520,6 +520,13 @@ h3 .new { font-size: 0.42em; vertical-align: 0.4em; }
 .footer p { margin: 0 0 0.4em; }
 
 /* ---------- AI disclosure ---------- */
+.ai-facts { max-width: 820px; margin: 8px 0 32px; border-left: 4px solid var(--gold); }
+.satire-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 0 0 12px; padding-top: 24px; border-top: 1px dashed var(--line); max-width: 820px; }
+.satire-head p { margin: 0; color: var(--muted); font-size: 0.95rem; }
+.satire-tag {
+  font-family: var(--head); font-size: 1.15rem; letter-spacing: 0.06em; text-transform: uppercase;
+  color: #000; background: var(--gold); padding: 2px 10px; border-radius: 6px; transform: rotate(-2deg);
+}
 .ai-meter { margin: 8px 0 28px; max-width: 820px; }
 .ai-bar {
   display: flex; height: 38px; border-radius: 999px; overflow: hidden;
