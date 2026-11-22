@@ -111,10 +111,22 @@ test('the god lands with a shockwave that throws everyone up, chat goes for it, 
 
 test('twists come and go, and the platforms change now and then', () => {
   const brawl = new Brawl({ seed: 2 });
-  const events = run(brawl, B.layoutEvery + 1, 0.5);
+  const events = run(brawl, Math.max(B.twists.first + B.twists.last, B.layout.every) + 1, 0.5);
   const twists = events.filter((e) => e.k === 'twist');
   assert.ok(twists.length >= 2);
   assert.notEqual(twists[0]!.k === 'twist' && twists[0]!.twist, null);
   assert.equal(twists[1]!.k === 'twist' && twists[1]!.twist, null, 'a twist ends again');
   assert.equal(events.filter((e) => e.k === 'layout').length, 1);
+});
+
+test('every layout has more bumpers than walls, all apart from each other', () => {
+  for (let seed = 1; seed <= 40; seed++) {
+    const { ledges, bumpers } = new Brawl({ seed }).layout;
+    assert.ok(bumpers.length > ledges.length, `seed ${seed}: ${bumpers.length} bumpers, ${ledges.length} walls`);
+    assert.ok(bumpers.length >= B.layout.bumpers[0]! - 1 && ledges.length >= 1);
+    for (const [i, a] of bumpers.entries()) {
+      for (const b of bumpers.slice(i + 1)) assert.ok(Math.hypot(a.x - b.x, a.y - b.y) >= B.layout.gap);
+      assert.ok(a.y + a.r < B.arena.floor - 100, 'bumpers are up in the air');
+    }
+  }
 });

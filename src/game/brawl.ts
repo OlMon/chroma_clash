@@ -98,15 +98,6 @@ export type BrawlEvent =
 const LEDGE = 26;
 const BUMPER = 38;
 
-/** Platforms and bumpers as shares of the play area: [left, top, width] for ledges, [x, y] for bumpers, [x, height, width] for pillars on the floor. */
-const LAYOUTS: { name: string; ledges?: number[][]; bumpers?: number[][]; pillars?: number[][] }[] = [
-  { name: 'open', bumpers: [[0.5, 0.42]] },
-  { name: 'ledges', ledges: [[0.07, 0.64, 0.22], [0.71, 0.64, 0.22], [0.39, 0.42, 0.22]] },
-  { name: 'pinball', ledges: [[0.4, 0.68, 0.2]], bumpers: [[0.2, 0.46], [0.5, 0.32], [0.8, 0.46]] },
-  { name: 'towers', pillars: [[0.3, 0.2, 0.035], [0.67, 0.2, 0.035]], ledges: [[0.4, 0.5, 0.2]] },
-  { name: 'stairs', ledges: [[0.05, 0.76, 0.17], [0.25, 0.6, 0.17], [0.45, 0.44, 0.17]], bumpers: [[0.82, 0.5]] },
-];
-
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 const wrap = (a: number) => ((((a + Math.PI) % TAU) + TAU) % TAU) - Math.PI;
 const between = (rng: Rng, [lo, hi]: readonly number[]) => lo! + rng() * (hi! - lo!);
@@ -158,7 +149,7 @@ export class Brawl {
     this.size = clamp(Math.round(size), B.minFighters, B.maxFighters);
     this.layout = this.makeLayout();
     this.twistAt = B.twists.first;
-    this.layoutAt = B.layoutEvery;
+    this.layoutAt = B.layout.every;
   }
 
   /** The events since the last call. */
@@ -211,21 +202,56 @@ export class Brawl {
     return true;
   }
 
+  /**
+   * New platforms and bumpers: a few ledges (now and then a pillar on the
+   * floor) and more bumpers, in the air between the floor and the top, apart
+   * from each other so there is room to hop between them.
+   */
   private makeLayout(): BrawlLayout {
-    const plan = LAYOUTS[Math.floor(this.rng() * LAYOUTS.length)]!;
-    const mirror = this.rng() < 0.5;
-    const left = this.wall;
-    const span = this.width - 2 * this.wall;
-    const flip = (x: number, w = 0) => (mirror ? 1 - x - w : x);
-    const ledges: Rect[] = (plan.ledges ?? []).map(([x, y, w]) => ({
-      x: Math.round(left + flip(x!, w!) * span), y: Math.round(y! * this.floor), w: Math.round(w! * span), h: LEDGE,
-    }));
-    for (const [x, height, w] of plan.pillars ?? []) {
-      const h = Math.round(height! * this.floor);
-      ledges.push({ x: Math.round(left + flip(x!, w!) * span), y: this.floor - h, w: Math.round(w! * span), h });
+    const plan = B.layout;
+    const count = ([lo, hi]: readonly number[]) => lo! + Math.floor(this.rng() * (hi! - lo! + 1));
+    const left = this.wall + 60;
+    const right = this.width - this.wall - 60;
+    const ledges: Rect[] = [];
+    const bumpers: Bumper[] = [];
+    /** How far a point is from the nearest thing placed so far. */
+    const room = (x: number, y: number) =>
+      Math.min(
+        Infinity,
+        ...ledges.map((l) => Math.hypot(x - clamp(x, l.x, l.x + l.w), y - clamp(y, l.y, l.y + l.h))),
+        ...bumpers.map((b) => Math.hypot(x - b.x, y - b.y)),
+      );
+    const place = (make: () => { x: number; y: number; done: () => void }) => {
+      for (let tries = 0; tries < 30; tries++) {
+        const spot = make();
+        if (room(spot.x, spot.y) >= plan.gap) return spot.done();
+      }
+    };
+    for (let i = count(plan.ledges); i > 0; i--) {
+      if (this.rng() < plan.pillarChance) {
+        const w = 60;
+        const h = Math.round(this.floor * (0.14 + this.rng() * 0.1));
+        const x = Math.round(left + this.rng() * (right - left - w));
+        place(() => ({ x: x + w / 2, y: this.floor - h / 2, done: () => ledges.push({ x, y: this.floor - h, w, h }) }));
+      } else {
+        place(() => {
+          const w = Math.round(240 + this.rng() * 180);
+          const x = Math.round(left + this.rng() * (right - left - w));
+          const y = Math.round(this.floor * (0.42 + this.rng() * 0.3));
+          return { x: x + w / 2, y, done: () => ledges.push({ x, y, w, h: LEDGE }) };
+        });
+      }
     }
-    const bumpers = (plan.bumpers ?? []).map(([x, y]) => ({ x: Math.round(left + flip(x!) * span), y: Math.round(y! * this.floor), r: BUMPER }));
-    return { name: plan.name, ledges, bumpers };
+    // Each bumper in its own stretch of the width, so they spread over the whole screen.
+    const many = count(plan.bumpers);
+    for (let i = 0; i < many; i++) {
+      place(() => {
+        const x = Math.round(left + ((i + 0.1 + this.rng() * 0.8) / many) * (right - left));
+        const y = Math.round(this.floor * (0.22 + this.rng() * 0.45));
+        return { x, y, done: () => bumpers.push({ x, y, r: BUMPER }) };
+      });
+    }
+    return { name: 'drawn', ledges, bumpers };
   }
 
   private spawn(who: BrawlWho, role: Role): BrawlFighter {
@@ -271,7 +297,7 @@ export class Brawl {
       this.events.push({ k: 'twist', twist: null });
     }
     if (this.t >= this.layoutAt) {
-      this.layoutAt = this.t + B.layoutEvery;
+      this.layoutAt = this.t + B.layout.every;
       this.layout = this.makeLayout();
       this.events.push({ k: 'layout' });
     }

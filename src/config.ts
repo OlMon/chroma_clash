@@ -621,8 +621,12 @@ export const config = {
     },
     /** A twist for `last` seconds every `gap` seconds: super bouncy, moon gravity, a gravity well, exploding knockouts. */
     twists: { first: 40, gap: [45, 75], last: 15 },
-    /** The platforms and bumpers change this often. */
-    layoutEvery: 120,
+    /**
+     * The platforms and bumpers: drawn anew every `every` seconds, more
+     * bumpers than walls. Walls are ledges in the air, now and then a pillar
+     * on the floor; everything keeps `gap` pixels apart.
+     */
+    layout: { every: 45, bumpers: [3, 5], ledges: [1, 2], pillarChance: 0.25, gap: 200 },
   },
   endless: {
     /** Default number of fighters on the field at once; the streamer can change it. */
