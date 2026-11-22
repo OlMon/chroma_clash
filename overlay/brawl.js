@@ -18,6 +18,7 @@ const BRAWL = {
   twistBannerMs: 2600,
   arrivalMs: 2200,
   fallMs: 7000,
+  giantMs: 2200,
   ink: '#0B0807',
 };
 const BRAWL_TAU = Math.PI * 2;
@@ -151,6 +152,8 @@ function brawlEvent(b, e, now) {
   switch (e.k) {
     case 'join':
       b.fighters.set(e.f.id, brawlFighter(e.f));
+      // A giant is announced, so chat knows why one is so big.
+      if (e.f.giant) b.effects.push({ k: 'giant', name: e.f.name, color: e.f.color, at: now });
       break;
     case 'land':
       if (f) {
@@ -511,6 +514,7 @@ function drawBrawlFighter(b, f, pose, now) {
     ctx.fillText(label, pose.x, ly);
   }
   if (f.role !== 'chatter') drawBrawlCrown(pose.x, ly - size - 4, f.role === 'god' ? 1.3 : 0.8);
+  else if (f.giant) brawlLine(tr('overlay.brawl.giantTag'), pose.x, ly - size - 6, 18, '#C9A6FF');
 }
 
 function drawBrawlCrown(x, y, scale) {
@@ -663,11 +667,14 @@ function drawBrawlBurst(x, y, size, word, fill, age) {
   ctx.rotate(-0.12);
   const grow = pop * (1 + age * 0.15);
   ctx.scale(grow, grow);
+  // As wide as its word needs: a long one gets a long star.
+  ctx.font = `${Math.round(size * 0.75)}px ${FONT}`;
+  const wide = Math.max(1.25, (textWidth(word) / 2 + size * 0.45) / size);
   ctx.beginPath();
   for (let i = 0; i < 22; i++) {
     const a = (i / 22) * BRAWL_TAU;
     const r = i % 2 === 0 ? size : size * 0.62;
-    ctx.lineTo(Math.cos(a) * r * 1.25, Math.sin(a) * r);
+    ctx.lineTo(Math.cos(a) * r * wide, Math.sin(a) * r);
   }
   ctx.closePath();
   ctx.fillStyle = fill;
@@ -687,7 +694,7 @@ function drawBrawlBurst(x, y, size, word, fill, age) {
 
 function drawBrawlEffects(b, now) {
   const art = Theme.current.art;
-  b.effects = b.effects.filter((e) => now - e.at < 1400);
+  b.effects = b.effects.filter((e) => now - e.at < (e.k === 'giant' ? BRAWL.giantMs : 1400));
   for (const e of b.effects) {
     const age = now - e.at;
     if (e.k === 'number') {
@@ -710,6 +717,8 @@ function drawBrawlEffects(b, now) {
         }
         ctx.restore();
       }
+    } else if (e.k === 'giant') {
+      drawBrawlBurst(b.arena.width / 2, 300, 70, tr('overlay.brawl.giant', { name: e.name }), '#8E5BD9', age / BRAWL.giantMs);
     } else if (e.k === 'ko') {
       const life = e.big ? 1400 : 1100;
       if (age > life) continue;

@@ -626,6 +626,14 @@ export function generateScenes(outDir: string, lang = 'en'): Scene[] {
   const brawlers: BrawlWho[] = chatters.map((c) => ({ id: c.userId, name: c.displayName, color: c.color ?? '#9ACD32', emote: twitch(c.favoriteEmote) }));
   page('brawl', { messages: [stateMessage, ...recordBrawl(brawlers, 25)], moments: [0] });
   page('brawlgod', { messages: [stateMessage, ...recordBrawl(brawlers, 16, 12)], moments: [0] });
+  // A giant dropping in, announced (every joiner is one here, for the picture).
+  const chance = config.brawl.giant.chance;
+  config.brawl.giant.chance = 1;
+  page('brawlgiant', {
+    messages: [stateMessage, ...recordBrawl(brawlers, 30, undefined, (frame) => frame.t > 6000 && (frame.e ?? []).some((e: any) => e.k === 'join'))],
+    moments: [0],
+  });
+  config.brawl.giant.chance = chance;
   page('brawlfall', {
     messages: [stateMessage, ...recordBrawl(brawlers, 400, 8, (frame) => (frame.e ?? []).some((e: any) => e.k === 'godfall'))],
     moments: [0],
