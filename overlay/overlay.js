@@ -1451,15 +1451,17 @@ function renderPanel() {
  * battle, a countdown or an announcement takes the screen, and back in
  * after it, overshooting a little.
  */
-const SLIDE = { outMs: 420, inMs: 600 };
+const SLIDE = { outMs: 420, inMs: 600, waitMs: 350 };
 /** Whether the corner panels are what the screen shows, and since when; `shown` is null before the first draw, which does not slide. */
 const cornerShown = { shown: null, at: -Infinity };
 
 function noteCorner(shown) {
   if (cornerShown.shown === shown) return;
   const first = cornerShown.shown === null;
+  // Panels that never got back on screen (the next screen came during their wait) stay away without a slide.
+  const away = !first && cornerOut() >= 1;
   cornerShown.shown = shown;
-  cornerShown.at = first ? -Infinity : performance.now();
+  cornerShown.at = first || (!shown && away) ? -Infinity : performance.now();
   if (!first) runTransition();
 }
 
@@ -1477,7 +1479,13 @@ function easeOutBack(t) {
 /** How far out the corner panels are now: 0 in place, 1 off screen (a little below 0 while overshooting on the way in). */
 function cornerOut() {
   const t = performance.now() - cornerShown.at;
-  if (cornerShown.shown !== false) return t >= SLIDE.inMs ? 0 : 1 - easeOutBack(t / SLIDE.inMs);
+  if (cornerShown.shown !== false) {
+    // A short wait before they come back: when one screen follows another (a countdown, then
+    // its line-up; one battle, then the next) the panels do not flash up in between.
+    const back = t - SLIDE.waitMs;
+    if (back < 0) return 1;
+    return back >= SLIDE.inMs ? 0 : 1 - easeOutBack(back / SLIDE.inMs);
+  }
   return t >= SLIDE.outMs ? 1 : easeInCubic(t / SLIDE.outMs);
 }
 
@@ -1495,7 +1503,7 @@ function runTransition() {
   transitionRunning = true;
   const tick = () => {
     const t = performance.now() - cornerShown.at;
-    const sliding = t < (cornerShown.shown ? SLIDE.inMs : SLIDE.outMs);
+    const sliding = t < (cornerShown.shown ? SLIDE.waitMs + SLIDE.inMs : SLIDE.outMs);
     if (!battle) frame(renderPanel);
     if (sliding) requestAnimationFrame(tick);
     else transitionRunning = false;
@@ -2178,6 +2186,16 @@ function onBattleStart(message) {
     broken: new Map(), // obstacle id → when it was first seen broken, for crumbling walls
     numbers: [], // big hits' damage floating up: { x, y, v, l, c, start, seed } in arena units
     knockouts: [], // where fighters fell, for a theme that marks it (the comic's "KO" bursts): { x, y, start, seed, big }
+    jelly: message.fighters.map(() => ({ s: 0, sv: 0, angle: 0, turn: 0 })), // each body's wobble and tumble, see JELLY
+    chips: [], // pieces of fallen fighters flying apart: see shatterFighter
+    dust: [], // puffs behind charging fighters
+    dustAt: [], // when each fighter last left a puff
+    jellyAt: performance.now(),
+    // The usual fighter's size, against which bigger ones wobble less.
+    typicalRadius: (() => {
+      const sizes = message.fighters.map((f) => f.radius).sort((a, b) => a - b);
+      return sizes[Math.floor(sizes.length / 2)] || 1;
+    })(),
     // When this page began showing the battle: fighters pop in and the scoreboard drops in from then.
     shownAt: performance.now(),
   };
@@ -2204,6 +2222,7 @@ function onBattleFrame(message) {
     if (event.k === 'cast' && event.s === 'rampage') {
       battle.trail = { index: event.i, until: now + event.ms, points: [] };
     }
+    if (event.k === 'fx' && event.fx === 'clash') battle.shake = { start: now, ms: 300, power: 7 };
     if (event.k === 'fx' && event.fx === 'smash') {
       // The god breaking through a wall.
       battle.shake = { start: now, ms: 300, power: 9 };
@@ -2232,6 +2251,20 @@ function onBattleFrame(message) {
   }
   if (battle.previous) {
     message.f.forEach((fighter, i) => {
+      const before = battle.previous.f[i];
+      notePose(battle.fighters[i], before, fighter, now);
+      // A blow makes the body wobble like jelly, squashed along the way it is shoved.
+      if (fighter[3] & FLAG.hit && fighter[2] > 0) {
+        const jelly = battle.jelly[i];
+        const dx = fighter[0] - before[0];
+        const dy = fighter[1] - before[1];
+        if (Math.hypot(dx, dy) > 0.5) jelly.angle = Math.atan2(dy, dx);
+        // The bigger the body, the less it wobbles: the god only quivers.
+        jelly.sv -= JELLY.hit * Math.min(1, (battle.typicalRadius / battle.fighters[i].radius) ** 2);
+      }
+      if (fighter[2] === 0 && before[2] > 0 && !battle.fighters[i].minion && !battle.fighters[i].imp) {
+        shatterFighter(i, fighter[0] * battle.scale, fighter[1] * battle.scale, Math.atan2(fighter[1] - before[1], fighter[0] - before[0]), now);
+      }
       if (fighter[2] === 0 && battle.previous.f[i][2] > 0) {
         battle.diedAt[i] = now;
         if (Theme.current.art.knockout && !battle.fighters[i].minion) {
@@ -2438,138 +2471,220 @@ const CLASS_COLORS = {
 };
 
 /**
- * A small badge at a fighter's lower right showing its class: a dark icon on
- * a light disc in the class's color. Themes may draw their own (art.classIcon)
- * or supply an image (classIcon.<class>).
+ * A fighter's class shows as the weapon in its hand: a sword (fighter), a
+ * shield (tank), a dagger (thief), a bow (archer), a staff with a glowing orb
+ * (mage) or a holy cross (healer). It is held at the side the fighter faces
+ * and moves when the fighter strikes, shoots, casts or heals (FLAG.striking).
  */
-function drawClassBadge(cls, x, y, size) {
-  if (drawThemeImage(`classIcon.${cls}`, x - size, y - size, size * 2, size * 2)) return;
-  const theme = Theme.current;
-  const color = (theme.palette.classColors && theme.palette.classColors[cls]) || CLASS_COLORS[cls] || '#FFFFFF';
-  if (theme.art.classIcon) {
-    // `icon` draws the built-in icon around the origin, `u` being half its extent.
-    const icon = (u, iconColor) => drawClassIcon(cls, u, iconColor);
-    theme.art.classIcon(ctx, cls, x, y, size, { px: theme.pixelScale, color, icon });
-    return;
-  }
-  ctx.save();
-  const shine = ctx.createRadialGradient(x - size * 0.35, y - size * 0.4, size * 0.1, x, y, size);
-  shine.addColorStop(0, '#FFFFFF');
-  shine.addColorStop(0.35, color);
-  shine.addColorStop(1, color);
-  ctx.beginPath();
-  ctx.arc(x, y, size, 0, Math.PI * 2);
-  ctx.fillStyle = shine;
-  ctx.fill();
-  ctx.lineWidth = Math.max(1.5, size * 0.16);
-  ctx.strokeStyle = '#1A1E26';
-  ctx.stroke();
-  ctx.translate(x, y);
-  drawClassIcon(cls, size * 0.62, '#1A1E26');
-  ctx.restore();
+const WEAPON = { swingMs: 340 };
+
+/** Eases between two values: `from` at t = 0, `to` at t = 1. */
+function lerpEase(from, to, t) {
+  const x = Math.min(1, Math.max(0, t));
+  return from + (to - from) * (1 - Math.pow(1 - x, 3));
 }
 
-/** A class's icon around the origin, `u` being half its extent. */
-function drawClassIcon(cls, u, color) {
-  ctx.strokeStyle = color;
-  ctx.fillStyle = color;
-  ctx.lineWidth = Math.max(1.4, u * 0.28);
-  ctx.lineCap = 'round';
+/** Where a fighter faces and when it last struck, worked out from the frames: kept on the fighter. */
+function notePose(fighter, before, after, now) {
+  const pose = (fighter.pose ??= { face: 1, swingAt: -Infinity });
+  const dx = after[0] - before[0];
+  if (Math.abs(dx) > 0.8) pose.face = dx > 0 ? 1 : -1;
+  if (after[3] & FLAG.striking && !(before[3] & FLAG.striking)) pose.swingAt = now;
+}
+
+/** Fills and inks the current path in the theme's ink (or a dark line without one). */
+function inkedWeapon(fill, width) {
+  const ink = inkOf();
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.lineWidth = width;
+  ctx.strokeStyle = ink ? ink.color || '#0B0807' : '#1A1E26';
+  ctx.stroke();
+}
+
+function drawClassWeapon(fighter, x, y, r, flags) {
+  const cls = fighter.cls;
+  const pose = fighter.pose || { face: 1, swingAt: -Infinity };
+  const face = pose.face;
+  const since = performance.now() - pose.swingAt;
+  const p = since >= 0 && since < WEAPON.swingMs ? since / WEAPON.swingMs : -1;
+  const theme = Theme.current;
+  const accent = (theme.palette.classColors && theme.palette.classColors[cls]) || CLASS_COLORS[cls] || '#FFFFFF';
+  const line = Math.max(1.5, r * 0.07);
+  const t = r / 30;
+  // Never quite still: every fighter sways and bobs its weapon in its own rhythm.
+  const seed = impSeed(fighter.name || fighter.side) * 2.1;
+  const clock = performance.now();
+  const sway = Math.sin(clock / 420 + seed);
+  const bob = Math.sin(clock / 260 + seed * 1.7);
+  ctx.save();
   ctx.lineJoin = 'round';
-  ctx.beginPath();
+  ctx.lineCap = 'round';
+  // The hand: at the side the fighter faces, a little low.
+  const hx = x + face * r * 0.8;
+  const hy = y + r * 0.2 + bob * r * 0.05;
+  /** Turns the drawing to a weapon angle (0 = straight ahead, negative = up), mirrored when facing left. */
+  const aim = (angle, out = 0) => {
+    const world = face === 1 ? angle : Math.PI - angle;
+    ctx.translate(hx + Math.cos(world) * out, hy + Math.sin(world) * out);
+    ctx.rotate(world);
+  };
   if (cls === 'fighter') {
-    // A sword: a long blade, a crossguard and a pommel.
-    ctx.moveTo(-u * 0.75, u * 0.75);
-    ctx.lineTo(u * 0.95, -u * 0.95);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(-u * 0.85, u * 0.05);
-    ctx.lineTo(-u * 0.05, u * 0.85);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(-u * 0.82, u * 0.82, u * 0.17, 0, Math.PI * 2);
-    ctx.fill();
-  } else if (cls === 'tank') {
-    // A shield with a band across it.
-    ctx.moveTo(-u * 0.82, -u * 0.85);
-    ctx.lineTo(u * 0.82, -u * 0.85);
-    ctx.lineTo(u * 0.82, u * 0.05);
-    ctx.quadraticCurveTo(u * 0.6, u * 0.75, 0, u);
-    ctx.quadraticCurveTo(-u * 0.6, u * 0.75, -u * 0.82, u * 0.05);
-    ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = CLASS_COLORS.tank;
-    ctx.lineWidth = Math.max(1, u * 0.18);
-    ctx.beginPath();
-    ctx.moveTo(0, -u * 0.6);
-    ctx.lineTo(0, u * 0.6);
-    ctx.stroke();
-  } else if (cls === 'thief') {
-    // A hood with two eyes in its shadow.
-    ctx.moveTo(-u * 0.95, u * 0.95);
-    ctx.quadraticCurveTo(-u * 0.95, -u * 0.6, 0, -u);
-    ctx.quadraticCurveTo(u * 0.95, -u * 0.6, u * 0.95, u * 0.95);
-    ctx.closePath();
-    ctx.fill();
-    ctx.fillStyle = CLASS_COLORS.thief;
-    ctx.beginPath();
-    ctx.ellipse(-u * 0.32, u * 0.05, u * 0.17, u * 0.1, 0.3, 0, Math.PI * 2);
-    ctx.ellipse(u * 0.32, u * 0.05, u * 0.17, u * 0.1, -0.3, 0, Math.PI * 2);
-    ctx.fill();
-  } else if (cls === 'archer') {
-    // A bow drawn with an arrow on its string.
-    ctx.arc(-u * 0.55, 0, u * 1.05, -Math.PI / 2.7, Math.PI / 2.7);
-    ctx.stroke();
-    const tip = Math.PI / 2.7;
-    ctx.lineWidth = Math.max(1, u * 0.12);
-    ctx.beginPath();
-    ctx.moveTo(-u * 0.55 + u * 1.05 * Math.cos(tip), -u * 1.05 * Math.sin(tip));
-    ctx.lineTo(-u * 0.55, 0);
-    ctx.lineTo(-u * 0.55 + u * 1.05 * Math.cos(tip), u * 1.05 * Math.sin(tip));
-    ctx.stroke();
-    ctx.lineWidth = Math.max(1.2, u * 0.18);
-    ctx.beginPath();
-    ctx.moveTo(-u * 0.55, 0);
-    ctx.lineTo(u * 0.9, 0);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(u * 1.05, 0);
-    ctx.lineTo(u * 0.65, -u * 0.28);
-    ctx.lineTo(u * 0.65, u * 0.28);
-    ctx.closePath();
-    ctx.fill();
-  } else if (cls === 'mage') {
-    // A staff with a star at its head.
-    ctx.moveTo(-u * 0.8, u * 0.95);
-    ctx.lineTo(u * 0.2, -u * 0.1);
-    ctx.stroke();
-    ctx.beginPath();
-    for (let i = 0; i < 8; i++) {
-      const angle = (Math.PI / 4) * i - Math.PI / 2;
-      const length = i % 2 === 0 ? u * 0.62 : u * 0.22;
-      const px = u * 0.38 + Math.cos(angle) * length;
-      const py = -u * 0.38 + Math.sin(angle) * length;
-      if (i === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
+    // A sword, raised and swaying; on a blow it draws back, slashes down in front and comes back up.
+    const rest = -1.1 + sway * 0.15;
+    const angle = p < 0 ? rest : p < 0.2 ? lerpEase(rest, -1.8, p / 0.2) : p < 0.6 ? lerpEase(-1.8, 0.95, (p - 0.2) / 0.4) : lerpEase(0.95, rest, (p - 0.6) / 0.4);
+    const len = r * 1.25;
+    if (p >= 0.2 && p < 0.75) {
+      // The slash's smear.
+      const from = face === 1 ? -1.8 : Math.PI + 1.8;
+      const to = face === 1 ? angle : Math.PI - angle;
+      ctx.save();
+      ctx.globalAlpha *= 0.45 * (1 - Math.max(0, p - 0.55) / 0.2);
+      ctx.beginPath();
+      ctx.arc(hx, hy, len, from, to, face === -1);
+      ctx.arc(hx, hy, len * 0.45, to, from, face === 1);
+      ctx.closePath();
+      ctx.fillStyle = '#FFF4D6';
+      ctx.fill();
+      ctx.restore();
     }
-    ctx.closePath();
-    ctx.fill();
-  } else if (cls === 'healer') {
-    // A heart with a cross on it.
-    ctx.moveTo(0, u * 0.95);
-    ctx.bezierCurveTo(-u * 1.3, u * 0.05, -u * 0.75, -u * 1.05, 0, -u * 0.4);
-    ctx.bezierCurveTo(u * 0.75, -u * 1.05, u * 1.3, u * 0.05, 0, u * 0.95);
-    ctx.fill();
-    ctx.strokeStyle = CLASS_COLORS.healer;
-    ctx.lineWidth = Math.max(1, u * 0.2);
-    ctx.lineCap = 'butt';
+    aim(angle);
     ctx.beginPath();
-    ctx.moveTo(0, -u * 0.25);
-    ctx.lineTo(0, u * 0.45);
-    ctx.moveTo(-u * 0.35, u * 0.1);
-    ctx.lineTo(u * 0.35, u * 0.1);
+    ctx.rect(-r * 0.2, -2.5 * t, r * 0.22, 5 * t);
+    inkedWeapon('#6B4A2E', line);
+    ctx.beginPath();
+    ctx.rect(r * 0.02, -r * 0.2, 5 * t, r * 0.4);
+    inkedWeapon('#C9A44B', line);
+    ctx.beginPath();
+    ctx.moveTo(r * 0.1, -4 * t);
+    ctx.lineTo(len - 9 * t, -4 * t);
+    ctx.lineTo(len, 0);
+    ctx.lineTo(len - 9 * t, 4 * t);
+    ctx.lineTo(r * 0.1, 4 * t);
+    ctx.closePath();
+    inkedWeapon('#DDE2E8', line);
+  } else if (cls === 'thief') {
+    // A dagger held low, twitching; on a blow it pulls back and stabs forward.
+    const out = p < 0 ? 0 : p < 0.25 ? -(p / 0.25) * r * 0.2 : Math.sin(((p - 0.25) / 0.75) * Math.PI) * r * 0.75;
+    aim(0.35 + sway * 0.25 - (p >= 0.25 ? 0.3 * Math.sin(((p - 0.25) / 0.75) * Math.PI) : 0), out);
+    const len = r * 0.75;
+    ctx.beginPath();
+    ctx.rect(-r * 0.18, -2.5 * t, r * 0.2, 5 * t);
+    inkedWeapon('#3B2E4A', line);
+    ctx.beginPath();
+    ctx.moveTo(r * 0.02, -3.5 * t);
+    ctx.lineTo(len, 0);
+    ctx.lineTo(r * 0.02, 3.5 * t);
+    ctx.closePath();
+    inkedWeapon('#C8CDD6', line);
+  } else if (cls === 'tank') {
+    // A shield in front; it bashes out on a blow, and grows and glows while raised.
+    const raised = (flags & FLAG.shielded) !== 0;
+    // On a blow it draws back a little and bashes out.
+    const bash = p < 0 ? 0 : p < 0.25 ? -(p / 0.25) * r * 0.12 : Math.sin(((p - 0.25) / 0.75) * Math.PI) * r * 0.5;
+    const size = r * (raised ? 0.95 + 0.04 * Math.sin(clock / 120) : 0.75);
+    ctx.translate(x + face * (r * 0.75 + bash), y + r * 0.1 + bob * r * 0.04);
+    ctx.rotate(face * (sway * 0.06 + (p < 0 ? 0 : Math.sin(p * Math.PI) * 0.25)));
+    if (raised) {
+      ctx.shadowColor = 'rgba(255, 226, 122, 0.9)';
+      ctx.shadowBlur = r * 0.5;
+    }
+    ctx.beginPath();
+    ctx.moveTo(-size * 0.62, -size * 0.75);
+    ctx.lineTo(size * 0.62, -size * 0.75);
+    ctx.lineTo(size * 0.62, size * 0.05);
+    ctx.quadraticCurveTo(size * 0.45, size * 0.7, 0, size * 0.92);
+    ctx.quadraticCurveTo(-size * 0.45, size * 0.7, -size * 0.62, size * 0.05);
+    ctx.closePath();
+    inkedWeapon(accent, line);
+    ctx.shadowBlur = 0;
+    ctx.beginPath();
+    ctx.moveTo(0, -size * 0.55);
+    ctx.lineTo(0, size * 0.6);
+    ctx.moveTo(-size * 0.4, -size * 0.2);
+    ctx.lineTo(size * 0.4, -size * 0.2);
+    ctx.lineWidth = Math.max(1.5, size * 0.14);
+    ctx.strokeStyle = '#7A6040';
     ctx.stroke();
+  } else if (cls === 'archer') {
+    // A bow held out in front; the string is drawn back and let go on a shot.
+    aim(sway * 0.1 - (p >= 0 && p < 0.5 ? 0.12 * (p / 0.5) : 0));
+    const span = r * 0.85;
+    // Drawn back in the first half, then let go: the string snaps and quivers.
+    const pull = p < 0 ? 0 : p < 0.5 ? (p / 0.5) * r * 0.55 : Math.sin((p - 0.5) * 40) * r * 0.08 * (1 - (p - 0.5) * 2);
+    ctx.beginPath();
+    ctx.moveTo(0, -span);
+    ctx.quadraticCurveTo(r * 0.75, 0, 0, span);
+    ctx.lineWidth = Math.max(3, r * 0.14);
+    ctx.strokeStyle = inkOf() ? inkOf().color || '#0B0807' : '#1A1E26';
+    ctx.stroke();
+    ctx.lineWidth = Math.max(1.5, r * 0.08);
+    ctx.strokeStyle = '#8A6440';
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, -span);
+    ctx.lineTo(-pull, 0);
+    ctx.lineTo(0, span);
+    ctx.lineWidth = Math.max(1, r * 0.035);
+    ctx.strokeStyle = '#F3E6C8';
+    ctx.stroke();
+  } else if (cls === 'mage') {
+    // A staff with an orb in the class color; raised on a cast, the orb flaring.
+    aim(p < 0 ? -1.4 + sway * 0.1 : lerpEase(-1.4, -1.7, Math.sin(p * Math.PI)), p < 0 ? 0 : Math.sin(p * Math.PI) * r * 0.3);
+    const len = r * 1.7;
+    ctx.beginPath();
+    ctx.rect(-r * 0.35, -2.5 * t, len, 5 * t);
+    inkedWeapon('#6B4A2E', line);
+    // The orb pulses gently, and flares on a cast.
+    const flare = p < 0 ? 0.08 + 0.08 * Math.sin(clock / 180 + seed) : Math.sin(p * Math.PI);
+    const glow = ctx.createRadialGradient(len - r * 0.3, 0, 0, len - r * 0.3, 0, r * (0.45 + flare * 0.5));
+    glow.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
+    glow.addColorStop(0.4, accent);
+    glow.addColorStop(1, 'rgba(130, 195, 242, 0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(len - r * 0.3, 0, r * (0.45 + flare * 0.5), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(len - r * 0.3, 0, r * 0.2, 0, Math.PI * 2);
+    inkedWeapon(accent, line);
+  } else if (cls === 'healer') {
+    // A holy cross on a short staff; it shines while healing.
+    aim(p < 0 ? -1.3 + sway * 0.1 : lerpEase(-1.3, -1.6, Math.sin(p * Math.PI)), p < 0 ? 0 : Math.sin(p * Math.PI) * r * 0.25);
+    const len = r * 1.35;
+    ctx.beginPath();
+    ctx.rect(-r * 0.3, -2.5 * t, len, 5 * t);
+    inkedWeapon('#C9A44B', line);
+    const shine = p < 0 ? 0 : Math.sin(p * Math.PI);
+    ctx.translate(len, 0);
+    if (shine > 0) {
+      const halo = ctx.createRadialGradient(0, 0, 0, 0, 0, r * (0.5 + shine * 0.5));
+      halo.addColorStop(0, 'rgba(255, 250, 210, 0.95)');
+      halo.addColorStop(1, 'rgba(242, 222, 128, 0)');
+      ctx.fillStyle = halo;
+      ctx.beginPath();
+      ctx.arc(0, 0, r * (0.5 + shine * 0.5), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // The cross: its long arm along the staff.
+    const arm = r * 0.16;
+    ctx.beginPath();
+    ctx.moveTo(-arm * 0.5, -arm * 0.5);
+    ctx.lineTo(-arm * 0.5, -arm * 1.6);
+    ctx.lineTo(arm * 0.5, -arm * 1.6);
+    ctx.lineTo(arm * 0.5, -arm * 0.5);
+    ctx.lineTo(arm * 2.4, -arm * 0.5);
+    ctx.lineTo(arm * 2.4, arm * 0.5);
+    ctx.lineTo(arm * 0.5, arm * 0.5);
+    ctx.lineTo(arm * 0.5, arm * 1.6);
+    ctx.lineTo(-arm * 0.5, arm * 1.6);
+    ctx.lineTo(-arm * 0.5, arm * 0.5);
+    ctx.lineTo(-arm * 1.2, arm * 0.5);
+    ctx.lineTo(-arm * 1.2, -arm * 0.5);
+    ctx.closePath();
+    inkedWeapon(accent, line);
   }
+  ctx.restore();
 }
 
 /**
@@ -2768,13 +2883,13 @@ function drawFighter(fighter, x, y, health, flags, alpha, squash) {
   // An uploaded picture (the god's) comes before the emote.
   const picture = fighter.image ? loadImage(fighter.image) : null;
   const emote = picture ? null : emoteImage(fighter.emote);
-  const squashed = squash && squash.stretch > 1.01;
+  const squashed = squash && (Math.abs(squash.stretch - 1) > 0.01 || squash.turn);
   if (squashed) {
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(squash.angle);
     ctx.scale(squash.stretch, 1 / squash.stretch);
-    ctx.rotate(-squash.angle);
+    ctx.rotate(-squash.angle + (squash.turn || 0));
     ctx.translate(-x, -y);
   }
   const ink = inkOf();
@@ -2926,7 +3041,7 @@ function drawFighter(fighter, x, y, health, flags, alpha, squash) {
     ctx.strokeStyle = (state && state.god && state.god.color) || '#FFD54A';
     ctx.stroke();
     ctx.restore();
-    if (fighter.cls) drawClassBadge(fighter.cls, x + r * 0.72, y + r * 0.72, Math.max(9, r * 0.42));
+    if (fighter.cls) drawClassWeapon(fighter, x, y, r, flags);
     ctx.globalAlpha = 1;
     return;
   }
@@ -2942,7 +3057,7 @@ function drawFighter(fighter, x, y, health, flags, alpha, squash) {
   // A chatter leading the streamer's imps flies a banner at the start of their name, so viewers can follow them.
   if (fighter.leader) drawLeaderBanner(nameWidth > 0 ? x - nameWidth / 2 - 6 : x, y - r - (nameWidth > 0 ? 16 : 14), guildColor);
   if (fighter.crown) drawCrown(x, y - r - 36);
-  if (fighter.cls) drawClassBadge(fighter.cls, x + r * 0.72, y + r * 0.72, Math.max(9, r * 0.42));
+  if (fighter.cls) drawClassWeapon(fighter, x, y, r, flags);
   ctx.globalAlpha = 1;
 }
 
@@ -2998,6 +3113,9 @@ const FLAG = {
   benched: 128,
   hidden: 256,
   jumped: 512,
+  tumbling: 1024,
+  charging: 2048,
+  striking: 4096,
 };
 // --- Highlights: noteworthy deaths beside the scoreboard ------------------------
 
@@ -3247,7 +3365,7 @@ function drawMageRune(caster, x, y, radius, p, now, color) {
   } else {
     drawBuiltInRune(x, y, radius, p, now, color);
   }
-  drawMageOrb(caster, x, y, p, color);
+  // The spell ball flies over the fighters: see drawTopEffects.
 }
 
 /** The built-in circle of runes. */
@@ -3301,32 +3419,72 @@ function drawBuiltInRune(x, y, radius, p, now, color) {
   ctx.restore();
 }
 
-/** The orb, in the first part of the warning, flying from the mage to the spot with a short tail. */
+/**
+ * The spell ball: in the first part of the warning it flies from the tip of
+ * the mage's staff to the spot on a high arc, glowing in the mage's color with
+ * a sparkling tail, over the fighters so a crowd never hides it, and lands in
+ * a flash where the circle of runes appears.
+ */
+const SPELL_BALL = { flight: 0.45, lift: 90, flash: 0.15 };
+
 function drawMageOrb(caster, x, y, p, color) {
-  if (caster && p < 0.45) {
-    const t = p / 0.45;
-    const ox = caster.x + (x - caster.x) * t;
-    const oy = caster.y + (y - caster.y) * t - Math.sin(Math.PI * t) * 60;
-    ctx.save();
-    for (let k = 4; k >= 0; k--) {
-      const back = Math.max(0, t - k * 0.04);
-      const tx = caster.x + (x - caster.x) * back;
-      const ty = caster.y + (y - caster.y) * back - Math.sin(Math.PI * back) * 60;
-      ctx.globalAlpha = 0.18 * (5 - k);
-      circle(tx, ty, 9 - k);
+  if (!caster) return;
+  const r = caster.r;
+  const face = (caster.fighter.pose && caster.fighter.pose.face) || 1;
+  // From the staff's tip, raised for the cast.
+  const sx = caster.x + face * r * 0.8;
+  const sy = caster.y - r * 1.25;
+  const at = (t) => ({ x: sx + (x - sx) * t, y: sy + (y - sy) * t - Math.sin(Math.PI * t) * SPELL_BALL.lift });
+  ctx.save();
+  if (p < SPELL_BALL.flight) {
+    const t = p / SPELL_BALL.flight;
+    // The tail: fading sparks behind the ball.
+    for (let k = 8; k >= 1; k--) {
+      const back = Math.max(0, t - k * 0.035);
+      const ghost = at(back);
+      ctx.globalAlpha = 0.5 * (1 - k / 9);
+      circle(ghost.x + Math.sin(k * 2.3 + t * 9) * 3, ghost.y + Math.cos(k * 1.7 + t * 9) * 3, Math.max(2, r * 0.32 * (1 - k / 10)));
       ctx.fillStyle = color;
       ctx.fill();
     }
     ctx.globalAlpha = 1;
-    const core = ctx.createRadialGradient(ox, oy, 0, ox, oy, 13);
+    const ball = at(t);
+    const size = Math.max(12, r * 0.45);
+    const halo = ctx.createRadialGradient(ball.x, ball.y, 0, ball.x, ball.y, size * 2.2);
+    halo.addColorStop(0, 'rgba(255, 255, 255, 0.85)');
+    halo.addColorStop(0.35, color);
+    halo.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    circle(ball.x, ball.y, size * 2.2);
+    ctx.fillStyle = halo;
+    ctx.fill();
+    circle(ball.x, ball.y, size);
+    const core = ctx.createRadialGradient(ball.x - size * 0.3, ball.y - size * 0.3, 0, ball.x, ball.y, size);
     core.addColorStop(0, '#FFFFFF');
-    core.addColorStop(0.5, color);
-    core.addColorStop(1, 'rgba(0, 0, 0, 0)');
-    circle(ox, oy, 13);
+    core.addColorStop(1, color);
     ctx.fillStyle = core;
     ctx.fill();
-    ctx.restore();
+    const ink = inkOf();
+    if (ink) {
+      ctx.lineWidth = Math.max(2, ink.width ?? 3);
+      ctx.strokeStyle = ink.color || '#0B0807';
+      ctx.stroke();
+    }
+  } else if (p < SPELL_BALL.flight + SPELL_BALL.flash) {
+    // Landing: a flash and a ring that spreads to the circle's edge.
+    const q = (p - SPELL_BALL.flight) / SPELL_BALL.flash;
+    ctx.globalAlpha = 1 - q;
+    const flash = ctx.createRadialGradient(x, y, 0, x, y, r * (0.6 + q));
+    flash.addColorStop(0, '#FFFFFF');
+    flash.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    circle(x, y, r * (0.6 + q));
+    ctx.fillStyle = flash;
+    ctx.fill();
+    circle(x, y, r * (0.4 + q * 1.4));
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = color;
+    ctx.stroke();
   }
+  ctx.restore();
 }
 
 /** A mage's blast going off: a flash, two rings and sparks flying out. */
@@ -3704,6 +3862,35 @@ function drawGroundEffects(now, at) {
 
 /** Effects drawn over the fighters: lightning, target marks, and the skill's name. */
 function drawTopEffects(now, at) {
+  // Mages' spell balls, flying over the crowd to where the blast will go off.
+  for (const e of battle.effects) {
+    if (e.k !== 'fx' || e.fx !== 'blast-warn') continue;
+    const caster = at[e.i];
+    if (!caster) continue;
+    const color = battle.sideColors[caster.fighter.side] || '#FFFFFF';
+    drawMageOrb(caster, e.x * battle.scale, e.y * battle.scale, Math.min(1, (now - e.start) / effectLife(e)), color);
+  }
+  // The first blow of the battle, and a leader's rally cry.
+  for (const e of battle.effects) {
+    if (e.k !== 'fx' || (e.fx !== 'clash' && e.fx !== 'rally')) continue;
+    const age = now - e.start;
+    if (e.fx === 'clash') {
+      if (age < 900) drawBrawlBurst(e.x * battle.scale, e.y * battle.scale, 52, tr('overlay.battle.clash'), '#E5533D', age / 900);
+      continue;
+    }
+    const leader = at[e.i];
+    if (!leader || age > 1100) continue;
+    // A ring of the side's colour spreads from the leader over the allies it calls, under a "CHARGE!".
+    const p = Math.min(1, age / 500);
+    ctx.save();
+    ctx.globalAlpha *= 1 - Math.max(0, (age - 500) / 600);
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = battle.sideColors[leader.fighter.side] || '#FFD54A';
+    circle(leader.x, leader.y, (e.r || 100) * battle.scale * easeOutBack(p));
+    ctx.stroke();
+    ctx.restore();
+    drawBrawlBurst(leader.x, leader.y - leader.r - 34, 30, tr('overlay.battle.rally'), '#3A8FD9', age / 1100);
+  }
   // Class effects that fly over the fighters: arrows and heals.
   for (const e of battle.effects) {
     if (e.k !== 'fx' || (e.fx !== 'arrow' && e.fx !== 'heal')) continue;
@@ -4059,12 +4246,50 @@ function ballAt(layout, drop, t) {
   const from = point(step);
   const to = point(step + 1);
   // Across in a straight line, down under gravity, with a little hop off each pin.
-  const bounce = step === 0 ? 0 : Math.sin(Math.PI * f) * 22;
-  return { x: from.x + (to.x - from.x) * f, y: from.y + (to.y - from.y) * f * f - bounce, landed: false };
+  // A jelly ball bounces higher and jiggles from side to side after every pin.
+  const bounce = step === 0 ? 0 : Math.sin(Math.PI * f) * (drop.jelly ? JELLY_BALL.bounce : 22);
+  const jiggle = drop.jelly && step > 0 ? Math.sin(f * Math.PI * JELLY_BALL.jiggles) * (1 - f) * JELLY_BALL.jiggle : 0;
+  return { x: from.x + (to.x - from.x) * f + jiggle, y: from.y + (to.y - from.y) * f * f - bounce, landed: false, f, step };
 }
 
-/** One ball: the chatter's emote in a ring of the guild's color. */
-function drawBall(x, y, drop, color) {
+/**
+ * A jelly ball (now and then one is, see config.pachinko.jellyChance): it
+ * bounces higher, jiggles sideways after each pin, splats flat on every pin
+ * and wobbles back, and its outline ripples. Looks only.
+ */
+const JELLY_BALL = { bounce: 40, jiggle: 11, jiggles: 4, splat: 0.42, ripple: 0.11, rest: 0.05 };
+
+/** How squashed a jelly ball is (positive: flattened) and how much its outline ripples, `f` of the way from one pin to the next. */
+function jellyBallShape(ball, now) {
+  if (ball.landed || ball.step === 0) return { squash: Math.sin(now / 260) * JELLY_BALL.rest, ripple: JELLY_BALL.rest, phase: now / 120 };
+  const fade = Math.exp(-ball.f * 5);
+  return {
+    squash: JELLY_BALL.splat * fade * Math.cos(ball.f * 24),
+    ripple: JELLY_BALL.ripple * (0.35 + fade),
+    phase: now / 60 + ball.step * 1.7,
+  };
+}
+
+/** One ball: the chatter's emote in a ring of the guild's color. A jelly ball is squashed and its outline ripples (`jelly`). */
+function drawBall(x, y, drop, color, jelly = null) {
+  if (jelly) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(1 + jelly.squash, 1 - jelly.squash);
+    ctx.translate(-x, -y);
+  }
+  // The ball's outline: round, or rippling for a jelly ball.
+  const circle = (cx, cy, radius) => {
+    if (!jelly) return window.circle(cx, cy, radius);
+    ctx.beginPath();
+    for (let k = 0; k <= 36; k++) {
+      const a = (k / 36) * Math.PI * 2;
+      const rr = radius * (1 + jelly.ripple * Math.sin(a * 5 + jelly.phase) * 0.6 + jelly.ripple * 0.4 * Math.sin(a * 3 - jelly.phase * 1.3));
+      if (k === 0) ctx.moveTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr);
+      else ctx.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr);
+    }
+    ctx.closePath();
+  };
   circle(x + 3, y + 4, BALL_RADIUS);
   ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
   ctx.fill();
@@ -4095,6 +4320,18 @@ function drawBall(x, y, drop, color) {
   ctx.lineWidth = 4;
   ctx.strokeStyle = color;
   ctx.stroke();
+  if (jelly) {
+    // Glossy and see-through at the edge: it is jelly.
+    circle(x, y, BALL_RADIUS - 3);
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(160, 255, 170, 0.55)';
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+    ctx.beginPath();
+    ctx.ellipse(x - BALL_RADIUS * 0.38, y - BALL_RADIUS * 0.42, BALL_RADIUS * 0.3, BALL_RADIUS * 0.15, -0.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
 }
 
 /**
@@ -4688,7 +4925,7 @@ function drawBoards(elapsed) {
         ctx.save();
         ctx.translate(ball.x, ball.y - hop);
         ctx.scale(0.8, 0.8);
-        drawBall(0, 0, drop, board.color);
+        drawBall(0, 0, drop, board.color, drop.jelly ? jellyBallShape(ball, performance.now()) : null);
         ctx.restore();
       } else {
         // A short trail behind a falling ball, in its guild's color.
@@ -4702,7 +4939,7 @@ function drawBoards(elapsed) {
           ctx.fill();
           ctx.globalAlpha = 1;
         }
-        drawBall(ball.x, ball.y, drop, board.color);
+        drawBall(ball.x, ball.y, drop, board.color, drop.jelly ? jellyBallShape(ball, performance.now()) : null);
       }
       // The ball's name, once it is below the players' list (the list marks it until then).
       const labelY = ball.y - BALL_RADIUS - 10;
@@ -4712,7 +4949,7 @@ function drawBoards(elapsed) {
         ctx.globalAlpha = Math.min(1, clear);
         ctx.font = `600 13px ${FONT}`;
         ctx.fillStyle = '#FFFFFF';
-        outlinedText(drop.name, ball.x, labelY, 140);
+        outlinedText(drop.jelly ? tr('overlay.pachinko.jellyName', { name: drop.name }) : drop.name, ball.x, labelY, 160);
         ctx.restore();
       }
       // Points rise from the slot as the ball lands; a jackpot bursts into sparks.
@@ -5084,6 +5321,142 @@ function drawBigHits(now) {
   }
 }
 
+/**
+ * Fighters are jelly: a blow squashes the body along the way it is shoved and
+ * it wobbles back (a damped spring); running fast stretches it a little; a
+ * heavy blow sends it tumbling round. Looks only; the server decides nothing here.
+ */
+const JELLY = { hit: 4, spring: 320, damping: 10, max: 0.26, run: 1 / 9000, runMax: 0.12, tumble: 16 };
+
+function jellySquash(index, dx, dy, ms, flags) {
+  const jelly = battle.jelly && battle.jelly[index];
+  if (!jelly) return null;
+  const speed = (Math.hypot(dx, dy) * 1000) / ms;
+  if (Math.abs(jelly.s) > 0.01) return { angle: jelly.angle, stretch: 1 + jelly.s, turn: jelly.turn };
+  // A big body (the god) barely stretches when it runs.
+  const run = Math.min(JELLY.runMax, speed * JELLY.run) * Math.min(1, (battle.typicalRadius / battle.fighters[index].radius) ** 2);
+  if (run < 0.01 && !jelly.turn) return null;
+  return { angle: Math.atan2(dy, dx), stretch: 1 + run, turn: jelly.turn };
+}
+
+/** Moves every body's wobble and tumble on, and leaves dust behind fighters that charge. */
+function advanceJelly(now, drawn) {
+  let elapsed = Math.min(0.1, (now - battle.jellyAt) / 1000);
+  battle.jellyAt = now;
+  const tumbling = new Set(drawn.filter((d) => d.health > 0 && d.flags & FLAG.tumbling).map((d) => d.index));
+  while (elapsed > 0) {
+    const dt = Math.min(1 / 120, elapsed);
+    elapsed -= dt;
+    battle.jelly.forEach((jelly, i) => {
+      jelly.sv += (-JELLY.spring * jelly.s - JELLY.damping * jelly.sv) * dt;
+      jelly.s = Math.max(-JELLY.max, Math.min(JELLY.max, jelly.s + jelly.sv * dt));
+      if (tumbling.has(i)) jelly.turn += JELLY.tumble * dt;
+      else if (jelly.turn) {
+        // It rolls on to upright, the way it was turning.
+        const left = Math.PI * 2 * Math.ceil(jelly.turn / (Math.PI * 2) - 1e-6) - jelly.turn;
+        jelly.turn = left < 0.05 ? 0 : jelly.turn + Math.min(left, JELLY.tumble * 0.6 * dt);
+      }
+    });
+  }
+  for (const d of drawn) {
+    if (d.health <= 0 || !(d.flags & FLAG.charging) || now - (battle.dustAt[d.index] || 0) < 70) continue;
+    const dx = d.x - d.fromX;
+    const dy = d.y - d.fromY;
+    const length = Math.hypot(dx, dy);
+    if (length < 1) continue;
+    battle.dustAt[d.index] = now;
+    battle.dust.push({ x: d.x - (dx / length) * d.r * 0.7, y: d.y + d.r * 0.55, r: d.r * 0.35, start: now, drift: Math.random() - 0.5 });
+  }
+  battle.dust = battle.dust.filter((p) => now - p.start < 500);
+  battle.chips = battle.chips.filter((c) => now - c.start < CHIPS.lifeMs);
+}
+
+function drawDust(now) {
+  for (const p of battle.dust) {
+    const t = (now - p.start) / 500;
+    ctx.save();
+    ctx.globalAlpha *= 0.4 * (1 - t);
+    ctx.fillStyle = '#C9B89A';
+    circle(p.x + p.drift * 12 * t, p.y - 6 * t, p.r * (1 + 1.6 * t));
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+/** A fallen fighter bursts into pieces of its emote that fly apart, spin, slow down and fade. */
+const CHIPS = { parts: 6, lifeMs: 950, speed: [160, 360], friction: 3.2 };
+
+function shatterFighter(index, x, y, away, now) {
+  const fighter = battle.fighters[index];
+  const r = fighter.radius * battle.scale;
+  const start = Math.random() * Math.PI * 2;
+  for (let p = 0; p < CHIPS.parts; p++) {
+    const a0 = start + (p / CHIPS.parts) * Math.PI * 2;
+    const a1 = start + ((p + 1) / CHIPS.parts) * Math.PI * 2;
+    // A wedge with a jagged outer edge, in units of the radius, around its own middle.
+    const poly = [[0, 0]];
+    for (let k = 0; k <= 5; k++) {
+      const a = a0 + ((a1 - a0) * k) / 5;
+      const rr = 0.86 + Math.random() * 0.14;
+      poly.push([Math.cos(a) * rr, Math.sin(a) * rr]);
+    }
+    const mid = (a0 + a1) / 2;
+    const cx = Math.cos(mid) * 0.45;
+    const cy = Math.sin(mid) * 0.45;
+    const speed = CHIPS.speed[0] + Math.random() * (CHIPS.speed[1] - CHIPS.speed[0]);
+    // Outward, and a little along the way the last blow sent it.
+    const vx = Math.cos(mid) * speed + (Number.isFinite(away) ? Math.cos(away) * 120 : 0);
+    const vy = Math.sin(mid) * speed + (Number.isFinite(away) ? Math.sin(away) * 120 : 0);
+    battle.chips.push({ fighter, r, poly: poly.map(([px, py]) => [px - cx, py - cy]), ox: cx, oy: cy, x: x + cx * r, y: y + cy * r, vx, vy, rot: 0, spin: (Math.random() - 0.5) * 14, start: now, at: now });
+  }
+}
+
+function drawChips(now) {
+  const ink = inkOf();
+  for (const c of battle.chips) {
+    const dt = Math.min(0.1, (now - c.at) / 1000);
+    c.at = now;
+    const slow = Math.exp(-CHIPS.friction * dt);
+    c.vx *= slow;
+    c.vy *= slow;
+    c.x += c.vx * dt;
+    c.y += c.vy * dt;
+    c.rot += c.spin * dt;
+    const t = (now - c.start) / CHIPS.lifeMs;
+    ctx.save();
+    ctx.globalAlpha *= t > 0.6 ? (1 - t) / 0.4 : 1;
+    ctx.translate(c.x, c.y);
+    ctx.rotate(c.rot);
+    ctx.scale(c.r, c.r);
+    const path = (grow) => {
+      ctx.beginPath();
+      c.poly.forEach(([px, py], k) => {
+        const g = 1 + grow / Math.max(0.1, Math.hypot(px, py) + 0.2);
+        if (k === 0) ctx.moveTo(px * g, py * g);
+        else ctx.lineTo(px * g, py * g);
+      });
+      ctx.closePath();
+    };
+    path(ink ? 0.1 : 0.05);
+    ctx.fillStyle = ink ? ink.color || '#0B0807' : 'rgba(0, 0, 0, 0.55)';
+    ctx.fill();
+    path(0);
+    ctx.fillStyle = '#1A1714';
+    ctx.fill();
+    ctx.save();
+    ctx.clip();
+    const picture = c.fighter.image ? loadImage(c.fighter.image) : null;
+    const image = picture || emoteImage(c.fighter.emote);
+    if (image) ctx.drawImage(image, -c.ox - 0.95, -c.oy - 0.95, 1.9, 1.9);
+    else {
+      ctx.fillStyle = c.fighter.color || battle.sideColors[c.fighter.side] || '#FFFFFF';
+      ctx.fillRect(-2, -2, 4, 4);
+    }
+    ctx.restore();
+    ctx.restore();
+  }
+}
+
 /** The squash of a fighter that moved `dx`, `dy` pixels in `ms` milliseconds; null when it barely moves. */
 function squashFor(dx, dy, ms) {
   const speed = (Math.hypot(dx, dy) * 1000) / ms;
@@ -5122,7 +5495,10 @@ function renderBattle(now) {
       fromX: x1 * battle.scale,
       fromY: y1 * battle.scale,
       // Thrown through the air: squashed along the flight, by how fast it goes between the two frames.
-      squash: flags & FLAG.flying && !jumped ? squashFor((x2 - x1) * battle.scale, (y2 - y1) * battle.scale, interval) : null,
+      // On foot: the jelly's wobble, stretched a little when it runs fast, and turning while it tumbles.
+      squash: flags & FLAG.flying && !jumped
+        ? squashFor((x2 - x1) * battle.scale, (y2 - y1) * battle.scale, interval)
+        : jellySquash(i, (x2 - x1) * battle.scale, (y2 - y1) * battle.scale, interval, flags),
       r: fighter.radius * battle.scale,
       health,
       flags,
@@ -5157,7 +5533,9 @@ function renderBattle(now) {
     const strength = shake.power * (1 - (now - shake.start) / shake.ms);
     ctx.translate(Math.sin(now / 13) * strength, Math.cos(now / 17) * strength);
   }
+  advanceJelly(now, drawn);
   drawGroundEffects(now, at);
+  drawDust(now);
   drawDoubleFlashes(sinceShown, at);
   ctx.save();
   ctx.globalAlpha = Math.min(1, shown / BATTLE_IN.obstaclesMs) * (1 - leaving);
@@ -5168,6 +5546,8 @@ function renderBattle(now) {
 
   for (const d of drawn) {
     if (d.health > 0) continue;
+    // A fallen chatter bursts into pieces instead (see shatterFighter); minions and imps fade.
+    if (!d.fighter.minion && !d.fighter.imp) continue;
     const since = now - battle.diedAt[d.index];
     if (battle.diedAt[d.index] && since < DEATH_FADE_MS) {
       drawFighter(d.fighter, d.x, d.y, 0, 0, 0.6 * (1 - since / DEATH_FADE_MS));
@@ -5210,6 +5590,7 @@ function renderBattle(now) {
     if (d.x - d.r < 0) drawFighter(d.fighter, d.x + canvas.width, d.y, d.health, d.flags, 1);
     else if (d.x + d.r > canvas.width) drawFighter(d.fighter, d.x - canvas.width, d.y, d.health, d.flags, 1);
   }
+  drawChips(now);
   drawTopEffects(now, at);
   drawBigHits(performance.now());
   ctx.restore();

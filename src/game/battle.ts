@@ -235,6 +235,34 @@ interface Maneuver {
   hit: Set<Fighter>;
 }
 
+/** How a fighter moves (see `config.motion`): made the first time it moves. */
+interface Motion {
+  /** Its own speed, which follows where it wants to go (`want`) a little late, so it slides and overshoots. */
+  vx: number;
+  vy: number;
+  wantX: number;
+  wantY: number;
+  /** A shove from a blow, dying down by itself. */
+  kvx: number;
+  kvy: number;
+  /** Which side it curves to on the way in (-1 to 1), and which way it circles its target (-1 or 1). */
+  flank: number;
+  orbit: number;
+  stepBackUntil: number;
+  chargeUntil: number;
+  chargeSpeed: number;
+  nextChargeAt: number;
+  tumbleUntil: number;
+  /** When it last struck, shot, cast or healed, for the overlay's weapon swing. */
+  struckAt: number;
+  /** The enemy it goes for until `focusUntil` (see `config.motion.focus`), and a sidestep's direction until `wanderUntil`. */
+  focus: Fighter | null;
+  focusUntil: number;
+  wanderUntil: number;
+  wanderX: number;
+  wanderY: number;
+}
+
 interface SkillState {
   nextCastAt: number;
   /** When the god's next move between skills may start (see `config.god.moves`). */
@@ -273,6 +301,8 @@ export interface Fighter extends FighterSpec {
   maneuver: Maneuver | null;
   /** Breaking out of a crowd (`config.roam`): where it stood at the last check, and the far enemy it goes for, if any. */
   roam: Roam | null;
+  /** How it moves: momentum, shoves, charges. Made the first time it moves. */
+  motion?: Motion;
   /** Battle time of the latest jump (a blink, or crossing the screen's edge): the overlay does not slide across it. */
   jumpedAt: number;
   /** Battle time until which the fighter moves slowly, or cannot be hurt. */
@@ -320,6 +350,12 @@ export const FLAG = {
   hidden: 256,
   /** The fighter jumped (the god's blink, or its run across the screen's edge): show it there at once. */
   jumped: 512,
+  /** Sent tumbling by a heavy blow. */
+  tumbling: 1024,
+  /** Charging: the opening charge, a charge from afar, or a rally. */
+  charging: 2048,
+  /** It just struck, shot, cast or healed: the overlay swings its weapon. */
+  striking: 4096,
 } as const;
 
 /** One fighter in a frame: x, y, health as a share from 0 to 1 (0 = dead or not summoned), flags. */
@@ -528,6 +564,11 @@ export class Battle {
   private lastHighlightAt = 0;
   /** Varies each throw (see `config.flight`); its own, so the other draws of a battle stay as they were. */
   private readonly flightRng: Rng;
+  /** For how fighters move (see `config.motion`): separate, so these rolls leave the others as they were. */
+  private readonly motionRng: Rng;
+  /** Whether the first blow of the battle fell yet (the "CLASH!"), and when the next rally is. */
+  private clashed = false;
+  private nextRallyAt: number = config.motion.rally.firstMs;
   private readonly timeLimitWinner: string | null;
   private readonly field: { perSide?: number; total?: number } | null;
   private readonly endless: boolean;
@@ -560,6 +601,7 @@ export class Battle {
     this.moveRng = createRng((setup.seed ^ 0x27d4eb2f) >>> 0);
     this.roamRng = createRng((setup.seed ^ 0x6a09e667) >>> 0);
     this.flightRng = createRng((setup.seed ^ 0x3c6ef372) >>> 0);
+    this.motionRng = createRng((setup.seed ^ 0x510e527f) >>> 0);
     this.rng = rng;
     this.unit = fighterRadius;
     this.timeLimitWinner = setup.timeLimitWinner ?? null;
@@ -992,10 +1034,13 @@ export class Battle {
         const reach = blast.r + fighter.radius * 0.5;
         if ((fighter.x - blast.x) ** 2 + (fighter.y - blast.y) ** 2 > reach * reach) continue;
         this.hurt(blast.owner, fighter, config.classes.mage.blastDamage, now, 'blast');
+        this.shove(blast, fighter, 'blast', now);
       }
       this.fx('blast', blast.owner, { x: blast.x, y: blast.y, r: blast.r, ms: 350 });
     }
     this.blasts = this.blasts.filter((blast) => blast.at > now);
+
+    if (now >= this.nextRallyAt) this.rally(now, alive);
 
     // Every fighter decides from the positions at the start of the step, so
     // the order in which fighters are processed gives no side an advantage.
@@ -1066,13 +1111,29 @@ export class Battle {
       }
       // The god strikes whoever is in reach; a tank does not draw it away from them.
       const chosen = fighter.class === 'thief' ? (prey ?? target) : fighter.holdsCenter ? target : (tank ?? target);
-      return chosen ? planFor(chosen, false) : null;
+      // A taunting tank or a thief's prey keeps its pull; only the plain nearest is picked again now and then.
+      return chosen ? planFor(chosen === target ? this.focusOn(fighter, chosen, alive, now) : chosen, false) : null;
     });
     const startPositions = alive.map((f) => ({ x: f.x, y: f.y }));
 
     /** A blow against the planned target and, for a sweeping blow, everyone near it. */
     const strike = (fighter: Fighter, plan: { target: Fighter; tx: number; ty: number }): void => {
       attacks.push([fighter, plan.target]);
+      this.motionOf(fighter).struckAt = now;
+      // The attacker lunges into its blow.
+      const toX = plan.tx - fighter.x;
+      const toY = plan.ty - fighter.y;
+      const length = Math.hypot(toX, toY);
+      if (length > 1e-6 && !fighter.holdsCenter) {
+        const m = this.motionOf(fighter);
+        m.vx += (toX / length) * config.motion.lunge * this.unit;
+        m.vy += (toY / length) * config.motion.lunge * this.unit;
+      }
+      // The first blow of the battle, while the fronts meet: a clash.
+      if (!this.clashed && now < config.motion.opening.clashWithinMs) {
+        this.clashed = true;
+        this.fx('clash', fighter, { x: (fighter.x + plan.tx) / 2, y: (fighter.y + plan.ty) / 2, ms: 900 });
+      }
       if (fighter.splashRadius) {
         alive.forEach((other, otherIndex) => {
           if (other === plan.target || other.team === fighter.team) return;
@@ -1087,9 +1148,13 @@ export class Battle {
     };
 
     // Each fighter walks toward the nearest enemy and strikes on contact.
+    const motion = config.motion;
     alive.forEach((fighter, index) => {
       fighter.cooldownMs = Math.max(0, fighter.cooldownMs - dt * 1000);
       const plan = plans[index];
+      const m = this.motionOf(fighter);
+      m.wantX = 0;
+      m.wantY = 0;
       if (isBusy(fighter)) return;
       if (fighter.holdsCenter) {
         // It does not chase: it drifts around the middle and strikes whoever is within reach.
@@ -1110,14 +1175,40 @@ export class Battle {
         return;
       }
       if (!plan) return;
-      let speed = fighter.speed;
+      // From afar now and then a short charge.
+      if (plan.distance > this.unit * motion.charge.far && now >= m.nextChargeAt && !plan.heal) {
+        m.chargeUntil = now + motion.charge.ms;
+        m.chargeSpeed = motion.charge.speed;
+        m.nextChargeAt = now + between(this.motionRng, motion.charge.everyMs);
+      }
+      let speed = fighter.speed * this.pace(fighter, now);
       if (fighter.slowUntil > now) speed *= config.skills.shockwave.slow;
       if (fighter.enraged) speed *= config.skills.enrage.speed;
-      /** Walks toward the planned target by a distance; a negative distance backs away. */
+      const toX = plan.distance > 1e-6 ? (plan.tx - fighter.x) / plan.distance : 0;
+      const toY = plan.distance > 1e-6 ? (plan.ty - fighter.y) / plan.distance : 0;
+      /**
+       * Walks toward the planned target by a distance this step (a negative
+       * distance backs away): where it wants to go, which its own speed follows.
+       * On the way in it curves to its side, straightening out as it arrives.
+       */
       const walk = (amount: number): void => {
         if (plan.distance < 1e-6) return;
-        fighter.x += ((plan.tx - fighter.x) / plan.distance) * amount;
-        fighter.y += ((plan.ty - fighter.y) / plan.distance) * amount;
+        let dx = toX;
+        let dy = toY;
+        if (amount > 0) {
+          const gap = plan.distance - fighter.radius - plan.target.radius;
+          const bend = m.flank * motion.curve * clamp(gap / (this.unit * motion.curveFar), 0, 1);
+          const c = Math.cos(bend);
+          const sn = Math.sin(bend);
+          [dx, dy] = [dx * c - dy * sn, dx * sn + dy * c];
+        }
+        m.wantX += (dx * amount) / dt;
+        m.wantY += (dy * amount) / dt;
+      };
+      /** Moves around the target, sideways, at a share of its speed. */
+      const circle = (share: number): void => {
+        m.wantX += -toY * m.orbit * speed * share;
+        m.wantY += toX * m.orbit * speed * share;
       };
       // A healer with nobody to heal fights like anyone else, only weaker.
       const cls = fighter.class === 'healer' && !plan.heal ? null : (fighter.class ?? null);
@@ -1136,6 +1227,7 @@ export class Battle {
           // Damage is not scaled by toughness, so neither is the healing counted here.
           fighter.healingDone += (plan.target.health - before) / this.toughness;
           fighter.nextSpecialAt = now + tickMs;
+          m.struckAt = now;
           this.fx('heal', fighter, { t: [this.fighters.indexOf(plan.target)], ms: tickMs });
         }
         return;
@@ -1147,9 +1239,11 @@ export class Battle {
         if (plan.distance < this.unit * classes[cls].retreatFactor) walk(-speed * dt);
         else if (plan.distance > range) walk(Math.min(speed * dt, plan.distance - range * 0.9));
         if (plan.distance > range) return;
+        circle(motion.strafe);
         if (cls === 'archer' && fighter.cooldownMs <= 0) {
           attacks.push([fighter, plan.target, 1, 'arrow']);
           fighter.cooldownMs = hitIntervalMs;
+          m.struckAt = now;
           this.fx('arrow', fighter, { t: [this.fighters.indexOf(plan.target)], ms: 180 });
         }
         if (cls === 'mage' && now >= fighter.nextSpecialAt) {
@@ -1157,6 +1251,7 @@ export class Battle {
           const r = this.unit * blastRadiusFactor;
           this.blasts.push({ x: plan.tx, y: plan.ty, r, at: now + warnMs, owner: fighter });
           fighter.nextSpecialAt = now + castEveryMs;
+          m.struckAt = now;
           this.fx('blast-warn', fighter, { x: plan.tx, y: plan.ty, r, ms: warnMs });
         }
         return;
@@ -1175,8 +1270,21 @@ export class Battle {
 
       // A thief that has just struck darts back before it comes in again.
       if (cls === 'thief' && fighter.retreatUntil > now) {
-        fighter.x += fighter.retreatX * speed * dt;
-        fighter.y += fighter.retreatY * speed * dt;
+        m.wantX += fighter.retreatX * speed;
+        m.wantY += fighter.retreatY * speed;
+        return;
+      }
+      // Breaking off for a moment: a sidestep before it goes in again.
+      if (m.wanderUntil > now) {
+        m.wantX += m.wanderX * speed * motion.focus.wander;
+        m.wantY += m.wanderY * speed * motion.focus.wander;
+        return;
+      }
+      // After its blow a fighter steps back a little before it comes in again.
+      if (m.stepBackUntil > now) {
+        m.wantX -= toX * speed * motion.stepBack;
+        m.wantY -= toY * speed * motion.stepBack;
+        circle(motion.orbit);
         return;
       }
 
@@ -1185,8 +1293,16 @@ export class Battle {
       // to strike, or two fighters can freeze just out of range of each other for good.
       if (plan.distance > reach + 0.5) {
         walk(Math.min(speed * dt, plan.distance - reach));
-      } else if (fighter.cooldownMs <= 0) {
+      } else {
+        // In contact it circles its target, so a crowd keeps turning.
+        circle(motion.orbit);
+      }
+      if (plan.distance <= reach + 0.5 && fighter.cooldownMs <= 0) {
         strike(fighter, plan);
+        // A tank holds the line, a thief darts back on its own; everyone else steps back after a blow.
+        if (cls !== 'tank' && cls !== 'thief' && !fighter.minion) {
+          m.stepBackUntil = now + between(this.motionRng, motion.stepBackMs);
+        }
         // Striking gives a hidden thief away.
         if (fighter.hiddenUntil > now) {
           fighter.hiddenUntil = now;
@@ -1221,6 +1337,25 @@ export class Battle {
         fighter.nextSpecialAt = now + classes.tank.shieldEveryMs;
       }
     });
+
+    // Everyone moves: its speed follows where it wants to go, and a shove carries it on top.
+    const follow = Math.min(1, motion.steer * dt);
+    const settle = Math.exp(-motion.friction * dt);
+    for (const fighter of alive) {
+      const m = this.motionOf(fighter);
+      if (isBusy(fighter) || !fighter.alive) {
+        m.vx = m.vy = m.kvx = m.kvy = 0;
+        continue;
+      }
+      if (!fighter.holdsCenter) {
+        m.vx += (m.wantX - m.vx) * follow;
+        m.vy += (m.wantY - m.vy) * follow;
+        fighter.x += (m.vx + m.kvx) * dt;
+        fighter.y += (m.vy + m.kvy) * dt;
+      }
+      m.kvx *= settle;
+      m.kvy *= settle;
+    }
 
     // Fighters do not overlap: push each overlapping pair apart. One pass is
     // not enough in a crowd, where pushing one pair apart overlaps the next.
@@ -1263,6 +1398,7 @@ export class Battle {
       let dealt = attacker.damage * (factor ?? 1) * (1 - damageVariation + 2 * damageVariation * this.rng());
       if (attacker.enraged) dealt *= config.skills.enrage.damage;
       this.hurt(attacker, target, dealt, now, cause ?? 'strike');
+      this.shove(attacker, target, cause ?? 'strike', now);
     }
 
     // Enrage: a wounded fighter with this skill turns faster and stronger, once.
@@ -1324,6 +1460,124 @@ export class Battle {
       ...(extra.g === undefined ? {} : { g: extra.g }),
       ...(extra.d === undefined ? {} : { d: extra.d }),
     });
+  }
+
+  /** A fighter's motion, made the first time it moves: its side to curve to and its way round come from the motion rolls. */
+  private motionOf(fighter: Fighter): Motion {
+    return (fighter.motion ??= {
+      vx: 0, vy: 0, wantX: 0, wantY: 0, kvx: 0, kvy: 0,
+      flank: this.motionRng() * 2 - 1,
+      orbit: this.motionRng() < 0.5 ? -1 : 1,
+      stepBackUntil: 0, chargeUntil: 0, chargeSpeed: 1,
+      nextChargeAt: between(this.motionRng, config.motion.charge.everyMs) * 0.5,
+      tumbleUntil: 0,
+      struckAt: -Infinity,
+      focus: null,
+      focusUntil: 0,
+      wanderUntil: 0,
+      wanderX: 0,
+      wanderY: 0,
+    });
+  }
+
+  /**
+   * Whom a fighter goes for: the enemy it picked a moment ago, until it is
+   * time to pick again among the nearest few (`config.motion.focus`). `chosen`
+   * is the usual pick (the nearest, a thief's prey, a taunting tank).
+   */
+  private focusOn(fighter: Fighter, chosen: Fighter, alive: Fighter[], now: number): Fighter {
+    if (fighter.holdsCenter) return chosen;
+    const { focus } = config.motion;
+    const m = this.motionOf(fighter);
+    const usable = (f: Fighter | null): f is Fighter => f !== null && f.alive && f.team !== fighter.team && f.hiddenUntil <= now;
+    if (usable(m.focus) && now < m.focusUntil) return m.focus;
+    // Only enemies close by: switching must not send it on a long walk.
+    const reach = Math.hypot(chosen.x - fighter.x, chosen.y - fighter.y) + focus.near * this.unit;
+    const nearest = alive
+      .filter((f) => usable(f) && f !== chosen)
+      .map((f) => ({ f, d: Math.hypot(f.x - fighter.x, f.y - fighter.y) }))
+      .filter((entry) => entry.d <= reach)
+      .sort((a, b) => a.d - b.d)
+      .slice(0, focus.pick - 1)
+      .map((entry) => entry.f);
+    // The wounded draw it more: blows still gather on whoever is close to falling.
+    const weight = (f: Fighter) => 0.35 + (1 - f.health / f.maxHealth) * focus.wounded;
+    const pool = nearest.map((f) => ({ f, w: weight(f) }));
+    let roll = this.motionRng() * (pool.reduce((sum, e) => sum + e.w, 0) + weight(chosen) + focus.keep);
+    m.focus = chosen;
+    for (const entry of pool) {
+      roll -= entry.w;
+      if (roll < 0) {
+        m.focus = entry.f;
+        break;
+      }
+    }
+    m.focusUntil = now + between(this.motionRng, focus.focusMs);
+    // Now and then it breaks off for a moment first: a sidestep in a random direction.
+    if (this.motionRng() < focus.wanderChance) {
+      const angle = this.motionRng() * Math.PI * 2;
+      m.wanderUntil = now + between(this.motionRng, focus.wanderMs);
+      m.wanderX = Math.cos(angle);
+      m.wanderY = Math.sin(angle);
+    }
+    return m.focus;
+  }
+
+  /** How much faster than its own speed a fighter runs now: in the opening charge, a charge from afar or a rally. */
+  private pace(fighter: Fighter, now: number): number {
+    const { opening } = config.motion;
+    let pace = now < opening.ms ? opening.speed : 1;
+    if (fighter.motion && fighter.motion.chargeUntil > now) pace *= fighter.motion.chargeSpeed;
+    return pace;
+  }
+
+  /** A blow shoves its target away from the attacker; now and then a heavy one sends it tumbling. */
+  /** `from` is the attacker, or where a blast went off. */
+  private shove(from: { x: number; y: number; class?: Fighter['class'] }, target: Fighter, cause: DeathCause, now: number): void {
+    if (cause !== 'strike' && cause !== 'spin' && cause !== 'arrow' && cause !== 'blast') return;
+    if (target.holdsCenter || !target.alive || isBusy(target)) return;
+    const dx = target.x - from.x;
+    const dy = target.y - from.y;
+    const d = Math.hypot(dx, dy);
+    if (d < 1e-6) return;
+    const motion = config.motion;
+    let power = motion.knock * this.unit;
+    if (cause === 'arrow') power *= motion.arrowKnock;
+    if (cause === 'blast') power *= motion.blastKnock;
+    if (from.class === 'tank') power *= motion.tankBash;
+    if (target.class === 'tank') power *= motion.tankFirm;
+    if (target.shieldUntil > now) power *= motion.shieldFirm;
+    const m = this.motionOf(target);
+    const heavy = cause === 'blast' ? motion.blastTumble : cause === 'arrow' ? 0 : motion.heavyChance;
+    if (this.motionRng() < heavy) {
+      power *= motion.heavyKnock;
+      m.tumbleUntil = now + motion.tumbleMs;
+    }
+    power /= Math.max(1, target.weight);
+    m.kvx += (dx / d) * power;
+    m.kvy += (dy / d) * power;
+  }
+
+  /** A rally: a side's leader cries out, and the allies near it charge. */
+  private rally(now: number, alive: Fighter[]): void {
+    const { rally } = config.motion;
+    this.nextRallyAt = now + between(this.motionRng, rally.everyMs);
+    const able = (f: Fighter) => f.alive && !f.minion && !f.holdsCenter && !isBusy(f);
+    const teams = this.teams.filter((team) => alive.filter((f) => f.team === team && able(f)).length >= rally.min);
+    if (teams.length === 0) return;
+    const team = teams[Math.floor(this.motionRng() * teams.length)]!;
+    const side = alive.filter((f) => f.team === team && able(f));
+    const leader =
+      side.find((f) => f.leader) ??
+      side.reduce((best, f) => (f.kills > best.kills ? f : best), side[Math.floor(this.motionRng() * side.length)]!);
+    const radius = rally.radius * this.unit;
+    for (const f of side) {
+      if ((f.x - leader.x) ** 2 + (f.y - leader.y) ** 2 > radius * radius) continue;
+      const m = this.motionOf(f);
+      m.chargeUntil = now + rally.ms;
+      m.chargeSpeed = rally.speed;
+    }
+    this.fx('rally', leader, { r: radius, ms: rally.ms });
   }
 
   /**
@@ -2020,7 +2274,11 @@ export class Battle {
         (f.benched ? FLAG.benched : 0) |
         (f.alive && f.hiddenUntil > now ? FLAG.hidden : 0) |
         // Long enough to be in a frame even when the server sends one for several steps.
-        (f.alive && now - f.jumpedAt < 300 ? FLAG.jumped : 0),
+        (f.alive && now - f.jumpedAt < 300 ? FLAG.jumped : 0) |
+        (f.alive && f.motion && f.motion.tumbleUntil > now ? FLAG.tumbling : 0) |
+        (f.alive && f.motion && !f.holdsCenter && this.pace(f, now) > 1 ? FLAG.charging : 0) |
+        // Long enough to be in a frame even when the server sends one for several steps.
+        (f.alive && f.motion && now - f.motion.struckAt < 150 ? FLAG.striking : 0),
     ]);
   }
 

@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { config, type SkillId } from '../../src/config.ts';
+
+/** The lively movement's own moments (the first blow's clash, a rally), which are not skills. */
+const MOTION_FX = new Set(['clash', 'rally']);
 import {
   Battle,
   FLAG,
@@ -66,7 +69,7 @@ test('a fighter without skills casts nothing', () => {
   for (let i = 0; i < 400 && !battle.finished; i++) {
     battle.step();
     // Deaths are reported for the highlights; no skill is.
-    assert.deepEqual(battle.events.filter((event) => event.k !== 'death' && event.k !== 'hit'), []);
+    assert.deepEqual(battle.events.filter((event) => event.k !== 'death' && event.k !== 'hit' && !MOTION_FX.has(event.fx ?? '')), []);
   }
   assert.equal(battle.fighters.length, 11, 'no minions wait off the field');
 });
@@ -110,15 +113,23 @@ test('Shockwave pushes nearby fighters away, hurts and slows them', () => {
   const radius = god.radius + radiusFor(13) * config.skills.shockwave.radiusFactor;
   const near = chatOf(battle).filter((f) => f.alive && Math.hypot(f.x - god.x, f.y - god.y) <= radius - 40);
   assert.ok(near.length > 0, 'the god is surrounded by then');
-  const before = new Map(near.map((f) => [f, { d: Math.hypot(f.x - god.x, f.y - god.y), health: f.health }]));
-
-  const cast = until(battle, 'cast', 'shockwave', 3);
+  // Positions from the step right before the cast: fighters keep moving in until then.
+  const snapshot = () => new Map(near.map((f) => [f, { d: Math.hypot(f.x - god.x, f.y - god.y), health: f.health }]));
+  let before = snapshot();
+  let cast: BattleEvent | undefined;
+  for (let i = 0; i < 3 && !cast; i++) {
+    before = snapshot();
+    battle.step();
+    cast = battle.events.find((e) => e.k === 'cast' && e.s === 'shockwave');
+  }
+  assert.ok(cast, 'the shockwave is cast');
   assert.ok(cast.r! > 0);
   const frame = battle.frame();
   for (const fighter of near) {
     if (!fighter.alive) continue;
     const was = before.get(fighter)!;
-    assert.ok(Math.hypot(fighter.x - god.x, fighter.y - god.y) > was.d, 'pushed away');
+    // Thrown: further away, or in the air (a throw that bounces off the arena's edge can come back closer).
+    assert.ok(fighter.flight !== null || Math.hypot(fighter.x - god.x, fighter.y - god.y) > was.d, 'pushed away');
     assert.ok(fighter.health < was.health, 'hurt');
     assert.ok(fighter.slowUntil > battle.timeMs, 'slowed');
     assert.ok(frame[battle.fighters.indexOf(fighter)]![3] & FLAG.slowed);
@@ -293,7 +304,7 @@ test('Enrage sets in once, below 30% health, and makes the god faster and strong
   const god = battle.fighters[0]!;
   for (let i = 0; i < 120; i++) {
     battle.step();
-    assert.deepEqual(battle.events.filter((event) => event.k !== 'death' && event.k !== 'hit'), [], 'nothing happens while the god is healthy');
+    assert.deepEqual(battle.events.filter((event) => event.k !== 'death' && event.k !== 'hit' && !MOTION_FX.has(event.fx ?? '')), [], 'nothing happens while the god is healthy');
   }
   assert.equal(god.enraged, false);
 
@@ -302,7 +313,7 @@ test('Enrage sets in once, below 30% health, and makes the god faster and strong
   let events = 0;
   for (let i = 0; i < 200 && !battle.finished; i++) {
     battle.step();
-    for (const event of battle.events.filter((e) => e.k !== 'death' && e.k !== 'hit')) {
+    for (const event of battle.events.filter((e) => e.k !== 'death' && e.k !== 'hit' && !MOTION_FX.has(e.fx ?? ''))) {
       assert.deepEqual([event.k, event.s], ['cast', 'enrage'], 'enrage is never announced, it sets in');
       assert.ok(god.health / god.maxHealth <= config.skills.enrage.below);
       events++;

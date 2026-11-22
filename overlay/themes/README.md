@@ -21,7 +21,7 @@ as small as one replaced image.
   "font": { "family": "Jersey 10", "file": "jersey-10.woff2", "weight": "100 900" },
   "fontScale": 1.3,
   "palette": { "neutralTile": "rgba(40, 52, 110, 0.6)", "neutralTileBig": "#26305C", "stone": "#DCD2B8" },
-  "images": { "arrow": "arrow.png", "classIcon.mage": "mage.png" }
+  "images": { "arrow": "arrow.png" }
 }
 ```
 
@@ -37,7 +37,7 @@ All fields but `name` are optional.
 | `halftone` | Comic dots printed over everything: `{ "size": 6, "dot": 0.22, "alpha": 0.18 }`. `size` is the grid in pixels, `dot` the dot's radius as a share of it, `alpha` how dark. |
 | `font` | A font file in the folder. `weight` lists the weights the file covers; give `"100 900"` for a one-weight pixel font, so the browser does not fake bold. |
 | `fontScale` | Makes all text this much larger, for fonts that run small. |
-| `palette` | `panel`, `panelStrong`, `neutralTile`, `neutralTileBig`, `text`, `stone` (the Monuments' stone), and `classColors` (`{ "fighter": "#E98C6C", ... }`, the class badges' colors). |
+| `palette` | `panel`, `panelStrong`, `neutralTile`, `neutralTileBig`, `text`, `stone` (the Monuments' stone), and `classColors` (`{ "fighter": "#E98C6C", ... }`, the accent colors of the class weapons: the tank's shield, the mage's orb, the healer's cross). |
 | `images` | Pictures that replace single elements, by key (below). |
 
 ## Images (no code needed)
@@ -46,7 +46,6 @@ An image replaces an element completely. PNG with transparency works best.
 
 | Key | Element | Drawn into |
 |---|---|---|
-| `classIcon.fighter`, `.tank`, `.thief`, `.archer`, `.mage`, `.healer` | The class badge on a fighter | a square around the badge |
 | `arrow` | An archer's arrow in flight | pointing right, tip at the right edge, 1 by 0.3 |
 | `monument.<design>.<stage>` | A guild's Monument; design 0 (Obelisk), 1 (Ziggurat), 2 (Temple); stage 0 (nothing built) to 5 (finished) | a square standing on the ground point |
 
@@ -60,7 +59,6 @@ Draw in screen coordinates (1920 × 1080); the pixel scale is applied for you.
 | Function | Arguments |
 |---|---|
 | `box(ctx, x, y, width, height, { radius, strong, accent, px, palette })` | A panel's background. `accent` is a color stripe on the left. |
-| `classIcon(ctx, cls, x, y, size, { px, color, icon })` | A class badge centered on x, y; `size` is its radius. `icon(u, color)` draws the built-in icon around 0, 0 (translate first), `u` being half its extent. |
 | `arrow(ctx, length, { px })` | An arrow; the context is already turned, the tip at 0, 0, pointing right. |
 | `monument(ctx, design, progress, x, y, height, color, { px, palette })` | A Monument standing on x, y; `progress` from 0 to 1. |
 | `mageRune(ctx, x, y, radius, progress, now, color, { px })` | A mage's circle before the blast. |

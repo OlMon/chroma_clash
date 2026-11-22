@@ -376,6 +376,14 @@ export function generateScenes(outDir: string, lang = 'en'): Scene[] {
     tweak: 'if (battle) battle.effects.forEach((e, k) => { if (e.fx === "heal") e.start = performance.now() - 180 - (k % 3) * 60; });',
   });
 
+  // A mage's spell ball in flight over the crowd, a third of the way to its spot.
+  page('spellball', {
+    messages: [battleState, ...recordBattle(redAttacksBlue, { seed: 7, sides: teamSides(), fighters }, twoSides, emotes,
+      (frames, i) => countFx(frames, i, 'blast-warn') * 10)],
+    moments: [0],
+    tweak: 'if (battle) battle.effects.forEach((e) => { if (e.fx === "blast-warn") e.start = performance.now() - (e.ms || 1000) * 0.15; });',
+  });
+
   page('classes', {
     messages: [battleState, ...recordBattle(redAttacksBlue, { seed: 7, sides: teamSides(), fighters }, twoSides, emotes,
       (frames, i) => countFx(frames, i, 'arrow') * 3 + countFx(frames, i, 'blast-warn') * 6 + countFx(frames, i, 'blast') * 6 + countFx(frames, i, 'heal') * 4)],
@@ -595,14 +603,14 @@ export function generateScenes(outDir: string, lang = 'en'): Scene[] {
         : { name: `${g.name}Hero${i}`, emote: { url: `/emotes/twitch/${emoteIds[(i + gi) % emoteIds.length]}?animated=0` }, imp: false }),
   }));
   const game = playPachinko(teams, createRng(4));
-  const pachinkoMessage = (game: ReturnType<typeof playPachinko<(typeof teams)[number]['players'][number]>>) => ({
+  const pachinkoMessage = (game: ReturnType<typeof playPachinko<(typeof teams)[number]['players'][number]>>, jelly = false) => ({
       type: 'pachinko', title: t('mode.pachinko'), rows: config.pachinko.rows, slots: config.pachinko.slots, hopMs: config.pachinko.hopMs, durationMs: game.durationMs, winner: game.winner,
       banner: { place: 'bottom', height: config.battle.bannerHeight, width: config.battle.arena.width },
       boards: game.boards.map((b) => {
         const g = config.guilds.list.find((x) => x.id === b.team);
         return {
           team: b.team, name: guild(b.team), color: g?.color ?? null, total: b.total,
-          drops: b.drops.map((d) => ({ name: d.player.name, color: d.player.imp ? g?.color ?? null : null, emote: d.player.emote, imp: d.player.imp, path: d.path, slot: d.slot, points: d.points, at: d.at })),
+          drops: b.drops.map((d) => ({ name: d.player.name, color: d.player.imp ? g?.color ?? null : null, emote: d.player.emote, imp: d.player.imp, path: d.path, slot: d.slot, points: d.points, at: d.at, ...(jelly ? { jelly: true } : {}) })),
         };
       }),
     });
@@ -616,6 +624,8 @@ export function generateScenes(outDir: string, lang = 'en'): Scene[] {
     // The game's clock starts at the first draw, not when the page loaded, so the moments are exact: the rocket climbing, then the burst.
     tweak: 'if (pachinko && !window.__clock) { window.__clock = 1; pachinko.shownAt = performance.now(); }',
   });
+  // Jelly balls (every ball here, for the picture): splatting on a pin and jiggling on.
+  page('pachinkojelly', { messages: [stateMessage, pachinkoMessage(game, true)], moments: [2500, 2650, 9000] });
   page('pachinko', {
     messages: [stateMessage, pachinkoMessage(game)],
     // During the game, then the winner's celebration: the pop, the crown landing, the confetti raining.

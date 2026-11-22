@@ -37,55 +37,6 @@
     }
   }
 
-  /** Class icons, 7 by 7: `#` is the icon, `.` lets the badge color show through. */
-  const ICONS = {
-    fighter: ['......#', '.....#.', '....#..', '.#.#...', '..#....', '.#.#...', '#......'],
-    tank: ['#######', '###.###', '#.....#', '###.###', '###.###', '.##.##.', '..###..'],
-    thief: ['...#...', '..###..', '.#####.', '##.#.##', '#######', '#######', '#.....#'],
-    archer: ['.#.....', '#.#....', '#..#..#', '#######', '#..#..#', '#.#....', '.#.....'],
-    mage: ['....#..', '...###.', '....#..', '...#...', '..#....', '.#.....', '#......'],
-    healer: ['..###..', '..###..', '#######', '#######', '#######', '..###..', '..###..'],
-  };
-
-  /** The badge disc, 11 by 11: `o` the dark edge, `c` the class color, `h` a highlight. */
-  const DISC = [
-    '...ooooo...',
-    '.oohhcccoo.',
-    '.ohhccccco.',
-    'ohhccccccco',
-    'ohcccccccco',
-    'occccccccco',
-    'occccccccco',
-    'occccccccCo',
-    '.occcccCCo.',
-    '.ooCCCCCoo.',
-    '...ooooo...',
-  ];
-
-  function classIcon(ctx, cls, x, y, size, { px, color }) {
-    const icon = ICONS[cls];
-    if (!icon) return;
-    // A cell is at least one theme pixel; the badge is 11 cells across.
-    const cell = Math.max(px, snap((size * 2) / 11, px));
-    const left = snap(x - cell * 5.5, px);
-    const top = snap(y - cell * 5.5, px);
-    const colors = { o: '#14121C', c: color || '#FFFFFF', h: '#FFFFFF', C: 'rgba(0, 0, 0, 0.25)' };
-    DISC.forEach((row, r) => {
-      for (let c = 0; c < row.length; c++) {
-        const key = row[c];
-        if (key === '.') continue;
-        ctx.fillStyle = colors[key] || colors.c;
-        ctx.fillRect(left + c * cell, top + r * cell, cell, cell);
-      }
-    });
-    ctx.fillStyle = '#14121C';
-    icon.forEach((row, r) => {
-      for (let c = 0; c < row.length; c++) {
-        if (row[c] === '#') ctx.fillRect(left + (c + 2) * cell, top + (r + 2) * cell, cell, cell);
-      }
-    });
-  }
-
   // --- Sprites for the battlefield, the map and Pachinko -------------------------
 
   const OUTLINE = '#14121C';
@@ -318,5 +269,5 @@
     }
   }
 
-  Theme.register({ art: { box, classIcon, bumper, barrel, trap, wall, rubble, tileFlames, pachinkoPin, firework } });
+  Theme.register({ art: { box, bumper, barrel, trap, wall, rubble, tileFlames, pachinkoPin, firework } });
 })();

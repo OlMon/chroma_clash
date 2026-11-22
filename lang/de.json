@@ -779,5 +779,8 @@
   "control.action.brawl-god": "Als Gott in die Rauferei",
   "overlay.brawl.giant": "{name} IST EIN RIESE!",
   "overlay.brawl.giantTag": "RIESE",
-  "overlay.brawl.ban": "BAN"
+  "overlay.brawl.ban": "BAN",
+  "overlay.battle.clash": "KAWUMM!",
+  "overlay.battle.rally": "ANGRIFF!",
+  "overlay.pachinko.jellyName": "{name} (Wackelpudding!)"
 }

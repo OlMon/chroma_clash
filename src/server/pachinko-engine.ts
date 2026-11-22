@@ -2,7 +2,7 @@ import { config, type GuildId } from '../config.ts';
 import type { UserRow } from '../db/store.ts';
 import type { BattleResult } from '../game/battle.ts';
 import { playPachinko, type PachinkoGame } from '../game/pachinko.ts';
-import { createRng } from '../util/rng.ts';
+import { createRng, type Rng } from '../util/rng.ts';
 import { impsFor, type Imp, type Lineup, type LineupMember } from './draft-engine.ts';
 import { bannerStrip, type BannerPlace } from './battle-runner.ts';
 import type { EventEngine, EventStep } from './event-runner.ts';
@@ -74,7 +74,13 @@ export class PachinkoEngine implements EventEngine {
       ] as Player[],
     }));
     this.game = playPachinko(teams, createRng(seed));
+    // Jelly balls by their own rolls, so the game itself plays the same with or without them.
+    const jelly: Rng = createRng((seed ^ 0x1f83d9ab) >>> 0);
+    this.jelly = this.game.boards.map((board) => board.drops.map(() => jelly() < config.pachinko.jellyChance));
   }
+
+  /** Which balls are jelly, per board and drop. */
+  private readonly jelly: boolean[][];
 
   lineup(): Lineup {
     const balls = Math.max(0, ...this.game.boards.map((board) => board.drops.length));
@@ -124,14 +130,14 @@ export class PachinkoEngine implements EventEngine {
           hopMs,
           durationMs: this.game.durationMs,
           winner: this.game.winner,
-          boards: this.game.boards.map((board) => {
+          boards: this.game.boards.map((board, boardIndex) => {
             const guild = guildOf(board.team as GuildId);
             return {
               team: board.team,
               name: guildName(this.lang, guild.id),
               color: guild.color,
               total: board.total,
-              drops: board.drops.map((drop) => ({
+              drops: board.drops.map((drop, dropIndex) => ({
                 ...(isImp(drop.player)
                   ? { name: drop.player.name, color: guild.color, emote: null, imp: true }
                   : { name: drop.player.display_name, color: drop.player.color, emote: this.look(drop.player).emote }),
@@ -139,6 +145,7 @@ export class PachinkoEngine implements EventEngine {
                 slot: drop.slot,
                 points: drop.points,
                 at: drop.at,
+                ...(this.jelly[boardIndex]![dropIndex] ? { jelly: true } : {}),
               })),
             };
           }),

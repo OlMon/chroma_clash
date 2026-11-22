@@ -149,8 +149,19 @@ test('Thief: goes for those who stand back, and darts away after each strike', (
   assert.ok(dartedBack >= strikes - 1, `it darted back after ${dartedBack} of ${strikes} strikes`);
 });
 
-test('Thief: in the shadows it cannot be targeted or hurt, moves faster, and its strike gives it away', () => {
+test('Thief: in the shadows it cannot be targeted or hurt, moves faster, and its strike gives it away', (t) => {
   const { shadowMs, shadowEveryMs, shadowSpeed } = config.classes.thief;
+  // About the shadows alone: no charges or opening rush that would bring the guard upon the thief early.
+  const { charge, opening, focus } = config.motion;
+  const saved = { charge: charge.speed, opening: opening.speed, wander: focus.wanderChance };
+  charge.speed = 1;
+  opening.speed = 1;
+  focus.wanderChance = 0;
+  t.after(() => {
+    charge.speed = saved.charge;
+    opening.speed = saved.opening;
+    focus.wanderChance = saved.wander;
+  });
   const b = battle([spec('thief', 'red', 'thief'), spec('decoy', 'red', null), spec('guard', 'blue', null)]);
   const thief = get(b, 'thief');
   const guard = get(b, 'guard');
@@ -175,13 +186,14 @@ test('Thief: in the shadows it cannot be targeted or hurt, moves faster, and its
 
   // Hidden: it moves faster than it normally can, and the guard turns to the decoy.
   const from = { x: thief.x, y: thief.y };
-  const guardY = guard.y;
+  const toDecoy = () => Math.hypot(guard.x - decoy.x, guard.y - decoy.y);
+  const decoyWas = toDecoy();
   for (let i = 0; i < 10; i++) b.step();
   assert.ok(hidden());
   const moved = Math.hypot(thief.x - from.x, thief.y - from.y);
   assert.ok(moved > thief.speed * 0.5 * 1.3, `it covered ${Math.round(moved)} units in half a second`);
-  assert.ok(Math.abs(moved - thief.speed * shadowSpeed * 0.5) < 5);
-  assert.ok(guard.y > guardY + 20, 'the guard cannot see it and goes for the decoy');
+  assert.ok(moved <= thief.speed * shadowSpeed * 0.5 + 5, `at most as fast as the shadows let it (${Math.round(moved)} units)`);
+  assert.ok(toDecoy() < decoyWas - 20, 'the guard cannot see it and goes for the decoy');
 
   // Put the guard right upon it: hidden, the thief takes no harm, and its own strike ends the shadow.
   place(guard, thief.x + thief.radius + guard.radius, thief.y);

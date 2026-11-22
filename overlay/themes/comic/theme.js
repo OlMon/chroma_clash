@@ -1,4 +1,4 @@
-// Dark Fantasy Comic: inked panels, cel-shaded class badges, flat inked flames
+// Dark Fantasy Comic: inked panels, flat inked flames
 // and the god's skills as a sound-effect burst. The ink rims on fighters and
 // map tiles and the halftone dots over everything come from theme.json ("ink",
 // "halftone"); this script only draws the elements that look different.
@@ -106,37 +106,6 @@
       ctx.strokeStyle = INK;
       ctx.stroke();
     }
-    ctx.restore();
-  }
-
-  /** A class badge as a comic draws it: flat color, a hard shadow crescent, a gleam, heavy ink. */
-  function classIcon(ctx, cls, x, y, size, { color, icon }) {
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(x, y, size, 0, Math.PI * 2);
-    ctx.fillStyle = darken(color, 0.38);
-    ctx.fill();
-    ctx.save();
-    ctx.clip();
-    ctx.beginPath();
-    ctx.arc(x - size * 0.2, y - size * 0.2, size * 0.95, 0, Math.PI * 2);
-    ctx.fillStyle = color;
-    ctx.fill();
-    ctx.restore();
-    ctx.beginPath();
-    ctx.arc(x, y, size, 0, Math.PI * 2);
-    ctx.lineWidth = Math.max(2, size * 0.2);
-    ctx.strokeStyle = INK;
-    ctx.stroke();
-    // The gleam, upper left.
-    ctx.beginPath();
-    ctx.arc(x, y, size * 0.68, Math.PI * 1.08, Math.PI * 1.38);
-    ctx.lineCap = 'round';
-    ctx.lineWidth = Math.max(1.2, size * 0.13);
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
-    ctx.stroke();
-    ctx.translate(x, y);
-    icon(size * 0.6, '#140E0B');
     ctx.restore();
   }
 
@@ -462,5 +431,5 @@
     shout(ctx, KNOCKOUT[Math.floor(noise(seed + 5) * KNOCKOUT.length)], 22, '#B01E10', '#0B0807');
   }
 
-  Theme.register({ art: { box, classIcon, caption, fireFlames, shade, rays, mageRune, damageNumber, knockout } });
+  Theme.register({ art: { box, caption, fireFlames, shade, rays, mageRune, damageNumber, knockout } });
 })();

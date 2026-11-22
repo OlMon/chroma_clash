@@ -240,10 +240,10 @@ export const config = {
     shortestFightMs: 60_000,
     reference: 30,
     kinds: {
-      war: { toughness: 3.3, exponent: 0.1 },
+      war: { toughness: 2.8, exponent: 0.1 },
       heroClash: { toughness: 4.3, exponent: 0 },
       guildClash: { toughness: 0.7, exponent: 1 },
-      freeForAll: { toughness: 1.1, exponent: 1 },
+      freeForAll: { toughness: 1.0, exponent: 1 },
       god: { toughness: 3.6, exponent: 0.3 },
     },
   },
@@ -515,7 +515,7 @@ export const config = {
      * at a time. With every skill on, health is multiplied by this; with fewer,
      * by a share of it (none with one skill). See `skillHealthFactor`.
      */
-    mixFactor: 0.58,
+    mixFactor: 0.57,
   },
   /**
    * Countdown fights: the streamer starts a countdown, chatters who write
@@ -554,6 +554,8 @@ export const config = {
    */
   pachinko: {
     rows: 8,
+    /** Now and then a ball is jelly: it wobbles and jiggles its way down the pins. Looks only. */
+    jellyChance: 0.06,
     slots: [100, 25, 10, 5, 2, 5, 10, 25, 100],
     /**
      * One ball drops at a time, the boards taking turns, spaced so the game
@@ -657,6 +659,58 @@ export const config = {
     farShare: 0.5,
     pick: 3,
     roamMs: [3_000, 5_000] as [number, number],
+  },
+  /**
+   * How fighters move in battle, so battles stay lively instead of freezing
+   * into lumps. Distances are in multiples of a fighter's radius (`unit`),
+   * speeds in radii per second, times in milliseconds.
+   */
+  motion: {
+    /** How quickly a fighter's speed follows where it wants to go, per second: lower slides and overshoots more. */
+    steer: 7,
+    /** A blow shoves its target back (an arrow less), and the attacker lunges into it; the shove dies down at `friction` per second. */
+    knock: 4.5,
+    arrowKnock: 0.9,
+    /** A mage's blast throws everyone in it outward from where it goes off, `blastKnock` times a blow's shove, sending some tumbling. */
+    blastKnock: 1.6,
+    blastTumble: 0.35,
+    lunge: 2.5,
+    friction: 7,
+    /** Now and then a blow is a heavy one: it shoves `heavyKnock` times as far and sends the target tumbling. */
+    heavyChance: 0.08,
+    heavyKnock: 2.5,
+    tumbleMs: 450,
+    /** A tank's blow is a shield bash that shoves further; a tank (and a raised shield) is shoved less. */
+    tankBash: 1.8,
+    tankFirm: 0.5,
+    shieldFirm: 0.3,
+    /** After a melee blow the attacker steps back for a moment, at this share of its speed, then comes in again. */
+    stepBackMs: [200, 320] as [number, number],
+    stepBack: 0.7,
+    /** Each fighter comes in on a curve, up to `curve` radians off the straight line when `curveFar` radii away; in contact it circles its target at `orbit` of its speed, archers and mages strafe at `strafe`. */
+    curve: 0.6,
+    curveFar: 6,
+    orbit: 0.3,
+    strafe: 0.25,
+    /**
+     * Nobody fights one enemy to the end: every `focusMs` a fighter picks
+     * again among the `pick` nearest enemies (no more than `near` radii
+     * further than the nearest, so it is never a long walk), by lot, the wounded weighing
+     * more (`wounded` per share of health lost) and the nearest getting `keep`
+     * on top; and at such a moment now and then (`wanderChance`) breaks off for
+     * a short sidestep in a random direction at `wander` of its speed.
+     */
+    focus: { pick: 3, near: 1, keep: 1, wounded: 2.5, focusMs: [2_500, 5_000] as [number, number], wanderChance: 0.12, wanderMs: [400, 700] as [number, number], wander: 0.75 },
+    /** From more than `far` radii away a fighter now and then charges: `speed` times as fast for `ms`. */
+    charge: { far: 7, speed: 1.6, ms: 600, everyMs: [3_000, 6_000] as [number, number] },
+    /** The opening charge: in the first `ms` of a battle everyone runs `speed` times as fast; the first blow is a "CLASH!". */
+    opening: { ms: 2_500, speed: 1.5, clashWithinMs: 8_000 },
+    /**
+     * A rally now and then: a leader's cry (a leading chatter, else whoever has
+     * the most knockouts) sends the allies within `radius` charging for `ms`.
+     * A side needs `min` fighters on the field for it.
+     */
+    rally: { firstMs: 15_000, everyMs: [18_000, 26_000] as [number, number], radius: 8, ms: 1_500, speed: 1.5, min: 3 },
   },
   bench: {
     /** How long after a death the next fighter steps in from the bench. */
