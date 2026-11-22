@@ -131,6 +131,8 @@ function openChannel(): void {
       extraEmoteWords: () => [...emotes.globalWords('bttv').slice(0, 8), ...emotes.globalWords('7tv').slice(0, 8)],
     });
     now = () => sim.now();
+    // With a channel, "Chat plays" is on at every start, as a new session; the streamer can pause it while the game runs.
+    store.startStream(now());
     source.status = `simulating ${sim.chat.chatters.length} chatters at x${values.speed}`;
     sim.start();
     stopSource = () => sim.stop();
@@ -144,6 +146,8 @@ function openChannel(): void {
     return;
   }
   now = Date.now;
+  // With a channel, "Chat plays" is on at every start, as a new session; the streamer can pause it while the game runs.
+  store.startStream(now());
   const irc = new IrcClient({
     channel,
     token: process.env.TWITCH_TOKEN,

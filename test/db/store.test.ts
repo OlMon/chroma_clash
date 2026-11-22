@@ -111,3 +111,21 @@ test('remembers the most recent emote; messages without emotes keep it', () => {
   assert.equal(store.upsertUser(message({ emoteIds: ['86'], emote: '7tv:01ABC' }))!.emote_id, '7tv:01ABC');
   store.close();
 });
+
+test('starting the game with a channel starts a new session, ending one left open at its last chat activity', () => {
+  const store = Store.open(':memory:');
+  const t0 = 1_700_000_000_000;
+  const first = store.startStream(t0);
+  assert.equal(first.started_at, t0);
+  // Chat was read for a while, then the game was closed with "Chat plays" still on.
+  store.recordMessage({
+    type: 'chat', channel: 'c', userId: '1', login: 'a', displayName: 'A', color: '#FF0000',
+    badges: [], isBroadcaster: false, isModerator: false, text: 'hi', emoteIds: [], sentAt: t0 + 30 * 60_000,
+  });
+  const lastWindowEnd = store.latestActivity()!;
+  const second = store.startStream(t0 + 20 * 3_600_000);
+  assert.notEqual(second.session_id, first.session_id, 'a new stream, a new session');
+  const ended = store.db.prepare('SELECT ended_at FROM sessions WHERE session_id = ?').get(first.session_id) as { ended_at: number };
+  assert.equal(ended.ended_at, lastWindowEnd, 'the old one ends when chat was last read, not when the game started again');
+  store.close();
+});

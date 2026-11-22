@@ -537,6 +537,20 @@ export class Store {
     return this.activeSession()!;
   }
 
+  /**
+   * The game was started with a channel: a stream begins. A session left open
+   * when the game was last closed ends at its last chat activity (so the hours
+   * the game was closed do not count), and a new one starts now.
+   */
+  startStream(now: number): SessionRow {
+    const open = this.activeSession();
+    if (open) {
+      const last = this.latestActivity() ?? open.started_at;
+      this.endSession(Math.min(now, Math.max(open.started_at, last)));
+    }
+    return this.startSession(now);
+  }
+
   /** Turns the background layer off. */
   endSession(now: number): void {
     this.db.prepare('UPDATE sessions SET ended_at = ? WHERE ended_at IS NULL').run(now);
