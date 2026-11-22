@@ -188,7 +188,7 @@ export interface SeasonRecord {
  * The emote a message leaves its author with, as a source-qualified id: what
  * the caller worked out from all sources, else the last Twitch emote.
  */
-function messageEmote(event: ChatMessageEvent): string | null {
+export function messageEmote(event: ChatMessageEvent): string | null {
   if (event.emote !== undefined) return event.emote;
   const twitch = event.emoteIds.at(-1);
   return twitch === undefined ? null : `twitch:${twitch}`;
@@ -1293,6 +1293,17 @@ export class Store {
       wars: number;
     };
     return { startedAt: season?.started_at ?? 0, wars: wars.wars };
+  }
+
+  /** How many chatters fight at once in the brawl. */
+  brawlFighters(): number {
+    const { fighters, minFighters, maxFighters } = config.brawl;
+    const stored = Number(this.getSetting('brawl_fighters') ?? fighters);
+    return Number.isFinite(stored) ? Math.min(maxFighters, Math.max(minFighters, Math.round(stored))) : fighters;
+  }
+
+  setBrawlFighters(value: number): void {
+    this.setSetting('brawl_fighters', String(Math.round(value)));
   }
 
   /** How many fighters the endless mode keeps on the field at once. */

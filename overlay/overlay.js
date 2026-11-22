@@ -64,6 +64,12 @@ function connect() {
     } else if (message.type === 'show-end') {
       pachinko = null;
       if (!battle) drawPanel();
+    } else if (message.type === 'brawl-start') {
+      onBrawlStart(message);
+    } else if (message.type === 'brawl-frame') {
+      onBrawlFrame(message);
+    } else if (message.type === 'brawl-end') {
+      onBrawlEnd();
     } else if (message.type === 'battle-start') {
       onBattleStart(message);
     } else if (message.type === 'battle-frame') {
@@ -972,7 +978,7 @@ let panelAnimating = false;
 let panelDrawnAt = 0;
 
 function panelBlocked() {
-  return Boolean(pachinko || battle || (announcement && (announcement.map || announcement.lineup || announcement.celebrate || announcement.recap)));
+  return Boolean(brawlShow || pachinko || battle || (announcement && (announcement.map || announcement.lineup || announcement.celebrate || announcement.recap)));
 }
 
 function panelNeedsAnimation() {
@@ -1388,13 +1394,17 @@ function drawPanel() {
 function renderPanel() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   // The corner panels are the screen unless something else has it; they slide away and back.
-  const corner = !pachinko && !announcement && !countdown;
+  const corner = !brawlShow && !pachinko && !announcement && !countdown;
   noteCorner(corner);
   if (corner) {
     drawCorner(cornerOut());
     return;
   }
   if (cornerOut() < 1) drawCorner(cornerOut());
+  if (brawlShow) {
+    drawBrawl(performance.now());
+    return;
+  }
   if (pachinko) {
     drawPachinko(performance.now() - pachinko.shownAt);
     return;
@@ -1689,7 +1699,8 @@ function drawLineup(a) {
 
 /** The map panel in the corner: territory and cities. Hidden while "Chat plays" is paused. */
 function drawCorner(out = 0) {
-  if (state && !state.session.active) drawLayerOffHint();
+  // The note does not slide: it shows only while the corner has the screen.
+  if (state && !state.session.active && out <= 0) drawLayerOffHint();
   if (!state || !state.session.active) return;
   ctx.save();
   ctx.translate(slideAside(state.overlay.stats.x, state.overlay.stats.width, out), 0);

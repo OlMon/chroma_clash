@@ -369,9 +369,11 @@ function render(next) {
     ? tr('control.running.title', { title: state.battle.title })
     : state.endless.active
       ? tr('control.running.endless')
-      : tr('control.running.nothing');
-  $('running-bar').classList.toggle('active', running || state.endless.active);
-  $('stop-all').disabled = !running && !state.endless.active;
+      : state.brawl.active
+        ? tr('control.running.brawl')
+        : tr('control.running.nothing');
+  $('running-bar').classList.toggle('active', running || state.endless.active || state.brawl.active);
+  $('stop-all').disabled = !running && !state.endless.active && !state.brawl.active;
   for (const button of document.querySelectorAll('[data-battle]')) button.disabled = running;
   $('war-start').disabled = running;
   const guildName = Object.fromEntries(state.guilds.map((g) => [g.id, g.name]));
@@ -393,6 +395,24 @@ function render(next) {
     : tr('control.endless.off');
   const concurrent = $('endless-concurrent');
   if (document.activeElement !== concurrent) concurrent.value = endless.concurrent;
+
+  const brawl = state.brawl;
+  $('brawl-toggle').disabled = running && !brawl.active;
+  $('brawl-toggle').textContent = tr(brawl.active ? 'control.turnOff' : 'control.turnOn');
+  $('brawl-toggle').classList.toggle('primary', !brawl.active);
+  $('brawl-status').textContent = !brawl.active
+    ? tr('control.brawl.off')
+    : brawl.streamer === 'god'
+      ? `${tr('control.brawl.on', { count: brawl.fighters })} ${tr('control.brawl.youGod')}`
+      : brawl.streamer === 'streamer'
+        ? `${tr('control.brawl.on', { count: brawl.fighters })} ${tr('control.brawl.youFighter')}`
+        : tr('control.brawl.on', { count: brawl.fighters });
+  $('brawl-join').disabled = !brawl.active || brawl.streamer !== null;
+  $('brawl-god').disabled = !brawl.active || brawl.streamer !== null;
+  const fighters = $('brawl-fighters');
+  fighters.min = brawl.min;
+  fighters.max = brawl.max;
+  if (document.activeElement !== fighters) fighters.value = brawl.fighters;
 
   const god = state.god;
   $('god-wrath').disabled = running || !state.guilds.some((g) => g.tiles > 0);
@@ -801,6 +821,17 @@ $('clash-start').addEventListener('click', () => post('/api/clash/start', {}));
 $('draft-guild').addEventListener('click', () => post('/api/draft/start', { mode: 'guild' }));
 $('draft-free').addEventListener('click', () => post('/api/draft/start', { mode: 'free' }));
 $('draft-pachinko').addEventListener('click', () => post('/api/draft/start', { mode: 'pachinko' }));
+$('brawl-toggle').addEventListener('click', () => {
+  if (state) post('/api/brawl', { active: !state.brawl.active });
+});
+$('brawl-form').addEventListener('submit', (event) => {
+  event.preventDefault();
+  const value = Number($('brawl-fighters').value);
+  if (!Number.isInteger(value)) return;
+  post('/api/brawl', { fighters: value });
+});
+$('brawl-join').addEventListener('click', () => post('/api/brawl', { join: 'fighter' }));
+$('brawl-god').addEventListener('click', () => post('/api/brawl', { join: 'god' }));
 $('endless-toggle').addEventListener('click', () => {
   if (state) post('/api/endless', { active: !state.endless.active });
 });
@@ -994,6 +1025,7 @@ const QUICK = {
   'streamer-vs-chat': 'god-versus',
   'friendly-fight': 'god-friendly',
   endless: 'endless-toggle',
+  brawl: 'brawl-toggle',
 };
 const params = new URLSearchParams(location.search);
 const narrow = window.matchMedia('(max-width: 560px)');
@@ -1028,6 +1060,9 @@ function renderDock() {
   const endless = document.querySelector('[data-quick="endless"]');
   endless.querySelector('span').textContent = tr('control.dock.endless', { state: tr(state.endless.active ? 'control.on' : 'control.off') });
   endless.classList.toggle('on', state.endless.active);
+  const brawl = document.querySelector('[data-quick="brawl"]');
+  brawl.querySelector('span').textContent = tr('control.dock.brawl', { state: tr(state.brawl.active ? 'control.on' : 'control.off') });
+  brawl.classList.toggle('on', state.brawl.active);
 }
 for (const button of document.querySelectorAll('[data-quick]')) {
   button.addEventListener('click', () => $(QUICK[button.dataset.quick]).click());

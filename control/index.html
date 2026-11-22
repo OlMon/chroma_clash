@@ -74,6 +74,13 @@
         <path d="M32 32 C 24 18 8 20 8 32 C 8 44 24 46 32 32 C 40 18 56 20 56 32 C 56 44 40 46 32 32 Z" fill="none" stroke="currentColor" stroke-width="4"/>
         <circle cx="12" cy="26" r="5" fill="#e5484d"/><circle cx="44" cy="40" r="5" fill="#3e8bff"/><circle cx="52" cy="24" r="5" fill="#46a758"/>
       </symbol>
+      <symbol id="ill-brawl" viewBox="0 0 64 64">
+        <line x1="4" y1="56" x2="60" y2="56" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+        <ellipse cx="18" cy="44" rx="11" ry="10" fill="#e5484d" stroke="currentColor" stroke-width="2.5"/>
+        <circle cx="45" cy="26" r="10" fill="#3e8bff" stroke="currentColor" stroke-width="2.5"/>
+        <line x1="27" y1="40" x2="40" y2="14" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+        <circle cx="52" cy="48" r="3" fill="#3e8bff"/><circle cx="57" cy="42" r="2" fill="#3e8bff"/>
+      </symbol>
       <symbol id="ill-test" viewBox="0 0 64 64">
         <rect x="6" y="10" width="52" height="36" rx="5" fill="none" stroke="currentColor" stroke-width="2.5"/>
         <line x1="24" y1="56" x2="40" y2="56" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
@@ -120,6 +127,7 @@
         <button type="button" data-quick="streamer-vs-chat"><svg class="illus" aria-hidden="true"><use href="#ill-streamer-vs-chat"/></svg><span data-i18n="mode.streamerVsChat">Streamer vs Chat</span></button>
         <button type="button" data-quick="friendly-fight"><svg class="illus" aria-hidden="true"><use href="#ill-friendly"/></svg><span data-i18n="control.dock.friendly">Friendly fight</span></button>
         <button type="button" data-quick="endless"><svg class="illus" aria-hidden="true"><use href="#ill-endless"/></svg><span data-i18n="mode.endless">Endless mode</span></button>
+        <button type="button" data-quick="brawl"><svg class="illus" aria-hidden="true"><use href="#ill-brawl"/></svg><span data-i18n="mode.brawl">Brawl</span></button>
       </div>
       <p class="dock-links">
         <a href="/control/?full" target="_blank" rel="noopener" data-i18n="control.dock.openFull">Open the full panel</a>
@@ -351,6 +359,27 @@
             <p class="runtime" data-runtime="pachinko"></p>
           </div>
           <button type="button" id="draft-pachinko" disabled data-i18n="control.countdown.start">Start countdown</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="row">
+          <svg class="illus" aria-hidden="true"><use href="#ill-brawl"/></svg>
+          <div>
+            <h2 data-i18n="mode.brawl">Brawl</h2>
+            <p class="muted" id="brawl-status"></p>
+          </div>
+          <button type="button" id="brawl-toggle" disabled data-i18n="control.turnOn">Turn on</button>
+        </div>
+        <form id="brawl-form" class="row left">
+          <label for="brawl-fighters" data-i18n="control.brawl.fighters">Chatters fighting at once</label>
+          <input id="brawl-fighters" type="number" min="5" max="12" step="1">
+          <button type="submit" data-i18n="control.set">Set</button>
+        </form>
+        <p class="muted small" id="brawl-join-text" data-i18n="control.brawl.joinText">As a fighter you drop in with your picture, like a chatter.</p>
+        <div class="row left">
+          <button type="button" id="brawl-join" disabled data-i18n="control.brawl.join">Join as fighter</button>
+          <button type="button" id="brawl-god" disabled data-i18n="control.brawl.god">Join as god</button>
         </div>
       </section>
 

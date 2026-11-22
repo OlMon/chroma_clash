@@ -571,6 +571,59 @@ export const config = {
     holdMs: 7_000,
   },
   /** Endless mode: a free-for-all that runs until switched off and changes nothing in the game. */
+  /**
+   * Brawl, an Arena mode for fun in the style of Intro Fighters: an endless
+   * side-view free-for-all of jelly balls under gravity, with a weapon each.
+   * Chatters who write drop in while there is room; the streamer can join as
+   * a fighter, or as the god, whom all of chat then goes for. Lengths are in
+   * pixels of a 1920 x 1080 screen, times in seconds unless named Ms.
+   */
+  brawl: {
+    /** Default fighters on the field at once; the streamer can choose from min to max. */
+    fighters: 8,
+    minFighters: 5,
+    maxFighters: 12,
+    /** Frames sent to the overlay per second; the simulation runs `stepsPerFrame` steps in each. */
+    framesPerSecond: 30,
+    stepsPerFrame: 4,
+    arena: { width: 1920, height: 1080, floor: 1040, wall: 30 },
+    gravity: 2000,
+    radius: 42,
+    health: 100,
+    /** A new fighter drops in at most this often. */
+    joinGap: 0.4,
+    /** Now and then a giant: a bigger, tougher emote. */
+    giant: { chance: 0.05, radius: 1.7, health: 2.2 },
+    /** Hops: near a target short and low, far away long and high; the wait between them after landing. */
+    hop: { nearSpeed: [110, 310], nearLift: [550, 1000], farSpeed: [340, 580], farLift: [900, 1250], far: 420, wait: [0.35, 1.0] },
+    /** Reach in body radii, damage in health points, times in seconds, knock-back in pixels per second. */
+    weapons: {
+      sword: { length: 1.45, damage: 12, windup: 0.1, swing: 0.22, cooldown: 1.0, kind: 'swing', knock: 420 },
+      axe: { length: 1.3, damage: 18, windup: 0.18, swing: 0.26, cooldown: 1.5, kind: 'swing', knock: 580 },
+      spear: { length: 2.2, damage: 9, windup: 0.12, swing: 0.18, cooldown: 0.85, kind: 'thrust', knock: 340 },
+      hammer: { length: 1.25, damage: 30, windup: 0.22, swing: 0.3, cooldown: 1.3, kind: 'swing', knock: 900 },
+    },
+    /**
+     * The god: a big ball that falls from above and bumps everyone up, then
+     * all of chat goes for it (and still hits each other). Its health grows
+     * with the field; it slams the ground now and then; after `tiredAfter`
+     * seconds it takes more damage every second, so it always falls in the end.
+     */
+    god: {
+      radius: 2.3,
+      healthPerFighter: 75,
+      chase: 0.75,
+      slamEvery: [6, 9],
+      slamRadius: 420,
+      slamDamage: 10,
+      tiredAfter: 120,
+      tiredPerSecond: 0.1,
+    },
+    /** A twist for `last` seconds every `gap` seconds: super bouncy, moon gravity, a gravity well, exploding knockouts. */
+    twists: { first: 40, gap: [45, 75], last: 15 },
+    /** The platforms and bumpers change this often. */
+    layoutEvery: 120,
+  },
   endless: {
     /** Default number of fighters on the field at once; the streamer can change it. */
     concurrent: 12,

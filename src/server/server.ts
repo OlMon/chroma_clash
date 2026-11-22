@@ -20,10 +20,14 @@ import { recapMessage } from './recap.ts';
 import type { UserRow } from '../db/store.ts';
 import type { ChatMessageEvent } from '../irc/events.ts';
 import { assignClasses, type FighterSpec } from '../game/battle.ts';
-import { createRng } from '../util/rng.ts';
+import { createRng, hashString } from '../util/rng.ts';
 import { ClashEngine } from './clash-engine.ts';
 import { DraftEngine, drawFighters, drawProblem, type DraftMode, type Lineup } from './draft-engine.ts';
 import { PachinkoEngine } from './pachinko-engine.ts';
+import { BrawlRunner } from './brawl-runner.ts';
+import type { BrawlWho } from '../game/brawl.ts';
+import { messageEmote } from '../db/store.ts';
+import { TWITCH_DEFAULT_COLORS } from '../sim/chat.ts';
 import { EventRunner, type EventEngine } from './event-runner.ts';
 import { GodEngine, type GodStartKind } from './god-engine.ts';
 import { WarEngine } from './war-engine.ts';
@@ -122,6 +126,8 @@ export type ServerSnapshot = GameSnapshot & {
   /** `withoutGpu`: open overlays that draw without the graphics card, which makes battles stutter. */
   guide: { overlays: number; testBattleRun: boolean; withoutGpu: number };
   chatAnnounce: { available: boolean; enabled: boolean };
+  /** The Arena's brawl: on or off, how many chatters fight at once, and how the streamer is on the field. */
+  brawl: { active: boolean; fighters: number; min: number; max: number; streamer: 'streamer' | 'god' | null };
   /** Expected runtime of each event from the click, shortest and longest, in ms. */
   runtimes: Record<RuntimeKind, Runtime>;
   data: { resettable: boolean };
@@ -141,6 +147,11 @@ export const ACTIONS = [
   'endless',
   'endless-on',
   'endless-off',
+  'brawl',
+  'brawl-on',
+  'brawl-off',
+  'brawl-join',
+  'brawl-god',
   'layer',
   'layer-on',
   'layer-off',
@@ -303,8 +314,9 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 
   /** Starts an event. Engine constructors throw an Error with a message for the streamer. */
   function startEvent(create: () => EventEngine, label: string): void {
-    // The endless mode is decoration: any real event takes the screen from it.
+    // The endless mode and the brawl are for in between: any real event takes the screen from them.
     if (endless) stopEndless();
+    stopBrawl();
     if (war.running || runner.running || countdown) throw new HttpError(409, tr('server.error.busy'));
     let engine: EventEngine;
     try {
@@ -356,6 +368,7 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
 
   function startCountdown(mode: DraftMode): void {
     if (endless) stopEndless();
+    stopBrawl();
     if (war.running || runner.running || countdown) throw new HttpError(409, tr('server.error.busy'));
     countdown = {
       mode,
@@ -414,6 +427,7 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
   function onChat(event: ChatMessageEvent): void {
     chatSeen.messages++;
     chatSeen.lastAt = Date.now();
+    if (brawl.running && store.isPlayer(event)) brawl.write(brawlChatter(event));
     if (!countdown || countdown.writers.has(event.userId)) return;
     const user = store.isPlayer(event) ? store.getUser(event.userId) : null;
     if (!user || user.guild_id === null) return;
@@ -473,6 +487,7 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
     if (war.running || countdown || (runner.running && !endless)) {
       throw new HttpError(409, tr('server.error.busy'));
     }
+    stopBrawl();
     try {
       runEndlessBattle();
     } catch (error) {
@@ -499,6 +514,52 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
     runner.stop();
   }
 
+  // --- Brawl -------------------------------------------------------------------
+
+  /** The Arena's brawl: chatters who write drop in as jelly balls with a weapon. Runs until switched off. */
+  const brawl = new BrawlRunner(send);
+
+  /** A chatter as a brawl fighter: their name, colour and emote (the one they fight with in battles, else the one they just used). */
+  function brawlChatter(event: ChatMessageEvent): BrawlWho {
+    const user = store.getUser(event.userId);
+    const display = store.displaySettings();
+    return {
+      id: event.userId,
+      name: event.displayName,
+      color: event.color ?? user?.color ?? TWITCH_DEFAULT_COLORS[hashString(event.userId) % TWITCH_DEFAULT_COLORS.length]!,
+      emote: emotes.fighterEmote(user?.emote_id ?? messageEmote(event), event.userId, {
+        sources: display.emoteSources,
+        random: display.randomEmotes,
+        special: false,
+      }),
+    };
+  }
+
+  function startBrawl(): void {
+    if (war.running || countdown || (runner.running && !endless)) throw new HttpError(409, tr('server.error.busy'));
+    if (endless) stopEndless();
+    brawl.start(newSeed(), store.brawlFighters());
+  }
+
+  function stopBrawl(): void {
+    brawl.stop();
+  }
+
+  /** The streamer joins the brawl, with their name, colour and picture: as a fighter, or as the god. */
+  function joinBrawl(role: 'streamer' | 'god'): void {
+    if (!brawl.running) throw new HttpError(409, tr('server.error.brawlOff'));
+    const god = store.godIdentity(getSource().channel);
+    const display = store.displaySettings();
+    const who: BrawlWho = {
+      id: 'streamer',
+      name: god.name,
+      color: god.color,
+      image: store.godPictureUrl(),
+      emote: emotes.fighterEmote(god.emote, 'god', { sources: display.emoteSources, random: false, special: true }),
+    };
+    if (!brawl.join(who, role)) throw new HttpError(409, tr('server.error.brawlStreamerIn'));
+  }
+
   const snapshot = (): ServerSnapshot => ({
     ...buildSnapshot(
       store,
@@ -517,6 +578,13 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
       withoutGpu: [...overlayPages.values()].filter((page) => page.gpu === false).length,
     },
     chatAnnounce: { available: options.chat?.canSay() ?? false, enabled: store.getSetting('chat_announce') === '1' },
+    brawl: {
+      active: brawl.running,
+      fighters: store.brawlFighters(),
+      min: config.brawl.minFighters,
+      max: config.brawl.maxFighters,
+      streamer: brawl.streamer() === 'chatter' ? null : (brawl.streamer() as 'streamer' | 'god' | null),
+    },
     runtimes: estimatedRuntimes(),
     data: { resettable: Boolean(options.onDatabase) && Boolean(databaseSize(options.databasePath)) },
     version: options.version?.() ?? { current: '', latest: null },
@@ -536,6 +604,7 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
       sides = requested as GuildId[];
     }
     if (endless) stopEndless();
+    stopBrawl();
     if (runner.running || war.running || countdown) throw new HttpError(409, tr('server.error.busy'));
 
     const { setup, meta } = prepareBattle(store, {
@@ -577,6 +646,7 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
     cancelCountdown();
     war.stop();
     stopEndless();
+    stopBrawl();
     runner.stop();
   }
 
@@ -626,6 +696,20 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
       case 'endless-off':
         stopEndless();
         return tr('server.action.endlessOff');
+      case 'brawl':
+        return runAction(brawl.running ? 'brawl-off' : 'brawl-on');
+      case 'brawl-on':
+        if (!brawl.running) startBrawl();
+        return tr('server.action.brawlOn');
+      case 'brawl-off':
+        stopBrawl();
+        return tr('server.action.brawlOff');
+      case 'brawl-join':
+        joinBrawl('streamer');
+        return tr('server.action.brawlJoin');
+      case 'brawl-god':
+        joinBrawl('god');
+        return tr('server.action.brawlGod');
       case 'layer':
         return runAction(session ? 'layer-off' : 'layer-on');
       case 'layer-on':
@@ -664,7 +748,7 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
       overlays: [...overlayPages.values()],
       controlPanels: controlPages,
       database: databaseSize(options.databasePath),
-      running: war.title ?? runner.title ?? null,
+      running: war.title ?? runner.title ?? (brawl.running ? tr('mode.brawl') : null),
       // The longest pause in the running minute, or the last full one when that was worse.
       serverPauseMs: Math.max(pauses.max / 1e6, lastMinutePauses.longestMs),
     };
@@ -874,6 +958,24 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
         throw new HttpError(400, '`mode` must be "guild", "free" or "pachinko".');
       }
       startCountdown(body.mode);
+    } else if (pathname === '/api/brawl') {
+      if (body.fighters !== undefined) {
+        const { minFighters, maxFighters } = config.brawl;
+        const value = body.fighters;
+        if (typeof value !== 'number' || !Number.isInteger(value) || value < minFighters || value > maxFighters) {
+          throw new HttpError(400, `\`fighters\` must be a whole number from ${minFighters} to ${maxFighters}.`);
+        }
+        store.setBrawlFighters(value);
+        brawl.setSize(value);
+      }
+      if (body.active === true && !brawl.running) startBrawl();
+      else if (body.active === false) stopBrawl();
+      if (body.join === 'fighter') joinBrawl('streamer');
+      else if (body.join === 'god') joinBrawl('god');
+      else if (body.join !== undefined) throw new HttpError(400, '`join` must be "fighter" or "god".');
+      if (body.fighters === undefined && body.active === undefined && body.join === undefined) {
+        throw new HttpError(400, 'Send `active` (true or false), `fighters` (a number), or `join` ("fighter" or "god").');
+      }
     } else if (pathname === '/api/endless') {
       if (body.concurrent !== undefined) {
         const { minConcurrent, maxConcurrent } = config.endless;
@@ -1056,7 +1158,7 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
     if (closing) return;
     const last = store.lastSeason();
     if (!last || last.season_id <= recapDone) return;
-    if (war.running || runner.running || countdown || Date.now() < announcedUntil) return;
+    if (war.running || runner.running || brawl.running || countdown || Date.now() < announcedUntil) return;
     recapDone = last.season_id;
     const season = store.seasonHistory().find((s) => s.id === last.season_id);
     const message = season ? recapMessage(season, store.godIdentity(getSource().channel), languageOf(store)) : null;
@@ -1109,7 +1211,7 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
     }
     socket.send(JSON.stringify({ type: 'state', state: snapshot() }));
     // A page that opens during a battle joins it in progress.
-    const running = runner.startMessage() ?? war.showMessage();
+    const running = runner.startMessage() ?? war.showMessage() ?? brawl.startMessage();
     if (running) socket.send(JSON.stringify(running));
   });
 
@@ -1138,6 +1240,7 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
           // The map was dealt anew: whatever was being fought over is gone.
           cancelCountdown();
           war.stop();
+          stopBrawl();
           if (!endless) runner.stop();
           const guild = guildName(languageOf(store), winner);
           const season = store.lastSeason();

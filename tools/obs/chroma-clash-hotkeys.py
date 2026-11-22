@@ -31,7 +31,10 @@ ACTIONS = [
     ("streamer-vs-chat", "Start Streamer vs Chat"),
     ("friendly-fight", "Start a friendly fight"),
     ("endless", "Endless mode on or off"),
-    ("layer", "Background layer on or off"),
+    ("brawl", "Brawl on or off"),
+    ("brawl-join", "Join the brawl as a fighter"),
+    ("brawl-god", "Join the brawl as the god"),
+    ("layer", "Chat plays: start or pause"),
     ("test-battle", "Start a test battle"),
     ("stop", "Stop whatever is running"),
 ]

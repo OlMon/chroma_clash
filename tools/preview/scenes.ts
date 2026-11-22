@@ -22,6 +22,8 @@ import { SimulatedChat } from '../../src/sim/chat.ts';
 import { createRng } from '../../src/util/rng.ts';
 import { guildName, text } from '../../src/i18n.ts';
 import { recapMessage } from '../../src/server/recap.ts';
+import { BrawlRunner } from '../../src/server/brawl-runner.ts';
+import type { BrawlWho } from '../../src/game/brawl.ts';
 
 export interface Scene {
   name: string;
@@ -69,7 +71,7 @@ window.WebSocket = class {
 };
 window.requestAnimationFrame = () => 0;
 </script>
-<script src="/lang/i18n.js"></script><script src="theme.js"></script><script src="overlay.js"></script>
+<script src="/lang/i18n.js"></script><script src="theme.js"></script><script src="overlay.js"></script><script src="brawl.js"></script>
 <script>
 (() => {
   // A still at a chosen moment: ?at=<ms> after the effects began. The overlay's own animation is off.
@@ -214,6 +216,35 @@ function recordBattle(
   // Joined at the picked moment: the arena's introduction is long over.
   if (!fromStart) start.elapsedMs = frames[best]?.t ?? 0;
   return [start, ...frames.slice(best, best + 12)];
+}
+
+/**
+ * A brawl as a page joining it sees it: the start message from 12 frames
+ * before the moment, and those frames. Chat writes a message a second; the
+ * god joins at `godAt` seconds; it stops `seconds` in, or 3 frames after the
+ * first frame `until` picks.
+ */
+function recordBrawl(chatters: BrawlWho[], seconds: number, godAt?: number, until?: (frame: any) => boolean): unknown[] {
+  const sent: any[] = [];
+  const runner = new BrawlRunner((m) => sent.push(m));
+  runner.begin(11, 8);
+  const rng = createRng(11);
+  for (const who of chatters.slice(0, 8)) runner.write(who);
+  const history: { start: unknown; frame: unknown }[] = [];
+  let stopAt = seconds * config.brawl.framesPerSecond;
+  for (let i = 0; i < stopAt; i++) {
+    if (rng() < 1 / config.brawl.framesPerSecond) runner.write(chatters[Math.floor(rng() * chatters.length)]!);
+    if (godAt !== undefined && i === godAt * config.brawl.framesPerSecond) {
+      runner.join({ id: 'streamer', name: 'TheStreamer', color: '#9146FF', image: null, emote: null }, 'god');
+    }
+    const start = runner.startMessage();
+    runner.tick(1);
+    const frame = sent.at(-1);
+    history.push({ start, frame });
+    if (until && until(frame) && stopAt > i + 3) stopAt = i + 4;
+  }
+  const from = Math.max(0, history.length - 12);
+  return [history[from]!.start, ...history.slice(from).map((h) => h.frame)];
 }
 
 const countFx = (frames: BattleFrameMessage[], i: number, fx: string) =>
@@ -589,6 +620,15 @@ export function generateScenes(outDir: string, lang = 'en'): Scene[] {
     messages: [stateMessage, pachinkoMessage(game)],
     // During the game, then the winner's celebration: the pop, the crown landing, the confetti raining.
     moments: [2500, 9000, 16000, game.durationMs + 300, game.durationMs + 1200, game.durationMs + 3500],
+  });
+
+  // The Arena's brawl: jelly fighters in side view; the god landing; the god's fall.
+  const brawlers: BrawlWho[] = chatters.map((c) => ({ id: c.userId, name: c.displayName, color: c.color ?? '#9ACD32', emote: twitch(c.favoriteEmote) }));
+  page('brawl', { messages: [stateMessage, ...recordBrawl(brawlers, 25)], moments: [0] });
+  page('brawlgod', { messages: [stateMessage, ...recordBrawl(brawlers, 16, 12)], moments: [0] });
+  page('brawlfall', {
+    messages: [stateMessage, ...recordBrawl(brawlers, 400, 8, (frame) => (frame.e ?? []).some((e: any) => e.k === 'godfall'))],
+    moments: [0],
   });
 
   writeFileSync(join(outDir, 'scenes.json'), JSON.stringify(scenes, null, 2));
