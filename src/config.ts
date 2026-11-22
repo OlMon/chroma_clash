@@ -611,13 +611,13 @@ export const config = {
      */
     god: {
       radius: 2.3,
-      healthPerFighter: 75,
+      healthPerFighter: 40,
       chase: 0.75,
       slamEvery: [6, 9],
       slamRadius: 420,
       slamDamage: 10,
-      tiredAfter: 120,
-      tiredPerSecond: 0.1,
+      tiredAfter: 35,
+      tiredPerSecond: 0.25,
     },
     /** A twist for `last` seconds every `gap` seconds: super bouncy, moon gravity, a gravity well, exploding knockouts. */
     twists: { first: 40, gap: [45, 75], last: 15 },
