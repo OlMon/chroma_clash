@@ -778,5 +778,6 @@
   "control.action.brawl-join": "Join the brawl as a fighter",
   "control.action.brawl-god": "Join the brawl as the god",
   "overlay.brawl.giant": "{name} IS A GIANT!",
-  "overlay.brawl.giantTag": "GIANT"
+  "overlay.brawl.giantTag": "GIANT",
+  "overlay.brawl.ban": "BAN"
 }

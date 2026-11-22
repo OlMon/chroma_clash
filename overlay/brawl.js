@@ -598,11 +598,25 @@ function drawBrawlWeapon(b, f, pose) {
     ctx.rect(-r * 0.15, -5 * thick, len, 10 * thick);
     brawlInked('#7A5333', 4);
     ctx.beginPath();
-    ctx.rect(len - r * 0.25, -r * 0.42, r * 0.5, r * 0.84);
+    ctx.rect(len - r * 0.31, -r * 0.5, r * 0.62, r);
     brawlInked('#9AA3AE', 4);
     ctx.beginPath();
-    ctx.rect(len - r * 0.25, -r * 0.42, r * 0.5, r * 0.14);
+    ctx.rect(len - r * 0.31, -r * 0.5, r * 0.62, r * 0.16);
     brawlInked('#FFD54A', 3);
+    // The streamer swings the ban hammer: the word along its head, turned to read upright.
+    ctx.save();
+    ctx.translate(len, r * 0.08);
+    ctx.rotate(Math.cos(pose.angle + Math.PI / 2) >= 0 ? Math.PI / 2 : -Math.PI / 2);
+    ctx.font = `${Math.round(r * 0.38)}px ${FONT}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineWidth = Math.max(3, r * 0.05);
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = BRAWL.ink;
+    ctx.strokeText(tr('overlay.brawl.ban'), 0, 1, r * 0.8);
+    ctx.fillStyle = '#E5533D';
+    ctx.fillText(tr('overlay.brawl.ban'), 0, 1, r * 0.8);
+    ctx.restore();
   } else {
     ctx.beginPath();
     ctx.rect(-r * 0.6, -3.5 * thick, len + r * 0.6 - 18 * thick, 7 * thick);

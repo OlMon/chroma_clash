@@ -778,5 +778,6 @@
   "control.action.brawl-join": "Als Kämpfer in die Rauferei",
   "control.action.brawl-god": "Als Gott in die Rauferei",
   "overlay.brawl.giant": "{name} IST EIN RIESE!",
-  "overlay.brawl.giantTag": "RIESE"
+  "overlay.brawl.giantTag": "RIESE",
+  "overlay.brawl.ban": "BAN"
 }
