@@ -244,7 +244,21 @@ function announce(): void {
 }
 
 openChannel();
-await startServer();
+try {
+  await startServer();
+} catch (error) {
+  if ((error as NodeJS.ErrnoException).code !== 'EADDRINUSE') throw error;
+  // Most likely the game or its simulation is running already, in another window.
+  console.error(`Port ${values.port} is in use: Chroma Clash is probably running already (the game or its simulated chat).`);
+  console.error('Close its window first, then start this one again.');
+  stopSource();
+  // Started by a double-click, the window would close before anyone could read this.
+  if (isSea()) {
+    console.error('Press Enter to close this window.');
+    await new Promise((done) => process.stdin.once('data', done));
+  }
+  process.exit(1);
+}
 announce();
 if (values.open) openBrowser(`http://localhost:${server!.port}/control/`);
 

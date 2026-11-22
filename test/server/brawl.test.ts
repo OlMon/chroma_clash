@@ -111,3 +111,12 @@ test('the streamer joins as a fighter or as the god, once; any real fight or Sto
   await post('/api/battle/stop', {});
   assert.equal((await state(await fetch(`${base}/api/state`))).active, false, 'Stop ends it');
 });
+
+test('a second game on a port in use fails to start with an error to show, instead of crashing', async () => {
+  const second = Store.open(':memory:');
+  await assert.rejects(
+    startGameServer({ store: second, root, port: server.port, now: () => T0, getSource: () => ({ kind: 'sim', channel: 'test', status: 'testing' }) }),
+    (error: NodeJS.ErrnoException) => error.code === 'EADDRINUSE',
+  );
+  second.close();
+});

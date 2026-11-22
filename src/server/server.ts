@@ -1133,6 +1133,8 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
     maxPayload: 64 * 1024,
     verifyClient: ({ req }: { req: IncomingMessage }) => !isForeignOrigin(req),
   });
+  // It passes on the HTTP server's errors (a port in use); those reject the start below, so here they are ignored.
+  sockets.on('error', () => {});
   let lastSent = '';
 
   /** Until when the overlay shows an announcement: the season's recap waits for the screen to be free. */
@@ -1221,7 +1223,15 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
   }, config.server.broadcastIntervalMs);
 
   return new Promise((resolve, reject) => {
-    http.once('error', reject);
+    // A server that cannot start (a port in use) leaves nothing running behind it.
+    http.once('error', (error) => {
+      closing = true;
+      clearInterval(pauseTimer);
+      pauses.disable();
+      clearInterval(timer);
+      sockets.close();
+      reject(error);
+    });
     http.listen(options.port ?? config.server.port, options.host ?? config.server.host, () => {
       resolve({
         port: (http.address() as AddressInfo).port,
@@ -1266,6 +1276,7 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
             cancelCountdown();
             war.stop();
             stopEndless();
+            stopBrawl();
             runner.stop();
             for (const client of sockets.clients) client.terminate();
             sockets.close();

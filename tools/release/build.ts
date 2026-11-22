@@ -175,6 +175,28 @@ ${keepOpen}`;
 ${keepOpen}`;
 }
 
+/** The starter for the simulated chat, beside the executable: its file name and contents for this platform. */
+const simStarter = isWindows
+  ? {
+      file: 'chroma-clash-simulated-chat.cmd',
+      content: `@echo off
+rem Starts Chroma Clash with a simulated chat of made-up chatters: try everything
+rem offline, no Twitch needed. Your real channel and game are not touched; the
+rem simulation keeps its own save (data\\sim-simchannel.sqlite).
+cd /d "%~dp0"
+"%~dp0${exeName}" --sim %*
+`,
+    }
+  : {
+      file: `chroma-clash-simulated-chat.${isMac ? 'command' : 'sh'}`,
+      content: `#!/bin/sh
+# Starts Chroma Clash with a simulated chat of made-up chatters: try everything
+# offline, no Twitch needed. Your real channel and game are not touched; the
+# simulation keeps its own save (data/sim-simchannel.sqlite).
+cd "$(dirname "$0")" && exec ./${exeName} --sim "$@"
+`,
+    };
+
 const START_TXT = `Chroma Clash ${version}
 ${'='.repeat(`Chroma Clash ${version}`.length)}
 
@@ -194,6 +216,16 @@ FIRST TIME
      again every time you start the game. Chatting counts and the map shows
      on the overlay. Pause it in the control panel if a stream should not count.
      Control panel: http://localhost:4747/control/
+
+TRY IT WITHOUT TWITCH
+  ${isWindows || isMac ? 'Double-click' : 'In a terminal in this folder:'} ${isWindows || isMac ? '' : './'}${simStarter.file}
+  It starts the game with a simulated chat instead: about 60 made-up chatters
+  write, join guilds and fight, so you can try every button, the overlay and
+  OBS before going live, even offline. It keeps its own save, so your real
+  game is not touched. Run one at a time: close the game's window before
+  starting the simulation, and the other way round.${
+    isWindows ? '\n  Windows may ask whether to run it the first time; click "Run".' : ''
+  }
 
 YOUR DATA
   Everything the game remembers is in the data/ folder next to ${exeName}.
@@ -263,10 +295,12 @@ execFileSync(process.execPath, ['--build-sea', seaConfig], { stdio: 'inherit' })
 if (isMac) execFileSync('codesign', ['--sign', '-', '--force', exe], { stdio: 'inherit' });
 console.log(`  ${exeName}: ${megabytes(exe)}`);
 
-step('copying overlay/, control/, lang/, START.txt, LICENSE and THIRD-PARTY-NOTICES.txt');
+step('copying overlay/, control/, lang/, START.txt, the simulated-chat starter, LICENSE and THIRD-PARTY-NOTICES.txt');
 for (const folder of ['overlay', 'control', 'lang']) cpSync(join(repo, folder), join(out, folder), { recursive: true });
 const text = (content: string) => (isWindows ? content.replaceAll('\r\n', '\n').replaceAll('\n', '\r\n') : content);
 writeFileSync(join(out, 'START.txt'), text(START_TXT));
+writeFileSync(join(out, simStarter.file), text(simStarter.content));
+if (!isWindows) chmodSync(join(out, simStarter.file), 0o755);
 writeFileSync(join(out, 'LICENSE.txt'), text(readFileSync(join(repo, 'LICENSE'), 'utf8')));
 writeFileSync(join(out, 'THIRD-PARTY-NOTICES.txt'), text(await thirdPartyNotices()));
 rmSync(work, { recursive: true, force: true });

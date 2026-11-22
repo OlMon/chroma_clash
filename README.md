@@ -16,6 +16,8 @@ page, unpack it, and start `chroma-clash.exe` (Windows) or `./chroma-clash`
 `START.txt` in the download explains the rest, including what to do when
 Windows SmartScreen warns about the unsigned file.
 
+To try it first without Twitch, even offline, start `chroma-clash-simulated-chat` instead: about 60 made-up chatters play, and your real game is not touched.
+
 The game runs entirely on your computer. It reads your chat anonymously and
 needs no account, no bot and no server.
 
