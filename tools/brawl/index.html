@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Brawl prototype</title>
+<!-- Intro Fighters style brawl, a look-and-feel prototype. Run: node tools/preview/serve.ts, then open
+     http://127.0.0.1:4790/tools/brawl/  (emotes come through the preview server). ?seed=, ?at=<seconds>, ?nopanel -->
+<style>
+  @font-face { font-family: 'Pirata One'; src: url('/overlay/themes/comic/pirata-one.woff2') format('woff2'); }
+  html, body { margin: 0; height: 100%; background: #111; overflow: hidden; font: 14px system-ui, sans-serif; color: #eee; }
+  canvas { display: block; width: 100vw; height: 100vh; }
+  #panel {
+    position: fixed; right: 12px; bottom: 12px; background: rgba(20, 20, 24, 0.9); border: 1px solid #444;
+    border-radius: 8px; padding: 10px 12px; display: grid; gap: 6px; min-width: 240px;
+  }
+  #panel[hidden] { display: none; }
+  #panel label { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+  #panel .row { display: flex; gap: 6px; }
+  #panel button { flex: 1; background: #333; color: #eee; border: 1px solid #555; border-radius: 5px; padding: 4px 6px; cursor: pointer; }
+  #panel small { color: #999; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="panel">
+  <b>Brawl prototype</b>
+  <label>Fighters on the field <span><input id="size" type="range" min="5" max="12" value="8"> <output id="sizeOut">8</output></span></label>
+  <label>Chat messages / min <span><input id="rate" type="range" min="5" max="120" value="40"> <output id="rateOut">40</output></span></label>
+  <label>Stream backdrop <input id="backdrop" type="checkbox" checked></label>
+  <label>Health bars <input id="health" type="checkbox"></label>
+  <label>Slow motion <input id="slow" type="checkbox"></label>
+  <div class="row"><button id="join">Someone writes</button><button id="restart">Restart</button></div>
+  <small>Space pauses · H hides this panel</small>
+</div>
+<script src="sim.js"></script>
+<script src="draw.js"></script>
+<script>
+'use strict';
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const $ = (id) => document.getElementById(id);
+const params = new URLSearchParams(location.search);
+
+// Stand-in chatters with Twitch name colours and well-known emotes.
+const EMOTES = ['25', '1902', '41', '354', '245', '28087', '30259', '58765', '64138', '114836', '305954156', '425618'];
+const COLORS = ['#FF4F4F', '#1E90FF', '#9ACD32', '#FF7F50', '#DAA520', '#00FF7F', '#8A2BE2', '#FF69B4', '#5F9EA0', '#D2691E', '#B22222', '#2E8B57'];
+const A = ['Tiny', 'Salty', 'Rusty', 'Lucky', 'Sleepy', 'Grumpy', 'Fuzzy', 'Spicy', 'Sneaky', 'Wobbly', 'Mighty', 'Soggy'];
+const B = ['Otter', 'Pigeon', 'Moth', 'Raven', 'Badger', 'Toad', 'Goose', 'Ferret', 'Llama', 'Newt', 'Yak', 'Crab'];
+let seed = Number(params.get('seed') ?? 7);
+let sim;
+let chatRng;
+let chatters;
+
+function restart() {
+  sim = new BrawlSim.Brawl({ seed, size: Number($('size').value) });
+  chatRng = BrawlSim.mulberry32(seed * 31 + 5);
+  chatters = Array.from({ length: 30 }, (_, i) => ({
+    id: `u${i}`,
+    name: `${A[Math.floor(chatRng() * A.length)]}${B[Math.floor(chatRng() * B.length)]}${Math.floor(chatRng() * 40)}`,
+    color: COLORS[Math.floor(chatRng() * COLORS.length)],
+    emote: EMOTES[i % EMOTES.length],
+  }));
+  // The first few write right away.
+  for (let i = 0; i < Number($('size').value); i++) sim.write(chatters[i]);
+}
+
+function chat(dt) {
+  const perSecond = Number($('rate').value) / 60;
+  if (chatRng() < perSecond * dt) sim.write(chatters[Math.floor(chatRng() * chatters.length)]);
+}
+
+for (const id of ['size', 'rate']) {
+  $(id).addEventListener('input', () => {
+    $(`${id}Out`).value = $(id).value;
+    if (id === 'size') sim.size = Number($('size').value);
+  });
+}
+$('join').onclick = () => sim.write(chatters[Math.floor(Math.random() * chatters.length)]);
+$('restart').onclick = () => { seed++; restart(); };
+let paused = false;
+addEventListener('keydown', (e) => {
+  if (e.key === ' ') { paused = !paused; e.preventDefault(); }
+  if (e.key === 'h' || e.key === 'H') $('panel').hidden = !$('panel').hidden;
+});
+if (params.has('nopanel')) $('panel').hidden = true;
+
+function backdrop() {
+  const g = ctx.createLinearGradient(0, 0, 1920, 1080);
+  g.addColorStop(0, '#2B2340');
+  g.addColorStop(1, '#14324A');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 1920, 1080);
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
+  ctx.font = '210px "Pirata One", serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('BE RIGHT BACK', 960, 470);
+}
+
+let last = performance.now();
+let carry = 0;
+function frame(now) {
+  const dt = Math.min(0.1, (now - last) / 1000) * ($('slow').checked ? 0.25 : 1);
+  last = now;
+  if (!paused) {
+    carry += dt;
+    while (carry >= BrawlSim.STEP) {
+      chat(BrawlSim.STEP);
+      sim.step();
+      carry -= BrawlSim.STEP;
+    }
+  }
+  const dpr = devicePixelRatio || 1;
+  const w = innerWidth * dpr;
+  const h = innerHeight * dpr;
+  if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = '#111';
+  ctx.fillRect(0, 0, w, h);
+  const scale = Math.min(w / 1920, h / 1080);
+  ctx.setTransform(scale, 0, 0, scale, (w - 1920 * scale) / 2, (h - 1080 * scale) / 2);
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(0, 0, 1920, 1080);
+  ctx.clip();
+  if ($('backdrop').checked) backdrop();
+  else { ctx.fillStyle = '#00B140'; ctx.fillRect(0, 0, 1920, 1080); }
+  BrawlDraw.draw(ctx, sim, { health: $('health').checked });
+  ctx.restore();
+  requestAnimationFrame(frame);
+}
+
+restart();
+// For pictures: run the simulation ahead by ?at=<seconds>.
+const ahead = Number(params.get('at') ?? 0);
+for (let t = 0; t < ahead; t += BrawlSim.STEP) { chat(BrawlSim.STEP); sim.step(); }
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
