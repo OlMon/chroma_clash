@@ -95,6 +95,14 @@ pre code { background: none; border: 0; padding: 0; font-size: 0.95em; }
 }
 .skip:focus { left: 8px; }
 
+/* ---------- AI notice ---------- */
+.ai-notice {
+  background: var(--surface-2); border-bottom: 1px solid var(--line);
+  color: var(--muted); font-size: 0.88rem; line-height: 1.45; padding: 8px 0;
+}
+.ai-notice b { color: var(--gold); font-weight: 600; }
+.ai-notice a { color: var(--text); white-space: nowrap; }
+
 /* ---------- Top bar ---------- */
 .topbar {
   position: sticky; top: 0; z-index: 50;
