@@ -38,6 +38,7 @@ npm start -- --channel name # the game reading a real Twitch chat
 npm test                    # the tests
 npm run typecheck           # TypeScript checks
 npm run preview             # pictures of every overlay scene in every theme
+node tools/preview/record.ts  # records the website's clips from the real overlay (needs Chromium and ffmpeg)
 npm run release             # the packaged build for this platform
 npm run release -- --target win-x64   # the Windows build, made on Linux
 ```
