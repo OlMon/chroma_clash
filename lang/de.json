@@ -517,7 +517,7 @@
   "control.arena.intro": "Kämpfe aus Spaß. Nichts hier verändert das Spiel: keine Felder, kein Monument, keine XP.",
   "control.free.text": "Ein Countdown: Alle, die im Chat schreiben, können gezogen werden, insgesamt 30. Erst kommt die Aufstellung, dann kämpfen 10 gleichzeitig, jeder für sich, und die anderen rücken nach. Wer als Letztes steht, gewinnt.",
   "control.pachinko.text": "Ein Countdown, gezogen wie beim Gildenkampf: bis zu 10 Chatter pro Gilde. Jede Gilde bekommt ein Brett, jeder Chatter fällt einmal hindurch in ein Fach mit Punkten, und die Gilde mit den meisten Punkten gewinnt. Eine Gilde mit weniger Chattern lässt manche zweimal fallen, damit jede Gilde gleich viele Kugeln hat.",
-  "control.duel.text": "Zwei Chatter, eins gegen eins, groß im Bild. Wähle beide, oder lass einen oder beide auslosen: aus denen, die in den letzten {minutes} Minuten geschrieben haben, wenn möglich aus verschiedenen Gilden. Beide beginnen mit derselben Klasse und gleichen Werten und wechseln dann ab und zu die Klasse, zwischen vielen Bumpern, Stachelfallen und Fässern.",
+  "control.duel.text": "Zwei Chatter, eins gegen eins, groß im Bild. Wähle beide, oder lass einen oder beide auslosen: aus denen, die in den letzten {minutes} Minuten geschrieben haben, wenn möglich aus verschiedenen Gilden. Beide beginnen mit derselben Klasse und gleichen Werten und wechseln dann ab und zu die Klasse, zwischen Bumpern, Stachelfallen und Fässern, die kommen und gehen.",
   "control.duel.first": "Kämpfer 1",
   "control.duel.second": "Kämpfer 2",
   "control.duel.byLot": "Auslosen",

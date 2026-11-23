@@ -11,7 +11,7 @@ import type { Rng } from '../util/rng.ts';
 export type ObstacleKind = 'wall' | 'bumper' | 'barrel' | 'trap';
 
 /** How a battle uses obstacles: a layout for the whole fight, or ones that come and go. */
-/** `hazards`: a duel's: bumpers and spike traps from the start, more coming and going, and barrels rolling in often; never walls. */
+/** `hazards`: a duel's: a few bumpers and spike traps that come and go all the time, and barrels rolling in; never walls. */
 export type ObstacleMode = 'fixed' | 'changing' | 'hazards';
 
 /** Kinds in a frame, as numbers. */
@@ -250,8 +250,9 @@ export class Obstacles {
       const { hazards } = config.obstacles;
       const obstacles = new Obstacles(rng, unit, bounds, zones);
       obstacles.hazards = true;
-      for (let i = 0; i < hazards.bumpers; i++) obstacles.place('bumper', 0, Infinity, undefined, [], hazards.spacing, hazards.zoneShare);
-      for (let i = 0; i < hazards.traps; i++) obstacles.place('trap', 0, Infinity, undefined, [], hazards.spacing, hazards.zoneShare);
+      // The first ones go too, each after its own while, so the field keeps changing from the start.
+      for (let i = 0; i < hazards.bumpers; i++) obstacles.place('bumper', 0, between(rng, hazards.lifeMs), undefined, [], hazards.spacing, hazards.zoneShare);
+      for (let i = 0; i < hazards.traps; i++) obstacles.place('trap', 0, between(rng, hazards.lifeMs), undefined, [], hazards.spacing, hazards.zoneShare);
       obstacles.nextBarrelAt = between(rng, hazards.barrelEveryMs);
       obstacles.nextChangeAt = between(rng, hazards.changeEveryMs);
       return obstacles;
@@ -305,7 +306,7 @@ export class Obstacles {
       this.zones.every((zone) => away(zone.x, zone.y) > zone.r * (zone.soft ? zoneShare : 1)) &&
       avoid.every((fighter) => !fighter.alive || away(fighter.x, fighter.y) > fighter.radius * 1.5) &&
       this.list.every((other) => {
-        if (other.kind === 'barrel' || other.brokenAt > 0 || other.until !== Infinity) return true;
+        if (other.kind === 'barrel' || other.brokenAt > 0 || (other.until !== Infinity && !this.hazards)) return true;
         if (other.kind !== 'wall') return away(other.x, other.y) > other.r + spacing * u;
         // Two rectangles (or a circle's box and a rectangle): the gap between them.
         const gapX = Math.abs(other.x - x) - other.w / 2 - halfW;
@@ -531,15 +532,15 @@ export class Obstacles {
       this.nextArenaChangeAt = now + between(this.rng, settings.arena.changeEveryMs);
     }
     if (now >= this.nextChangeAt && this.hazards) {
-      // A duel's hazards: a bumper or a trap more, for a while, or a wave of barrels.
+      // A duel's hazards: a new bumper or trap for a while, while fewer than `max` stand; else now and then a wave of barrels.
       this.nextChangeAt = now + between(this.rng, settings.hazards.changeEveryMs);
       const standing = this.list.filter((o) => o.kind !== 'barrel').length;
       const roll = this.rng();
-      if (roll < 0.3) {
+      if (standing < settings.hazards.max) {
+        this.place(roll < 0.55 ? 'bumper' : 'trap', now, now + between(this.rng, settings.hazards.lifeMs), undefined, grounded, settings.hazards.spacing, settings.hazards.zoneShare);
+      } else if (roll < 0.35) {
         const edge = Math.floor(this.rng() * 4);
-        for (let i = 0; i < 3; i++) this.wave.push({ at: now + i * 650, edge, along: 0.2 + 0.6 * this.rng() });
-      } else if (standing < settings.hazards.max) {
-        this.place(roll < 0.65 ? 'bumper' : 'trap', now, now + between(this.rng, settings.changing.lifeMs), undefined, grounded, settings.hazards.spacing, settings.hazards.zoneShare);
+        for (let i = 0; i < 2; i++) this.wave.push({ at: now + i * 650, edge, along: 0.2 + 0.6 * this.rng() });
       }
     } else if (now >= this.nextChangeAt) {
       this.nextChangeAt = now + between(this.rng, settings.changing.everyMs);

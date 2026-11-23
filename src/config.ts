@@ -245,7 +245,7 @@ export const config = {
       guildClash: { toughness: 0.7, exponent: 1 },
       freeForAll: { toughness: 1.0, exponent: 1 },
       god: { toughness: 3.6, exponent: 0.3 },
-      duel: { toughness: 4.6, exponent: 0 },
+      duel: { toughness: 3.25, exponent: 0 },
     },
   },
   battle: {
@@ -376,13 +376,15 @@ export const config = {
     quietMs: 2_500,
     changing: { everyMs: [9_000, 18_000] as [number, number], lifeMs: [10_000, 18_000] as [number, number], max: 4 },
     /**
-     * A duel's hazards: `bumpers` and spike `traps` from the start (`spacing`
-     * units apart, and kept off only the inner `zoneShare` of where the two
-     * start, or the field would have no room left), another
-     * bumper or trap for a while (or a wave of barrels) every `changeEveryMs`
-     * up to `max` standing, and a barrel every `barrelEveryMs`. No walls.
+     * A duel's hazards, all of them for a while only (`lifeMs`): `bumpers`
+     * and spike `traps` at the start (`spacing` units apart, and kept off
+     * only the inner `zoneShare` of where the two start, or the field would
+     * have no room left); every `changeEveryMs` a new one while fewer than
+     * `max` stand, else now and then a wave of barrels; and a barrel every
+     * `barrelEveryMs`. No walls. Fewer and changing, by decision (November
+     * 2026): six at once and more crowded the field.
      */
-    hazards: { bumpers: 3, traps: 3, spacing: 2.5, zoneShare: 0.45, max: 9, barrelEveryMs: [1_400, 2_800] as [number, number], changeEveryMs: [4_000, 7_000] as [number, number] },
+    hazards: { bumpers: 1, traps: 1, spacing: 2.5, zoneShare: 0.45, max: 3, lifeMs: [7_000, 12_000] as [number, number], barrelEveryMs: [2_500, 4_500] as [number, number], changeEveryMs: [2_500, 4_500] as [number, number] },
     /** How long an obstacle takes to appear and to fade away, in the overlay and before it blocks. */
     fadeMs: 600,
   },

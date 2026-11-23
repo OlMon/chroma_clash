@@ -517,7 +517,7 @@
   "control.arena.intro": "Fights for fun. Nothing here changes the game: no tiles, no Monument, no XP.",
   "control.free.text": "A countdown: everyone who writes in chat can be drawn, 30 in all. The line-up is shown, then 10 fight at a time, everyone for themselves, and the others step in. The last one standing wins.",
   "control.pachinko.text": "A countdown, drawn like a Guild Clash: up to 10 chatters per guild. Each guild gets a board, every chatter drops down it once into a slot worth points, and the guild with the most points wins. A guild with fewer chatters drops some of them twice, so every guild drops as many balls.",
-  "control.duel.text": "Two chatters, one on one, large on screen. Pick both, or leave one or both to the lot: drawn from who wrote in the last {minutes} minutes, from different guilds when possible. Both start with the same class and equal stats, then switch classes now and then, among plenty of bumpers, spike traps and barrels.",
+  "control.duel.text": "Two chatters, one on one, large on screen. Pick both, or leave one or both to the lot: drawn from who wrote in the last {minutes} minutes, from different guilds when possible. Both start with the same class and equal stats, then switch classes now and then, among bumpers, spike traps and barrels that come and go.",
   "control.duel.first": "Fighter 1",
   "control.duel.second": "Fighter 2",
   "control.duel.byLot": "By lot",
