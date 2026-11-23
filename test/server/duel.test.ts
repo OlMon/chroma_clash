@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { config, type GuildId } from '../../src/config.ts';
 import { Store, type UserRow } from '../../src/db/store.ts';
 import { Battle } from '../../src/game/battle.ts';
+import { OBSTACLE_CODE } from '../../src/game/obstacles.ts';
 import type { ChatMessageEvent } from '../../src/irc/events.ts';
 import { recapMessage } from '../../src/server/recap.ts';
 import { DuelEngine, drawDuelist } from '../../src/server/duel-engine.ts';
@@ -80,8 +81,25 @@ test('a duel shows the two face to face, then one fight with equal, large fighte
   assert.ok(battle.fighters.every((f) => f.radius === config.duel.radius), 'large on screen');
   assert.deepEqual(battle.fighters.map((f) => f.class), [duel.cls, duel.cls], 'both the class the line-up showed');
   assert.deepEqual(lineup.teams.map((t) => t.members[0]!.detail), [`${duel.cls[0]!.toUpperCase()}${duel.cls.slice(1)}`, `${duel.cls[0]!.toUpperCase()}${duel.cls.slice(1)}`]);
-  assert.equal(battle.obstacleFrame(), null, 'no obstacles: the large duelists would get stuck');
-  const result = battle.run();
+  // Plenty of bumpers, spike traps and barrels, never a wall (the large duelists would get stuck); and classes switch.
+  const kinds = new Set<number>();
+  const switches: string[] = [];
+  while (!battle.finished) {
+    const before = battle.fighters.map((f) => f.health / f.maxHealth);
+    battle.step();
+    for (const o of battle.obstacleFrame() ?? []) kinds.add(o[1]);
+    for (const event of battle.events.filter((e) => e.fx === 'switch')) {
+      const fighter = battle.fighters[event.i]!;
+      switches.push(event.cl!);
+      assert.equal(fighter.class, event.cl);
+      // A switch keeps the share of health (a hit in the same step may take some).
+      assert.ok(fighter.health / fighter.maxHealth <= before[event.i]! + 1e-9);
+    }
+  }
+  assert.ok(kinds.has(OBSTACLE_CODE.bumper) && kinds.has(OBSTACLE_CODE.trap) && kinds.has(OBSTACLE_CODE.barrel), 'bumpers, traps and barrels');
+  assert.ok(!kinds.has(OBSTACLE_CODE.wall), 'no walls');
+  assert.ok(switches.length >= 2, 'classes switch during the duel');
+  const result = battle.result()!;
   duel.apply(step, result);
   duel.finish();
   duel.finish();

@@ -823,40 +823,131 @@ $('draft-free').addEventListener('click', () => post('/api/draft/start', { mode:
 $('draft-pachinko').addEventListener('click', () => post('/api/draft/start', { mode: 'pachinko' }));
 
 /**
- * The duel's two pickers: "By lot" and the chatters who wrote lately. They are
- * rebuilt only when the list changed, and keep what the streamer picked as
- * long as that chatter is still on it.
+ * The duel's two pickers: a search field each. Empty means "by lot"; typing
+ * lists the chatters who wrote lately whose name matches, each with a dot in
+ * their guild's color. A pick stays while chat moves on.
  */
-let duelList = '';
+const duelPick = { 'duel-a': null, 'duel-b': null };
+const duelActive = { 'duel-a': 0, 'duel-b': 0 };
+const otherPick = (id) => duelPick[id === 'duel-a' ? 'duel-b' : 'duel-a'];
+const guildColor = (guild) => state.guilds.find((g) => g.id === guild)?.color ?? 'transparent';
+
+function duelMatches(id) {
+  const query = $(id).value.trim().toLowerCase();
+  const other = otherPick(id);
+  return state.duel.candidates
+    .filter((c) => c.id !== other?.id && (query === '' || c.name.toLowerCase().includes(query)))
+    // Names that start with what was typed come first.
+    .sort((a, b) => Number(!a.name.toLowerCase().startsWith(query)) - Number(!b.name.toLowerCase().startsWith(query)));
+}
+
+function renderDuelList(id) {
+  const list = $(`${id}-list`);
+  const query = $(id).value.trim();
+  const items = [...(query === '' ? [null] : []), ...duelMatches(id)];
+  duelActive[id] = Math.min(duelActive[id], Math.max(0, items.length - 1));
+  list.replaceChildren(...items.map((c, index) => {
+    const item = document.createElement('li');
+    item.id = `${id}-option-${index}`;
+    item.setAttribute('role', 'option');
+    item.setAttribute('aria-selected', String(index === duelActive[id]));
+    if (c) {
+      const dot = document.createElement('span');
+      dot.className = 'dot';
+      dot.style.background = guildColor(c.guild);
+      item.append(dot, c.name);
+    } else {
+      item.className = 'lot';
+      item.textContent = tr('control.duel.byLot');
+    }
+    // Chosen on mousedown, before the field loses its focus and closes the list.
+    item.addEventListener('mousedown', (event) => {
+      event.preventDefault();
+      chooseDuelist(id, c);
+    });
+    return item;
+  }));
+  if (items.length === 0) {
+    const none = document.createElement('li');
+    none.className = 'none';
+    none.textContent = tr('control.duel.noMatch');
+    list.append(none);
+  }
+  $(id).setAttribute('aria-activedescendant', items.length ? `${id}-option-${duelActive[id]}` : '');
+  list.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
+}
+
+function openDuelList(id, open) {
+  $(`${id}-list`).hidden = !open;
+  $(id).setAttribute('aria-expanded', String(open));
+  if (open) renderDuelList(id);
+}
+
+function chooseDuelist(id, candidate) {
+  duelPick[id] = candidate;
+  $(id).value = candidate ? candidate.name : '';
+  openDuelList(id, false);
+  renderDuel(state.battle !== null);
+}
+
 function renderDuel(running) {
   const { candidates, minutes } = state.duel;
   $('duel-text').textContent = tr('control.duel.text', { minutes });
   $('duel-status').textContent = candidates.length === 0
     ? tr('control.duel.nobody', { minutes })
     : tr('control.duel.few', { count: candidates.length, minutes });
-  const guildName = Object.fromEntries(state.guilds.map((g) => [g.id, g.name]));
-  const list = JSON.stringify([candidates, state.display.language]);
   for (const id of ['duel-a', 'duel-b']) {
-    const select = $(id);
-    if (list === duelList && select.options.length > 0) continue;
-    // An open list is left alone: rebuilding it would close it under the streamer's mouse.
-    if (document.activeElement === select && select.options.length > 0) continue;
-    const kept = select.value;
-    const lot = new Option(tr('control.duel.byLot'), '');
-    select.replaceChildren(lot, ...candidates.map((c) => {
-      const option = new Option(`${c.name} · ${guildName[c.guild] ?? c.guild}`, c.id);
-      option.style.color = c.color;
-      return option;
-    }));
-    select.value = candidates.some((c) => c.id === kept) ? kept : '';
+    const input = $(id);
+    const pick = duelPick[id];
+    input.placeholder = tr('control.duel.search');
+    const field = input.parentElement;
+    field.querySelector('.dot').style.background = pick ? guildColor(pick.guild) : 'transparent';
+    field.querySelector('.pick-clear').hidden = !pick;
+    // While the streamer types, the field and its list are theirs.
+    if (document.activeElement !== input) input.value = pick ? pick.name : '';
+    else if (!$(`${id}-list`).hidden) renderDuelList(id);
   }
-  if (document.activeElement !== $('duel-a') && document.activeElement !== $('duel-b')) duelList = list;
-  // Two picks of the same chatter cannot duel; the button says so by staying off.
-  const same = $('duel-a').value !== '' && $('duel-a').value === $('duel-b').value;
-  $('duel-start').disabled = running || candidates.length < 2 || same;
+  const both = duelPick['duel-a'] && duelPick['duel-b'];
+  const free = candidates.filter((c) => c.id !== duelPick['duel-a']?.id && c.id !== duelPick['duel-b']?.id).length;
+  const needed = 2 - [duelPick['duel-a'], duelPick['duel-b']].filter(Boolean).length;
+  $('duel-start').disabled = running || (!both && free < needed);
 }
-for (const id of ['duel-a', 'duel-b']) $(id).addEventListener('change', () => renderDuel(state.battle !== null));
-$('duel-start').addEventListener('click', () => post('/api/duel/start', { a: $('duel-a').value || null, b: $('duel-b').value || null }));
+
+for (const id of ['duel-a', 'duel-b']) {
+  const input = $(id);
+  input.addEventListener('focus', () => {
+    input.select();
+    openDuelList(id, true);
+  });
+  input.addEventListener('input', () => {
+    duelActive[id] = 0;
+    openDuelList(id, true);
+  });
+  input.addEventListener('keydown', (event) => {
+    const list = $(`${id}-list`);
+    const count = list.querySelectorAll('[role="option"]').length;
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (list.hidden) openDuelList(id, true);
+      duelActive[id] = (duelActive[id] + (event.key === 'ArrowDown' ? 1 : -1) + count) % Math.max(1, count);
+      renderDuelList(id);
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      list.querySelector('[aria-selected="true"]')?.dispatchEvent(new MouseEvent('mousedown', { cancelable: true }));
+    } else if (event.key === 'Escape') {
+      openDuelList(id, false);
+      input.value = duelPick[id]?.name ?? '';
+    }
+  });
+  input.addEventListener('blur', () => {
+    openDuelList(id, false);
+    // Emptied: back to the lot. Anything else not chosen from the list: the pick stays as it was.
+    if (input.value.trim() === '') duelPick[id] = null;
+    renderDuel(state.battle !== null);
+  });
+  input.parentElement.querySelector('.pick-clear').addEventListener('click', () => chooseDuelist(id, null));
+}
+$('duel-start').addEventListener('click', () => post('/api/duel/start', { a: duelPick['duel-a']?.id ?? null, b: duelPick['duel-b']?.id ?? null }));
 $('brawl-toggle').addEventListener('click', () => {
   if (state) post('/api/brawl', { active: !state.brawl.active });
 });

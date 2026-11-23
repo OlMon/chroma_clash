@@ -245,7 +245,7 @@ export const config = {
       guildClash: { toughness: 0.7, exponent: 1 },
       freeForAll: { toughness: 1.0, exponent: 1 },
       god: { toughness: 3.6, exponent: 0.3 },
-      duel: { toughness: 3.0, exponent: 0 },
+      duel: { toughness: 4.6, exponent: 0 },
     },
   },
   battle: {
@@ -375,6 +375,14 @@ export const config = {
     /** Bumpers and traps do nothing for this long after a battle starts, while the teams find their feet. */
     quietMs: 2_500,
     changing: { everyMs: [9_000, 18_000] as [number, number], lifeMs: [10_000, 18_000] as [number, number], max: 4 },
+    /**
+     * A duel's hazards: `bumpers` and spike `traps` from the start (`spacing`
+     * units apart, and kept off only the inner `zoneShare` of where the two
+     * start, or the field would have no room left), another
+     * bumper or trap for a while (or a wave of barrels) every `changeEveryMs`
+     * up to `max` standing, and a barrel every `barrelEveryMs`. No walls.
+     */
+    hazards: { bumpers: 3, traps: 3, spacing: 2.5, zoneShare: 0.45, max: 9, barrelEveryMs: [1_400, 2_800] as [number, number], changeEveryMs: [4_000, 7_000] as [number, number] },
     /** How long an obstacle takes to appear and to fade away, in the overlay and before it blocks. */
     fadeMs: 600,
   },
@@ -565,19 +573,16 @@ export const config = {
     /** The duelists' radius in arena units: twice a crowded field's largest fighters, so they are large on screen. */
     radius: 64,
     /**
-     * Both duelists fight with the same class, dealt by lot: the classes are
+     * Both duelists start with the same class, dealt by lot: the classes are
      * made for crowds, and one on one most pairings were decided before the
-     * fight (a tank beat almost everyone, a mage almost nobody). Each hit
-     * deals its damage times a factor from 1 - `hitSpread` to 1 + `hitSpread`,
-     * so the fight is open to the end.
+     * fight (a tank beat almost everyone, a mage almost nobody). Then each
+     * switches to another class at its own random moments, `switchEveryMs`
+     * apart, so a duel can turn. Each hit deals its damage times a factor
+     * from 1 - `hitSpread` to 1 + `hitSpread`, so the fight is open to the end.
      */
+    switchEveryMs: [6_000, 11_000] as [number, number],
     hitSpread: 0.5,
-    /**
-     * Each class's duel toughness, as a factor of the duel's: a tank or a
-     * healer outlasts a mage by far. Found with `node src/cli/balance.ts duel
-     * --fit`, so a duel of any class lasts about `targetMs` (median).
-     */
-    classPace: { fighter: 1.11, archer: 1.22, tank: 0.45, thief: 0.6, mage: 0.94, healer: 0.48 } as Record<ClassId, number>,
+    /** The median duel the toughness (`pace.kinds.duel`) is fitted to, with `node src/cli/balance.ts duel --fit`. */
     targetMs: 40_000,
   },
   /**

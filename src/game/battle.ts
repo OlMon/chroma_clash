@@ -142,6 +142,12 @@ export interface BattleSetup {
    */
   hitSpread?: number;
   /**
+   * Every fighter with a class switches to another one now and then, at its
+   * own random moments `everyMs` apart: health keeps its share, weapon and
+   * moves change at once. A duel uses it, so a fight can turn.
+   */
+  classSwitch?: { everyMs: [number, number] };
+  /**
    * The arena of this battle, when it is not `config.battle.arena`: shorter,
    * for example, when the map banner takes a strip of the screen.
    */
@@ -406,8 +412,9 @@ export interface BattleEvent {
    */
   k: 'warn' | 'cast' | 'enter' | 'fx' | 'death' | 'hit';
   s?: SkillId;
-  /** For `fx`: a class effect, one of spin, arrow, blast-warn, blast, heal, shadow. */
+  /** For `fx`: a class effect, one of spin, arrow, blast-warn, blast, heal, shadow, or `switch` (the fighter took class `cl`). */
   fx?: string;
+  cl?: ClassId;
   i: number;
   x: number;
   y: number;
@@ -578,6 +585,10 @@ export class Battle {
   /** See `BattleSetup.hitSpread`; its own random source, so battles without it roll as before. */
   private readonly hitSpread: number;
   private readonly hitRng: Rng;
+  /** See `BattleSetup.classSwitch`: each fighter's next switch, and the switches' own random source. */
+  private readonly classSwitch: { everyMs: [number, number] } | null;
+  private readonly switchAt = new Map<Fighter, number>();
+  private readonly switchRng: Rng;
   /** Whether the first blow of the battle fell yet (the "CLASH!"), and when the next rally is. */
   private clashed = false;
   private nextRallyAt: number = config.motion.rally.firstMs;
@@ -616,6 +627,8 @@ export class Battle {
     this.motionRng = createRng((setup.seed ^ 0x510e527f) >>> 0);
     this.hitSpread = setup.hitSpread ?? 0;
     this.hitRng = createRng((setup.seed ^ 0x68e31da4) >>> 0);
+    this.classSwitch = setup.classSwitch ?? null;
+    this.switchRng = createRng((setup.seed ^ 0x2f8ad6e1) >>> 0);
     this.rng = rng;
     this.unit = fighterRadius;
     this.timeLimitWinner = setup.timeLimitWinner ?? null;
@@ -946,6 +959,7 @@ export class Battle {
     this.events = [];
     for (const fighter of this.fighters) fighter.hit = false;
     this.enterFromBench(now);
+    this.switchClasses(now);
 
     // Skills come first: they may move fighters, summon minions, or hurt.
     for (const caster of this.fighters) {
@@ -1467,7 +1481,51 @@ export class Battle {
       ...(extra.r === undefined ? {} : { r: Math.round(extra.r) }),
       ...(extra.ms === undefined ? {} : { ms: extra.ms }),
       ...(extra.t === undefined ? {} : { t: extra.t }),
+      ...(extra.cl === undefined ? {} : { cl: extra.cl }),
     });
+  }
+
+  /**
+   * With `classSwitch`: fighters whose moment has come take another class,
+   * by the usual shares. The class's stats replace the old one's; health
+   * keeps its share, and what the old class was doing (hiding, darting back)
+   * ends.
+   */
+  private switchClasses(now: number): void {
+    const every = this.classSwitch;
+    if (!every) return;
+    for (const fighter of this.fighters) {
+      if (!fighter.alive || !fighter.class || fighter.minion) continue;
+      const due = this.switchAt.get(fighter);
+      if (due === undefined) {
+        this.switchAt.set(fighter, now + between(this.switchRng, every.everyMs));
+        continue;
+      }
+      if (now < due) continue;
+      this.switchAt.set(fighter, now + between(this.switchRng, every.everyMs));
+      const others = (Object.entries(config.classes.shares) as [ClassId, number][]).filter(([id]) => id !== fighter.class);
+      let roll = this.switchRng() * others.reduce((sum, [, share]) => sum + share, 0);
+      let next = others[others.length - 1]![0];
+      for (const [id, share] of others) {
+        roll -= share;
+        if (roll < 0) {
+          next = id;
+          break;
+        }
+      }
+      const from = config.classes[fighter.class];
+      const to = config.classes[next];
+      const share = fighter.health / fighter.maxHealth;
+      fighter.maxHealth *= to.health / from.health;
+      fighter.health = share * fighter.maxHealth;
+      fighter.damage *= to.damage / from.damage;
+      fighter.speed *= to.speed / from.speed;
+      fighter.class = next;
+      fighter.hiddenUntil = Math.min(fighter.hiddenUntil, now);
+      fighter.retreatUntil = 0;
+      fighter.nextSpecialAt = Math.max(fighter.nextSpecialAt, now + 600);
+      this.fx('switch', fighter, { cl: next, ms: 700 });
+    }
   }
 
   private emit(k: BattleEvent['k'], s: SkillId, caster: Fighter, extra: Partial<BattleEvent> = {}): void {

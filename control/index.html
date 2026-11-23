@@ -368,10 +368,24 @@
           <button type="button" id="duel-start" disabled data-i18n="control.duel.start">Start duel</button>
         </div>
         <div class="row left duel-picks">
-          <label><span data-i18n="control.duel.first">Fighter 1</span>
-            <select id="duel-a"></select></label>
-          <label><span data-i18n="control.duel.second">Fighter 2</span>
-            <select id="duel-b"></select></label>
+          <div class="pick">
+            <label for="duel-a" data-i18n="control.duel.first">Fighter 1</label>
+            <div class="pick-field">
+              <span class="dot" aria-hidden="true"></span>
+              <input id="duel-a" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="duel-a-list" autocomplete="off" spellcheck="false">
+              <button type="button" class="pick-clear link" hidden data-i18n-aria-label="control.duel.clear" aria-label="Back to by lot">×</button>
+            </div>
+            <ul id="duel-a-list" class="pick-list" role="listbox" hidden></ul>
+          </div>
+          <div class="pick">
+            <label for="duel-b" data-i18n="control.duel.second">Fighter 2</label>
+            <div class="pick-field">
+              <span class="dot" aria-hidden="true"></span>
+              <input id="duel-b" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="duel-b-list" autocomplete="off" spellcheck="false">
+              <button type="button" class="pick-clear link" hidden data-i18n-aria-label="control.duel.clear" aria-label="Back to by lot">×</button>
+            </div>
+            <ul id="duel-b-list" class="pick-list" role="listbox" hidden></ul>
+          </div>
         </div>
         <p class="muted small" id="duel-status"></p>
       </section>

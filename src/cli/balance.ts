@@ -16,10 +16,10 @@
  *     War battles in each arena and without: how long they last, and the
  *     share of deaths by barrels and traps.
  *   node src/cli/balance.ts duel [--runs 200] [--fit]
- *     Duels of each class (both duelists have the same class): how often the
+ *     Duels by the class both start with (they switch later): how often the
  *     first wins (should be half), draws, and how long they last. With
- *     --fit, searches each class's `duel.classPace` for a median of
- *     `duel.targetMs`.
+ *     --fit, searches the duel's toughness (`pace.kinds.duel`) for a median
+ *     of `duel.targetMs`.
  *   node src/cli/balance.ts pachinko [--runs 4000]
  *     Pachinko with the slot values in config and a few alternatives: how
  *     often a jackpot falls, how often it decides the game, and how often the
@@ -301,20 +301,18 @@ function duelsOf(cls: ClassId, runs: number): { first: number; draws: number; du
 function duel(): void {
   const runs = Number(values.runs ?? 200);
   const classIds = Object.keys(config.classes.shares) as ClassId[];
-  const pace = config.duel.classPace;
+  const kind = config.pace.kinds.duel;
   const median = (d: number[]) => d[Math.floor((d.length - 1) / 2)]!;
   if (values.fit) {
-    // A duel's length follows its toughness closely: a few rounds of scaling settle each class's.
+    // A duel's length follows its toughness closely: a few rounds of scaling settle it.
     for (let round = 1; round <= 4; round++) {
-      for (const c of classIds) {
-        const { durations } = duelsOf(c, Math.max(40, Math.round(runs / 2)));
-        pace[c] = Math.round(pace[c] * (config.duel.targetMs / median(durations)) * 100) / 100;
-      }
-      console.log(`round ${round}: ${classIds.map((c) => `${c} ${pace[c]}`).join(', ')}`);
+      const all = classIds.flatMap((c) => duelsOf(c, Math.max(30, Math.round(runs / 3))).durations).sort((x, y) => x - y);
+      kind.toughness = Math.round(kind.toughness * (config.duel.targetMs / median(all)) * 100) / 100;
+      console.log(`round ${round}: median ${Math.round(median(all) / 1000)} s → toughness ${kind.toughness}`);
     }
-    console.log(`\nclassPace: { ${classIds.map((c) => `${c}: ${pace[c]}`).join(', ')} }\n`);
+    console.log(`\npace.kinds.duel.toughness: ${kind.toughness}\n`);
   }
-  console.log(`Duels, ${runs} per class (both the same class): the first duelist's wins, draws, and how long they last`);
+  console.log(`Duels, ${runs} per starting class (both start with it, then switch): the first duelist's wins, draws, and how long they last`);
   console.log(`${'class'.padEnd(9)}${'first'.padStart(7)}${'draws'.padStart(7)}${'10%'.padStart(7)}${'median'.padStart(8)}${'90%'.padStart(7)}  time limit`);
   const all: number[] = [];
   for (const c of classIds) {
@@ -323,9 +321,8 @@ function duel(): void {
     const at = (q: number) => `${Math.round(durations[Math.floor(q * (durations.length - 1))]! / 1000)} s`;
     console.log(`${c.padEnd(9)}${pct(first).padStart(7)}${pct(draws).padStart(7)}${at(0.1).padStart(7)}${at(0.5).padStart(8)}${at(0.9).padStart(7)}${pct(timeLimit).padStart(12)}`);
   }
-  // Weighted by how often each class is dealt, as on stream.
   all.sort((x, y) => x - y);
-  console.log(`\nAll (equal weight): median ${Math.round(median(all) / 1000)} s, slowest tenth ${Math.round(all[Math.floor(0.9 * (all.length - 1))]! / 1000)} s`);
+  console.log(`\nAll: shortest tenth ${Math.round(all[Math.floor(0.1 * (all.length - 1))]! / 1000)} s, median ${Math.round(median(all) / 1000)} s, slowest tenth ${Math.round(all[Math.floor(0.9 * (all.length - 1))]! / 1000)} s`);
 }
 
 const modes: Record<string, () => void> = { god, classes, obstacles, pachinko, duel };

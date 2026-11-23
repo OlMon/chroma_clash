@@ -195,9 +195,21 @@ h3 { margin: 0 0 4px; font-size: 15px; }
 .advanced summary { cursor: pointer; font-weight: 600; }
 .advanced[open] summary { margin-bottom: 6px; }
 
-/* The duel's two pickers: a label over each list. */
-.duel-picks label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; }
-.duel-picks select { min-width: 220px; max-width: 100%; }
+/* The duel's two pickers: a search field each, with the matching chatters in a list under it. */
+.duel-picks { align-items: flex-start; }
+.pick { position: relative; display: flex; flex-direction: column; gap: 4px; min-width: 240px; flex: 1 1 240px; max-width: 340px; }
+.pick > label { font-weight: 600; }
+.pick-field { display: flex; align-items: center; gap: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); padding: 0 8px 0 10px; }
+.pick-field:focus-within { outline: 2px solid var(--accent, #6b4bd8); outline-offset: 1px; }
+.pick-field .dot { flex: none; background: transparent; box-shadow: inset 0 0 0 1.5px var(--muted, #888); }
+.pick-field input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--text); font: inherit; padding: 7px 4px; outline: none; }
+.pick-clear { flex: none; font-size: 1.2em; line-height: 1; padding: 2px 4px; }
+.pick-list { position: absolute; top: 100%; left: 0; right: 0; z-index: 20; margin: 4px 0 0; padding: 4px; list-style: none; max-height: 260px; overflow-y: auto;
+  background: var(--card, var(--bg)); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18); }
+.pick-list li { display: flex; align-items: center; padding: 6px 8px; border-radius: 6px; cursor: pointer; }
+.pick-list li[aria-selected="true"], .pick-list li:hover { background: var(--line); }
+.pick-list li.lot { color: var(--muted, #888); font-style: italic; }
+.pick-list li.none { color: var(--muted, #888); cursor: default; }
 
 select {
   font: inherit;

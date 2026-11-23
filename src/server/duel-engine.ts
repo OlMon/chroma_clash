@@ -35,14 +35,15 @@ export function drawDuelist(candidates: readonly UserRow[], other: UserRow | nul
 
 /**
  * Two chatters, one on one: shown face to face, then a single fight. Both
- * fight with the same class, dealt by lot, and equal stats: levels,
+ * start with the same class, dealt by lot, each switching to another now and
+ * then, and with equal stats: levels,
  * buildings, size balance and fortune do not apply, and every hit lands a
  * little harder or softer by chance (see `config.duel`). It changes nothing
  * in the game: the season only counts the winner's duel wins, for the recap.
  */
 export class DuelEngine implements EventEngine<DuelStep> {
   readonly duelists: [UserRow, UserRow];
-  /** The class both fight with. */
+  /** The class both start with. */
   cls: ClassId;
   winner: UserRow | null = null;
   /** The winner's health left at the end, from 0 to 1. */
@@ -95,11 +96,12 @@ export class DuelEngine implements EventEngine<DuelStep> {
     const setup: BattleSetup = {
       seed: this.seed,
       durationMs: duel.durationMs,
-      toughness: toughnessFor('duel', 2) * (duel.classPace[this.cls] ?? 1),
+      toughness: toughnessFor('duel', 2),
+      classSwitch: { everyMs: duel.switchEveryMs },
       overtime: duel.overtime,
       hitSpread: duel.hitSpread,
-      // The layouts are made for a crowd of smaller fighters: two this large would get stuck behind a wall.
-      obstacles: 'none',
+      // Bumpers, spike traps and barrels, and plenty of them; no walls: two this large would get stuck behind one.
+      obstacles: 'hazards',
       sizeBalance: false,
       fortune: false,
       levelBonus: false,

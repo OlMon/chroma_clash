@@ -2327,6 +2327,12 @@ function onBattleFrame(message) {
       battle.trail = { index: event.i, until: now + event.ms, points: [] };
     }
     if (event.k === 'fx' && event.fx === 'clash') battle.shake = { start: now, ms: 300, power: 7 };
+    if (event.k === 'fx' && event.fx === 'switch' && battle.fighters[event.i]) {
+      // A duelist takes another class: the new weapon pops into its hand, and its name shows above.
+      battle.fighters[event.i].cls = event.cl;
+      battle.fighters[event.i].switchedAt = now;
+      battle.caption = { text: tr(`class.${event.cl}`), index: event.i, start: now };
+    }
     if (event.k === 'fx' && event.fx === 'smash') {
       // The god breaking through a wall.
       battle.shake = { start: now, ms: 300, power: 9 };
@@ -2606,6 +2612,9 @@ function inkedWeapon(fill, width) {
   ctx.stroke();
 }
 
+/** A duelist switching class: how long the ring bursts out and the new weapon pops in. */
+const CLASS_SWITCH = { ringMs: 450, popMs: 320 };
+
 function drawClassWeapon(fighter, x, y, r, flags) {
   const cls = fighter.cls;
   const pose = fighter.pose || { face: 1, swingAt: -Infinity };
@@ -2615,6 +2624,19 @@ function drawClassWeapon(fighter, x, y, r, flags) {
   const theme = Theme.current;
   const accent = (theme.palette.classColors && theme.palette.classColors[cls]) || CLASS_COLORS[cls] || '#FFFFFF';
   const line = Math.max(1.5, r * 0.07);
+  // Just switched class (a duel): a ring in the new class's color bursts out, and the weapon pops in.
+  const switched = performance.now() - (fighter.switchedAt ?? -Infinity);
+  const pop = switched < CLASS_SWITCH.popMs ? easeOutBack(switched / CLASS_SWITCH.popMs) : 1;
+  if (switched < CLASS_SWITCH.ringMs) {
+    const k = switched / CLASS_SWITCH.ringMs;
+    ctx.save();
+    ctx.globalAlpha = 1 - k;
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = Math.max(2, r * 0.12 * (1 - k));
+    circle(x, y, r * (1.05 + 0.6 * k));
+    ctx.stroke();
+    ctx.restore();
+  }
   const t = r / 30;
   // Never quite still: every fighter sways and bobs its weapon in its own rhythm.
   const seed = impSeed(fighter.name || fighter.side) * 2.1;
@@ -2627,6 +2649,12 @@ function drawClassWeapon(fighter, x, y, r, flags) {
   // The hand: at the side the fighter faces, a little low.
   const hx = x + face * r * 0.8;
   const hy = y + r * 0.2 + bob * r * 0.05;
+  if (pop !== 1) {
+    // The new weapon grows out of the hand.
+    ctx.translate(hx, hy);
+    ctx.scale(Math.max(0.01, pop), Math.max(0.01, pop));
+    ctx.translate(-hx, -hy);
+  }
   /** Turns the drawing to a weapon angle (0 = straight ahead, negative = up), mirrored when facing left. */
   const aim = (angle, out = 0) => {
     const world = face === 1 ? angle : Math.PI - angle;

@@ -452,8 +452,8 @@ export function generateScenes(outDir: string, lang = 'en'): Scene[] {
   });
   page('duel', {
     messages: [battleState, ...recordBattle(t('mode.duel'), {
-      seed: 12, durationMs: config.duel.durationMs, toughness: config.pace.kinds.duel.toughness * config.duel.classPace.fighter, sizeBalance: false, fortune: false, levelBonus: false,
-      overtime: config.duel.overtime, hitSpread: config.duel.hitSpread, obstacles: 'none',
+      seed: 12, durationMs: config.duel.durationMs, toughness: config.pace.kinds.duel.toughness, classSwitch: { everyMs: config.duel.switchEveryMs }, sizeBalance: false, fortune: false, levelBonus: false,
+      overtime: config.duel.overtime, hitSpread: config.duel.hitSpread, obstacles: 'hazards',
       sides: duelists.map((f) => ({ id: f.side, damageBonus: 0, healthBonus: 0 })), fighters: duelists,
     }, duelists.map((f, i) => ({ id: f.side, name: f.name, color: duelColors[i]! })), emotes,
     // A moment after both took some hits.
