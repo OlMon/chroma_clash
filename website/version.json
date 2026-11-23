@@ -1,5 +1,5 @@
 {
-  "version": "0.2.1",
+  "version": "1.0.0",
   "url": "https://github.com/OlMon/chroma_clash/releases",
-  "notes": "The game now only reads chat: no Twitch login or token, and it never writes in chat (the optional results in chat are gone)."
+  "notes": "Version 1.0. Duels in the Arena: pick two chatters (search by name) or leave it to the lot, a VS screen, then one on one with the health bars of a fighting game, switching classes among bumpers, spike traps and barrels. The season's recap names who won the most duels."
 }

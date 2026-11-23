@@ -3,11 +3,12 @@
 // headless Chromium through the DevTools screencast, and makes an MP4 and a
 // poster picture with ffmpeg.
 //
-//   node tools/preview/record.ts [--clip battle,streamer-vs-chat,brawl] [--out website/media]
+//   node tools/preview/record.ts [--clip battle,streamer-vs-chat,brawl,duel] [--out website/media]
 //
 // battle  a War battle in the Dark Fantasy Comic theme
 // streamer-vs-chat  Streamer vs Chat in the Pixel RPG theme
 // brawl   the Arena's brawl in the Dark Fantasy Comic theme, the god joining
+// duel    a duel in the Pixel RPG theme: the VS screen, then the fight
 
 import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -18,7 +19,7 @@ import { parseArgs } from 'node:util';
 const ROOT = resolve(import.meta.dirname, '../..');
 const { values } = parseArgs({
   options: {
-    clip: { type: 'string', default: 'battle,streamer-vs-chat,brawl' },
+    clip: { type: 'string', default: 'battle,streamer-vs-chat,brawl,duel' },
     out: { type: 'string', default: join(ROOT, 'website', 'media') },
   },
 });
@@ -94,6 +95,16 @@ const CLIPS: Record<string, Clip> = {
     },
     async during(post, at) {
       if (at === 6) await post('/api/brawl', { join: 'god' });
+    },
+  },
+  duel: {
+    theme: 'pixel',
+    chatters: 40,
+    seconds: 24,
+    async start(post, page) {
+      await post('/api/duel/start', { a: null, b: null });
+      // From the VS screen on: the two slide in and "VS" slams down.
+      await until(async () => (await page.evaluate('Boolean(announcement && announcement.lineup && announcement.lineup.duel)')) === true, 30_000);
     },
   },
 };
