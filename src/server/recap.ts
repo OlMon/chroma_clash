@@ -48,6 +48,7 @@ export function recapMessage(season: SeasonRecord, god: { name: string; color: s
   who(t('server.recap.highestLevel'), summary.topLevel && t('server.stats.level', { name: summary.topLevel.displayName, level: summary.topLevel.level }));
   who(t('server.recap.clashWins'), summary.champion && t('server.recap.wins', { name: summary.champion.displayName, count: summary.champion.wins }));
   who(t('server.recap.pachinko'), summary.pachinko ? t('server.recap.points', { name: summary.pachinko.displayName, count: summary.pachinko.points }) : null);
+  who(t('server.recap.duelWins'), summary.duel ? t('server.recap.wins', { name: summary.duel.displayName, count: summary.duel.wins }) : null);
   rows.push({ label: t('server.stats.godSeason', { god: god.name }), value: `${season.godWins} : ${season.godLosses}`, color: god.color });
   rows.push({ label: t('server.stats.players'), value: String(summary.players), color: null });
 

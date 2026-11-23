@@ -149,6 +149,8 @@ export interface SeasonSummary {
   champion: { displayName: string; wins: number } | null;
   /** The most points one chatter scored in a game of Pachinko; missing in seasons from before it was kept. */
   pachinko?: { displayName: string; points: number } | null;
+  /** The chatter with the most duel wins; missing in seasons from before duels. */
+  duel?: { displayName: string; wins: number } | null;
   /** How many chatters played in the season. */
   players: number;
   /** Final standings per guild: Monument progress, the goal it was measured against, tiles and land level. */
@@ -315,6 +317,7 @@ export class Store {
       topKiller: this.seasonTopKiller(),
       champion: champion ? { ...champion } : null,
       pachinko: this.bestPachinkoRun(seasonId),
+      duel: this.topDuelist(seasonId),
       players: this.seasonPlayers(),
       monumentGoal: this.monumentGoal(),
       guilds,
@@ -425,6 +428,38 @@ export class Store {
     this.setSetting('pachinko_best', JSON.stringify({ seasonId, displayName, points }));
   }
 
+  /** The duel wins of this season, by chatter id, with the name they last won under. */
+  private duelTable(seasonId: number): Record<string, { name: string; wins: number }> {
+    try {
+      const stored = JSON.parse(this.getSetting('duel_wins') ?? 'null') as { seasonId: number; wins: Record<string, { name: string; wins: number }> } | null;
+      return stored && stored.seasonId === seasonId ? stored.wins : {};
+    } catch {
+      return {};
+    }
+  }
+
+  /** Counts a duel won, for the season's recap. */
+  noteDuelWin(user: { user_id: string; display_name: string }, now: number): void {
+    const seasonId = this.currentSeasonId(now);
+    const wins = this.duelTable(seasonId);
+    wins[user.user_id] = { name: user.display_name, wins: (wins[user.user_id]?.wins ?? 0) + 1 };
+    this.setSetting('duel_wins', JSON.stringify({ seasonId, wins }));
+  }
+
+  /** How many duels a chatter won this season. */
+  duelWins(userId: string, now: number): number {
+    return this.duelTable(this.currentSeasonId(now))[userId]?.wins ?? 0;
+  }
+
+  /** The chatter with the most duel wins this season (the first to reach it on a tie), or null. */
+  topDuelist(seasonId: number): { displayName: string; wins: number } | null {
+    let best: { displayName: string; wins: number } | null = null;
+    for (const entry of Object.values(this.duelTable(seasonId))) {
+      if (!best || entry.wins > best.wins) best = { displayName: entry.name, wins: entry.wins };
+    }
+    return best;
+  }
+
   /** The season's best Pachinko run, or null when nobody played. */
   bestPachinkoRun(seasonId: number): { displayName: string; points: number } | null {
     try {
@@ -503,6 +538,7 @@ export class Store {
         DELETE FROM settings WHERE key = 'season_pace';
         DELETE FROM settings WHERE key = 'pachinko_best';
         DELETE FROM settings WHERE key = 'pachinko_wins';
+        DELETE FROM settings WHERE key = 'duel_wins';
         DELETE FROM guild_windows;
         UPDATE guilds SET monument = 0, xp_boost_until = NULL;
         UPDATE users SET xp = 0, level = 0, season_kills = 0, guild_id = NULL;

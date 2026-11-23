@@ -384,6 +384,7 @@ function render(next) {
   $('draft-guild').disabled = running;
   $('draft-free').disabled = running;
   $('draft-pachinko').disabled = running;
+  renderDuel(running);
 
   const endless = state.endless;
   $('endless-toggle').disabled = running && !endless.active;
@@ -820,6 +821,42 @@ $('clash-start').addEventListener('click', () => post('/api/clash/start', {}));
 $('draft-guild').addEventListener('click', () => post('/api/draft/start', { mode: 'guild' }));
 $('draft-free').addEventListener('click', () => post('/api/draft/start', { mode: 'free' }));
 $('draft-pachinko').addEventListener('click', () => post('/api/draft/start', { mode: 'pachinko' }));
+
+/**
+ * The duel's two pickers: "By lot" and the chatters who wrote lately. They are
+ * rebuilt only when the list changed, and keep what the streamer picked as
+ * long as that chatter is still on it.
+ */
+let duelList = '';
+function renderDuel(running) {
+  const { candidates, minutes } = state.duel;
+  $('duel-text').textContent = tr('control.duel.text', { minutes });
+  $('duel-status').textContent = candidates.length === 0
+    ? tr('control.duel.nobody', { minutes })
+    : tr('control.duel.few', { count: candidates.length, minutes });
+  const guildName = Object.fromEntries(state.guilds.map((g) => [g.id, g.name]));
+  const list = JSON.stringify([candidates, state.display.language]);
+  for (const id of ['duel-a', 'duel-b']) {
+    const select = $(id);
+    if (list === duelList && select.options.length > 0) continue;
+    // An open list is left alone: rebuilding it would close it under the streamer's mouse.
+    if (document.activeElement === select && select.options.length > 0) continue;
+    const kept = select.value;
+    const lot = new Option(tr('control.duel.byLot'), '');
+    select.replaceChildren(lot, ...candidates.map((c) => {
+      const option = new Option(`${c.name} · ${guildName[c.guild] ?? c.guild}`, c.id);
+      option.style.color = c.color;
+      return option;
+    }));
+    select.value = candidates.some((c) => c.id === kept) ? kept : '';
+  }
+  if (document.activeElement !== $('duel-a') && document.activeElement !== $('duel-b')) duelList = list;
+  // Two picks of the same chatter cannot duel; the button says so by staying off.
+  const same = $('duel-a').value !== '' && $('duel-a').value === $('duel-b').value;
+  $('duel-start').disabled = running || candidates.length < 2 || same;
+}
+for (const id of ['duel-a', 'duel-b']) $(id).addEventListener('change', () => renderDuel(state.battle !== null));
+$('duel-start').addEventListener('click', () => post('/api/duel/start', { a: $('duel-a').value || null, b: $('duel-b').value || null }));
 $('brawl-toggle').addEventListener('click', () => {
   if (state) post('/api/brawl', { active: !state.brawl.active });
 });
@@ -1020,6 +1057,7 @@ const QUICK = {
   'hero-clash': 'clash-start',
   'free-for-all': 'draft-free',
   pachinko: 'draft-pachinko',
+  duel: 'duel-start',
   'gods-wrath': 'god-wrath',
   'streamer-vs-chat': 'god-versus',
   'friendly-fight': 'god-friendly',
@@ -1070,7 +1108,7 @@ for (const button of document.querySelectorAll('[data-quick]')) {
 /** The dock's buttons, by the runtime they show as a tooltip. */
 const QUICK_RUNTIME = {
   war: 'war', 'guild-clash': 'guildClash', 'hero-clash': 'heroClash', 'free-for-all': 'freeForAll',
-  pachinko: 'pachinko', 'gods-wrath': 'godsWrath', 'streamer-vs-chat': 'streamerVsChat', 'friendly-fight': 'friendly',
+  pachinko: 'pachinko', duel: 'duel', 'gods-wrath': 'godsWrath', 'streamer-vs-chat': 'streamerVsChat', 'friendly-fight': 'friendly',
 };
 
 /** A runtime range in minutes, to the half minute: "about 4–5.5 min", or "about 2.5 min" when both ends meet. */

@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { config } from '../../src/config.ts';
 import { estimatedRuntimes } from '../../src/server/runtimes.ts';
 
-test('every event has a runtime range, shortest first, of at least a minute', () => {
+test('every event has a runtime range, shortest first, of at least a minute (a duel: half a minute)', () => {
   for (const [kind, [shortest, longest]] of Object.entries(estimatedRuntimes())) {
-    assert.ok(shortest >= 60_000, `${kind} shortest ${shortest}`);
+    assert.ok(shortest >= (kind === 'duel' ? 30_000 : 60_000), `${kind} shortest ${shortest}`);
     assert.ok(shortest <= longest, `${kind} ${shortest} > ${longest}`);
   }
 });

@@ -57,7 +57,7 @@ function resultFor(setup: { sides: { id: string; team?: string }[]; fighters: { 
       // Later sides dealt more, so the last chat guild struck hardest per fighter.
       damageDealt: 100 * (index + 1) * setup.fighters.filter((f) => f.side === side.id).length,
     })),
-    fighters: setup.fighters.map((f) => ({ id: f.id, side: f.side, kills: 0, alive: true, damageDealt: 0 })),
+    fighters: setup.fighters.map((f) => ({ id: f.id, side: f.side, kills: 0, alive: true, damageDealt: 0, healthLeft: 1 })),
   };
 }
 

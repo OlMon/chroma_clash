@@ -7,6 +7,7 @@ export type RuntimeKind =
   | 'guildClash'
   | 'freeForAll'
   | 'pachinko'
+  | 'duel'
   | 'godsWrath'
   | 'streamerVsChat'
   | 'friendly'
@@ -23,7 +24,7 @@ export type Runtime = [number, number];
  * per guild; a Hero Clash at most one heat per hero rank and a final.
  */
 export function estimatedRuntimes(): Record<RuntimeKind, Runtime> {
-  const { war, draft, clash, battle, pachinko, pace } = config;
+  const { war, draft, clash, battle, pachinko, pace, duel } = config;
   const shortest = pace.shortestFightMs;
   /** A fight with its announcement before and the result after; `outcome` when the map then shows what changed. */
   const fight = (limitMs: number, outcome: boolean): Runtime => {
@@ -50,6 +51,8 @@ export function estimatedRuntimes(): Record<RuntimeKind, Runtime> {
     freeForAll: add(countdown, draftFight, summary),
     // The balls drop over about `targetMs`; the last one still has to fall.
     pachinko: add(countdown, draft.lineupMs, pachinko.targetMs + pachinko.rows * pachinko.hopMs + pachinko.holdMs, summary),
+    // The two face to face, then one fight that usually ends well before its time limit.
+    duel: add(duel.lineupMs, [duel.shortestMs, duel.durationMs], war.resultHoldMs, summary),
     godsWrath: god,
     streamerVsChat: god,
     friendly: god,

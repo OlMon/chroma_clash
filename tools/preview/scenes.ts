@@ -192,9 +192,12 @@ function recordBattle(
   pick: (frames: BattleFrameMessage[], i: number) => number,
   /** Whether the picture shows the battle's start as it begins (the arena's name introduced), not a page joining later. */
   fromStart = false,
+  /** More of the start message, such as `duel: true`. */
+  extra: object = {},
 ): unknown[] {
   const battle = new Battle(setup);
   const start = {
+    ...extra,
     type: 'battle-start', title, durationMs: battle.durationMs, arena: config.battle.arena, enrageGrow: config.skills.enrage.grow, ambient: false, sides,
     place: battle.place, elapsedMs: 0, overtimeMs: battle.overtimeAt,
     fighters: battle.fighters.map((f) => ({
@@ -427,6 +430,35 @@ export function generateScenes(outDir: string, lang = 'en'): Scene[] {
       sides: trio.map((f) => ({ id: f.side, damageBonus: 0, healthBonus: 0 })), fighters: trio,
     }, trio.map((f) => ({ id: f.side, name: f.name, color: '#E5484D' })), emotes, (frames, i) => (frames[i]!.t >= config.clash.overtime.afterMs + 4_000 ? 100 - i / 1000 : -1))],
     moments: [250],
+  });
+
+  // A duel: two chatters face to face on the "VS" screen, then the fight with the health bars of a fighting game.
+  const duelists: FighterSpec[] = [fighters.find((f) => f.side === 'red')!, fighters.find((f) => f.side === 'blue')!]
+    .map((f) => ({ ...f, side: f.id, level: 0, radius: config.duel.radius, class: 'fighter' as const }));
+  const duelColors = [config.guilds.list.find((g) => g.id === 'red')!.color, config.guilds.list.find((g) => g.id === 'blue')!.color];
+  page('duellineup', {
+    messages: [stateMessage, {
+      type: 'announce', title: t('server.duel.title', { a: duelists[0]!.name, b: duelists[1]!.name }), subtitle: '', holdMs: config.duel.lineupMs,
+      lineup: {
+        duel: true,
+        teams: duelists.map((f, i) => ({
+          name: guild(i === 0 ? 'red' : 'blue'), color: duelColors[i]!,
+          members: [{ name: f.name, detail: t(`class.${f.class}`), emote: emotes.get(f.id) ?? null, color: f.color }],
+        })),
+        note: t('server.duel.note'),
+      },
+    }],
+    moments: [350, 700, 3000],
+  });
+  page('duel', {
+    messages: [battleState, ...recordBattle(t('mode.duel'), {
+      seed: 12, durationMs: config.duel.durationMs, toughness: config.pace.kinds.duel.toughness * config.duel.classPace.fighter, sizeBalance: false, fortune: false, levelBonus: false,
+      overtime: config.duel.overtime, hitSpread: config.duel.hitSpread, obstacles: 'none',
+      sides: duelists.map((f) => ({ id: f.side, damageBonus: 0, healthBonus: 0 })), fighters: duelists,
+    }, duelists.map((f, i) => ({ id: f.side, name: f.name, color: duelColors[i]! })), emotes,
+    // A moment after both took some hits.
+    (frames, i) => { const f = frames[i]!.f as number[][]; return f[0]![2]! < 0.75 && f[1]![2]! < 0.6 ? 100 - i / 100 : -1; }, false, { duel: true })],
+    moments: [150, 400],
   });
 
   // A small chat's War: one guild of two chatters against five, filled up the small-chat way: the god doubles

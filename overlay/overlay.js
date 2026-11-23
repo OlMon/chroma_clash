@@ -1415,7 +1415,8 @@ function renderPanel() {
     return;
   }
   if (announcement && announcement.lineup) {
-    drawLineup(announcement);
+    if (announcement.lineup.duel) drawDuelLineup(announcement);
+    else drawLineup(announcement);
     return;
   }
   if (announcement && announcement.celebrate) {
@@ -1703,6 +1704,108 @@ function drawLineup(a) {
       }
     });
   });
+}
+
+/** A duel's line-up: the two face to face, sliding in from the sides, and "VS" slamming down between them. */
+const DUEL_LINEUP = { slideMs: 650, vsAtMs: 550, vsMs: 280 };
+
+function drawDuelLineup(a) {
+  const elapsed = performance.now() - a.shownAt;
+  const box = { left: 160, top: 110, width: 1600, height: 820 };
+  const cx = canvas.width / 2;
+  const cy = box.top + 380;
+  drawBox(box.left, box.top, box.width, box.height, { radius: 28, strong: true });
+  const [one, two] = a.lineup.teams;
+
+  // Each half in its fighter's color, split by a slanted line through the middle.
+  ctx.save();
+  ctx.beginPath();
+  ctx.roundRect(box.left, box.top, box.width, box.height, 28);
+  ctx.clip();
+  const slant = 90;
+  ctx.globalAlpha = 0.16;
+  ctx.fillStyle = one.color;
+  ctx.beginPath();
+  ctx.moveTo(box.left, box.top);
+  ctx.lineTo(cx + slant, box.top);
+  ctx.lineTo(cx - slant, box.top + box.height);
+  ctx.lineTo(box.left, box.top + box.height);
+  ctx.fill();
+  ctx.fillStyle = two.color;
+  ctx.beginPath();
+  ctx.moveTo(cx + slant, box.top);
+  ctx.lineTo(box.left + box.width, box.top);
+  ctx.lineTo(box.left + box.width, box.top + box.height);
+  ctx.lineTo(cx - slant, box.top + box.height);
+  ctx.fill();
+  ctx.globalAlpha = 0.5;
+  ctx.strokeStyle = '#FFFFFF';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(cx + slant, box.top);
+  ctx.lineTo(cx - slant, box.top + box.height);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = `700 46px ${FONT}`;
+  ctx.fillText(tr('overlay.duel.title'), cx, box.top + 70);
+
+  // The two slide in from their sides, overshooting a little.
+  const slide = easeOutBack(elapsed / DUEL_LINEUP.slideMs);
+  [one, two].forEach((team, index) => {
+    const member = team.members[0];
+    const side = index === 0 ? -1 : 1;
+    const home = cx + side * 430;
+    const x = home + side * (1 - slide) * 900;
+    const r = 150;
+    drawEmoteDisc(member.emote, x, cy, r, team.color, member.color);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = team.color;
+    ctx.font = `700 56px ${FONT}`;
+    ctx.fillText(member.name, x, cy + r + 62, 620);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.78)';
+    ctx.font = `400 28px ${FONT}`;
+    ctx.fillText([member.detail, team.name].filter(Boolean).join(' · '), x, cy + r + 116, 620);
+  });
+
+  // "VS" slams down between them once they are in place.
+  const vs = (elapsed - DUEL_LINEUP.vsAtMs) / DUEL_LINEUP.vsMs;
+  if (vs > 0) {
+    const t = Math.min(1, vs);
+    const scale = 1 + 1.6 * (1 - t) ** 2;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(-0.08);
+    ctx.scale(scale, scale);
+    ctx.globalAlpha = t;
+    ctx.font = `800 150px ${FONT}`;
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 14;
+    ctx.strokeStyle = '#0B0807';
+    ctx.strokeText(tr('overlay.duel.vs'), 0, 0);
+    ctx.fillStyle = '#FFD54A';
+    ctx.fillText(tr('overlay.duel.vs'), 0, 0);
+    ctx.restore();
+    // A flash as it lands.
+    const flash = Math.max(0, 1 - (elapsed - DUEL_LINEUP.vsAtMs - DUEL_LINEUP.vsMs) / 300);
+    if (flash > 0 && vs >= 1) {
+      ctx.save();
+      ctx.globalAlpha = 0.35 * flash;
+      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath();
+      ctx.roundRect(box.left, box.top, box.width, box.height, 28);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+  ctx.font = `400 26px ${FONT}`;
+  ctx.fillText(a.lineup.note, cx, box.top + box.height - 50, box.width - 80);
 }
 
 /** The map panel in the corner: territory and cities. Hidden while "Chat plays" is paused. */
@@ -2172,6 +2275,7 @@ function onBattleStart(message) {
     diedAt: new Array(message.fighters.length).fill(0),
     enrageGrow: message.enrageGrow || 1,
     ambient: message.ambient === true, // background decoration: no scoreboard and no result
+    duel: message.duel === true, // a duel: the health bars of a fighting game instead of the scoreboard
     marks: [], // scorch marks lightning left on the ground
     shake: null, // { start, ms, power }: the battlefield shaking after a heavy blow
     effects: [], // skills being announced or cast, each with the time it started
@@ -3263,6 +3367,7 @@ function drawFeed(now, left, top, maxWidth) {
 
 /** Where the scoreboard is: its left edge, so the highlights keep left of it. */
 function hudLeft() {
+  if (battle.duel) return (canvas.width - DUEL_HUD.width) / 2;
   if (battle.sides.length > 4) return (canvas.width - 520) / 2;
   const width = battle.sides.length * 230 + (battle.sides.length - 1) * 24 + 48;
   return (canvas.width - width) / 2;
@@ -3999,7 +4104,98 @@ function drawCaption(now, at) {
   }
 }
 
+/** A duel's scoreboard: the two health bars of a fighting game, the clock between them. */
+const DUEL_HUD = { width: 1240, barWidth: 470, lagMs: 450, catchUp: 0.9 };
+
+function drawDuelHud(frame) {
+  const cx = canvas.width / 2;
+  const left = cx - DUEL_HUD.width / 2;
+  drawBox(left, 20, DUEL_HUD.width, 112, { radius: 16 });
+  const now = performance.now();
+  // A page that joins mid-fight starts the bars where the health is.
+  battle.duelBars = battle.duelBars || battle.sides.map((side) => {
+    const i = battle.fighters.findIndex((fighter) => fighter.side === side.id && !fighter.minion);
+    const health = i < 0 ? 1 : frame.f[i][2];
+    return { shown: health, lag: health, hitAt: 0 };
+  });
+
+  battle.sides.forEach((side, index) => {
+    const i = battle.fighters.findIndex((fighter) => fighter.side === side.id && !fighter.minion);
+    if (i < 0) return;
+    const health = frame.f[i][2];
+    const bar = battle.duelBars[index];
+    // The bar drops at once; a pale strip shows what was just lost, then catches up.
+    if (health < bar.shown) bar.hitAt = now;
+    bar.shown = health;
+    if (now - bar.hitAt > DUEL_HUD.lagMs) bar.lag = Math.max(bar.shown, bar.lag - DUEL_HUD.catchUp / 60);
+    if (bar.lag < bar.shown) bar.lag = bar.shown;
+
+    // Fighter 1 on the left, fighter 2 on the right; each bar is anchored at its outer end.
+    const outer = index === 0 ? left + 120 : left + DUEL_HUD.width - 120;
+    const inner = index === 0 ? outer + DUEL_HUD.barWidth : outer - DUEL_HUD.barWidth;
+    const dir = index === 0 ? 1 : -1;
+    const y = 44;
+    const height = 30;
+    const at = (share) => outer + dir * DUEL_HUD.barWidth * share;
+    const rect = (from, to) => {
+      const x = Math.min(from, to);
+      ctx.fillRect(x, y, Math.abs(to - from), height);
+    };
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+    rect(outer, inner);
+    ctx.fillStyle = 'rgba(255, 244, 214, 0.85)';
+    rect(at(bar.shown), at(bar.lag));
+    ctx.fillStyle = side.color;
+    rect(outer, at(health));
+    // A lighter top half, so the bar reads as a bar and not a flat strip.
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.22)';
+    ctx.fillRect(Math.min(outer, at(health)), y, Math.abs(at(health) - outer), height * 0.45);
+    // Low health makes the bar pulse red.
+    const low = health > 0 && health < 0.25;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(Math.min(outer, inner), y, DUEL_HUD.barWidth, height);
+    if (low) {
+      ctx.save();
+      ctx.globalAlpha = 0.35 + 0.35 * Math.sin(now / 110);
+      ctx.fillStyle = '#FF4A3D';
+      rect(outer, at(health));
+      ctx.restore();
+    }
+
+    // The fighter's emote at the outer end, the name under the bar.
+    const fighter = battle.fighters[i];
+    drawEmoteDisc(fighter.emote, index === 0 ? left + 62 : left + DUEL_HUD.width - 62, 76, 40, side.color, fighter.color);
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = index === 0 ? 'left' : 'right';
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = `700 24px ${FONT}`;
+    ctx.fillText(side.name, outer, 100, DUEL_HUD.barWidth - 80);
+    ctx.textAlign = index === 0 ? 'right' : 'left';
+    ctx.font = `600 20px ${FONT}`;
+    ctx.fillStyle = low ? '#FF8A7E' : 'rgba(255, 255, 255, 0.8)';
+    ctx.fillText(`${Math.round(health * 100)}%`, inner, 100);
+  });
+
+  // The clock between the bars; red and pulsing in overtime.
+  const remaining = Math.max(0, battle.durationMs - frame.t);
+  const seconds = Math.ceil(remaining / 1000);
+  const overtime = battle.overtimeMs !== null && frame.t >= battle.overtimeMs;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `700 44px ${FONT}`;
+  ctx.fillStyle = overtime ? `rgb(255, ${Math.round(90 + 60 * (0.5 + 0.5 * Math.sin(now / 160)))}, 80)` : '#FFFFFF';
+  ctx.fillText(String(seconds), cx, 60);
+  ctx.font = `600 16px ${FONT}`;
+  ctx.fillStyle = overtime ? '#FF6B5E' : 'rgba(255, 255, 255, 0.7)';
+  ctx.fillText(overtime ? tr('overlay.hud.overtime') : battle.title, cx, 102, 130);
+}
+
 function drawBattleHud(frame) {
+  if (battle.duel) {
+    drawDuelHud(frame);
+    return;
+  }
   const remaining = Math.max(0, battle.durationMs - frame.t);
   const seconds = Math.ceil(remaining / 1000);
   const clock = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;

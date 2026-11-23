@@ -195,6 +195,10 @@ h3 { margin: 0 0 4px; font-size: 15px; }
 .advanced summary { cursor: pointer; font-weight: 600; }
 .advanced[open] summary { margin-bottom: 6px; }
 
+/* The duel's two pickers: a label over each list. */
+.duel-picks label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; }
+.duel-picks select { min-width: 220px; max-width: 100%; }
+
 select {
   font: inherit;
   padding: 7px 10px;

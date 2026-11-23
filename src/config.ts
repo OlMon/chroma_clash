@@ -245,6 +245,7 @@ export const config = {
       guildClash: { toughness: 0.7, exponent: 1 },
       freeForAll: { toughness: 1.0, exponent: 1 },
       god: { toughness: 3.6, exponent: 0.3 },
+      duel: { toughness: 3.0, exponent: 0 },
     },
   },
   battle: {
@@ -540,6 +541,44 @@ export const config = {
     freeForAllOnField: 10,
     /** Time limit of the fight, bench included. */
     durationMs: 100_000,
+  },
+  /**
+   * A duel, in the Arena: two chatters, one on one, large on screen. The
+   * streamer picks both in the control panel, or leaves one or both to the
+   * lot, drawn from the chatters who wrote within `recentMs` (from another
+   * guild than the other duelist when there is one). Equal stats; only the
+   * class each was dealt sets them apart. It changes nothing in the game; the
+   * season counts each chatter's duel wins for the recap.
+   */
+  duel: {
+    recentMs: 30 * 60_000,
+    /** The control panel offers at most this many chatters, the latest writers first. */
+    candidates: 40,
+    /** How long the two are shown face to face before the fight. */
+    lineupMs: 8_000,
+    /** The time limit; then the one with more health left wins. Most duels end well before it. */
+    durationMs: 75_000,
+    /** The shortest a duel usually lasts, for the runtime the control panel shows. */
+    shortestMs: 25_000,
+    /** From `afterMs`, every hit deals `perSecond` more of its damage for each second past it, so nobody stalls. */
+    overtime: { afterMs: 45_000, perSecond: 0.1 },
+    /** The duelists' radius in arena units: twice a crowded field's largest fighters, so they are large on screen. */
+    radius: 64,
+    /**
+     * Both duelists fight with the same class, dealt by lot: the classes are
+     * made for crowds, and one on one most pairings were decided before the
+     * fight (a tank beat almost everyone, a mage almost nobody). Each hit
+     * deals its damage times a factor from 1 - `hitSpread` to 1 + `hitSpread`,
+     * so the fight is open to the end.
+     */
+    hitSpread: 0.5,
+    /**
+     * Each class's duel toughness, as a factor of the duel's: a tank or a
+     * healer outlasts a mage by far. Found with `node src/cli/balance.ts duel
+     * --fit`, so a duel of any class lasts about `targetMs` (median).
+     */
+    classPace: { fighter: 1.11, archer: 1.22, tank: 0.45, thief: 0.6, mage: 0.94, healer: 0.48 } as Record<ClassId, number>,
+    targetMs: 40_000,
   },
   /**
    * Pachinko, in the Arena: chatters are drawn like for a Guild Clash, then

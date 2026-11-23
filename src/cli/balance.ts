@@ -15,6 +15,11 @@
  *   node src/cli/balance.ts obstacles [--runs 30] [--sizes 6,15,40]
  *     War battles in each arena and without: how long they last, and the
  *     share of deaths by barrels and traps.
+ *   node src/cli/balance.ts duel [--runs 200] [--fit]
+ *     Duels of each class (both duelists have the same class): how often the
+ *     first wins (should be half), draws, and how long they last. With
+ *     --fit, searches each class's `duel.classPace` for a median of
+ *     `duel.targetMs`.
  *   node src/cli/balance.ts pachinko [--runs 4000]
  *     Pachinko with the slot values in config and a few alternatives: how
  *     often a jackpot falls, how often it decides the game, and how often the
@@ -27,6 +32,8 @@ import { ARENAS, type ArenaId } from '../game/obstacles.ts';
 import { playPachinko } from '../game/pachinko.ts';
 import type { EventEngine } from '../server/event-runner.ts';
 import { GodEngine } from '../server/god-engine.ts';
+import { DuelEngine } from '../server/duel-engine.ts';
+import { Store, type UserRow } from '../db/store.ts';
 import { WarEngine } from '../server/war-engine.ts';
 import { createRng } from '../util/rng.ts';
 import { T0, asRunner, channel } from './sim-support.ts';
@@ -265,9 +272,65 @@ function pachinko(): void {
   }
 }
 
-const modes: Record<string, () => void> = { god, classes, obstacles, pachinko };
+// --- Duels -------------------------------------------------------------------------
+
+/** Duels of one class: how often the first duelist wins, how often neither does, and how long they last. */
+function duelsOf(cls: ClassId, runs: number): { first: number; draws: number; durations: number[]; timeLimit: number } {
+  const store = Store.open(':memory:');
+  const user = (id: string, guild: 'red' | 'blue'): UserRow =>
+    ({ user_id: id, login: id, display_name: id, color: null, emote_id: null, guild_id: guild }) as unknown as UserRow;
+  const durations: number[] = [];
+  let first = 0;
+  let draws = 0;
+  let timeLimit = 0;
+  for (let run = 0; run < runs; run++) {
+    const engine = new DuelEngine(store, () => T0, 1000 + run * 7919, user('a', 'red'), user('b', 'blue'));
+    engine.cls = cls;
+    play(engine, (_battle, result) => {
+      durations.push(result.durationMs);
+      if (result.endedBy === 'time') timeLimit++;
+      if (result.winner === 'a') first++;
+      if (result.winner === null) draws++;
+    });
+  }
+  store.close();
+  durations.sort((x, y) => x - y);
+  return { first: first / runs, draws: draws / runs, durations, timeLimit: timeLimit / runs };
+}
+
+function duel(): void {
+  const runs = Number(values.runs ?? 200);
+  const classIds = Object.keys(config.classes.shares) as ClassId[];
+  const pace = config.duel.classPace;
+  const median = (d: number[]) => d[Math.floor((d.length - 1) / 2)]!;
+  if (values.fit) {
+    // A duel's length follows its toughness closely: a few rounds of scaling settle each class's.
+    for (let round = 1; round <= 4; round++) {
+      for (const c of classIds) {
+        const { durations } = duelsOf(c, Math.max(40, Math.round(runs / 2)));
+        pace[c] = Math.round(pace[c] * (config.duel.targetMs / median(durations)) * 100) / 100;
+      }
+      console.log(`round ${round}: ${classIds.map((c) => `${c} ${pace[c]}`).join(', ')}`);
+    }
+    console.log(`\nclassPace: { ${classIds.map((c) => `${c}: ${pace[c]}`).join(', ')} }\n`);
+  }
+  console.log(`Duels, ${runs} per class (both the same class): the first duelist's wins, draws, and how long they last`);
+  console.log(`${'class'.padEnd(9)}${'first'.padStart(7)}${'draws'.padStart(7)}${'10%'.padStart(7)}${'median'.padStart(8)}${'90%'.padStart(7)}  time limit`);
+  const all: number[] = [];
+  for (const c of classIds) {
+    const { first, draws, durations, timeLimit } = duelsOf(c, runs);
+    all.push(...durations);
+    const at = (q: number) => `${Math.round(durations[Math.floor(q * (durations.length - 1))]! / 1000)} s`;
+    console.log(`${c.padEnd(9)}${pct(first).padStart(7)}${pct(draws).padStart(7)}${at(0.1).padStart(7)}${at(0.5).padStart(8)}${at(0.9).padStart(7)}${pct(timeLimit).padStart(12)}`);
+  }
+  // Weighted by how often each class is dealt, as on stream.
+  all.sort((x, y) => x - y);
+  console.log(`\nAll (equal weight): median ${Math.round(median(all) / 1000)} s, slowest tenth ${Math.round(all[Math.floor(0.9 * (all.length - 1))]! / 1000)} s`);
+}
+
+const modes: Record<string, () => void> = { god, classes, obstacles, pachinko, duel };
 if (!modes[mode]) {
-  console.log('Usage: node src/cli/balance.ts god|classes|obstacles|pachinko [--runs N] [--sizes a,b,c] [--fit]');
+  console.log('Usage: node src/cli/balance.ts god|classes|obstacles|pachinko|duel [--runs N] [--sizes a,b,c] [--fit]');
   process.exit(1);
 }
 modes[mode]!();

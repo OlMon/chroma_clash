@@ -23,6 +23,7 @@ import { assignClasses, type FighterSpec } from '../game/battle.ts';
 import { createRng, hashString } from '../util/rng.ts';
 import { ClashEngine } from './clash-engine.ts';
 import { DraftEngine, drawFighters, drawProblem, type DraftMode, type Lineup } from './draft-engine.ts';
+import { DuelEngine, drawDuelist } from './duel-engine.ts';
 import { PachinkoEngine } from './pachinko-engine.ts';
 import { BrawlRunner } from './brawl-runner.ts';
 import type { BrawlWho } from '../game/brawl.ts';
@@ -125,6 +126,8 @@ export type ServerSnapshot = GameSnapshot & {
   guide: { overlays: number; testBattleRun: boolean; withoutGpu: number };
   /** The Arena's brawl: on or off, how many chatters fight at once, and how the streamer is on the field. */
   brawl: { active: boolean; fighters: number; min: number; max: number; streamer: 'streamer' | 'god' | null };
+  /** The chatters the streamer can pick for a duel: who wrote lately, the latest first. */
+  duel: { candidates: { id: string; name: string; guild: GuildId; color: string }[]; minutes: number };
   /** Expected runtime of each event from the click, shortest and longest, in ms. */
   runtimes: Record<RuntimeKind, Runtime>;
   data: { resettable: boolean };
@@ -138,6 +141,7 @@ export const ACTIONS = [
   'guild-clash',
   'free-for-all',
   'pachinko',
+  'duel',
   'gods-wrath',
   'streamer-vs-chat',
   'friendly-fight',
@@ -314,6 +318,36 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
       throw new HttpError(400, error instanceof Error ? error.message : tr('server.error.eventFailed'));
     }
     war.start(engine, label);
+  }
+
+  // --- Duels --------------------------------------------------------------------
+
+  /** Who can be picked for a duel: chatters in a guild who wrote lately, the latest first. */
+  function duelCandidates(): UserRow[] {
+    return store
+      .recentWriters(now() - config.duel.recentMs, now())
+      .sort((a, b) => b.last_seen - a.last_seen || (a.user_id < b.user_id ? -1 : 1))
+      .slice(0, config.duel.candidates);
+  }
+
+  /** Starts a duel between two chatters; an id left out (null) is drawn by lot from the candidates. */
+  function startDuel(first: string | null, second: string | null): void {
+    if (first !== null && first === second) throw new HttpError(400, tr('server.error.duelSame'));
+    const chosen = (id: string | null): UserRow | null => {
+      if (id === null) return null;
+      const user = store.getUser(id);
+      if (!user || user.guild_id === null || store.excludedLogins().includes(user.login)) throw new HttpError(400, tr('server.error.duelUnknown'));
+      return user;
+    };
+    const a = chosen(first);
+    const b = chosen(second);
+    const seed = newSeed();
+    const rng = createRng(seed ^ 0x2545f491);
+    const candidates = duelCandidates();
+    const one = a ?? (b ? drawDuelist(candidates, b, rng) : drawDuelist(candidates, null, rng));
+    const two = b ?? (one ? drawDuelist(candidates, one, rng) : null);
+    if (!one || !two) throw new HttpError(409, tr('server.error.duelNeedsTwo', { minutes: Math.round(config.duel.recentMs / 60_000) }));
+    startEvent(() => new DuelEngine(store, now, seed, one, two), tr('mode.duel'));
   }
 
   function startWar(): void {
@@ -573,6 +607,15 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
       max: config.brawl.maxFighters,
       streamer: brawl.streamer() === 'chatter' ? null : (brawl.streamer() as 'streamer' | 'god' | null),
     },
+    duel: {
+      candidates: duelCandidates().map((user) => ({
+        id: user.user_id,
+        name: user.display_name,
+        guild: user.guild_id!,
+        color: user.color ?? config.guilds.list.find((g) => g.id === user.guild_id)!.color,
+      })),
+      minutes: Math.round(config.duel.recentMs / 60_000),
+    },
     runtimes: estimatedRuntimes(),
     data: { resettable: Boolean(options.onDatabase) && Boolean(databaseSize(options.databasePath)) },
     version: options.version?.() ?? { current: '', latest: null },
@@ -667,6 +710,10 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
       case 'pachinko':
         startCountdown('pachinko');
         return tr('server.action.pachinko');
+      case 'duel':
+        startDuel(null, null);
+        broadcast();
+        return tr('server.action.duel');
       case 'gods-wrath':
         startGod('wrath');
         return tr('server.action.godsWrath');
@@ -944,6 +991,13 @@ export function startGameServer(options: GameServerOptions): Promise<GameServer>
         throw new HttpError(400, '`mode` must be "guild", "free" or "pachinko".');
       }
       startCountdown(body.mode);
+    } else if (pathname === '/api/duel/start') {
+      const id = (value: unknown): string | null => {
+        if (value === undefined || value === null || value === '') return null;
+        if (typeof value !== 'string') throw new HttpError(400, '`a` and `b` must be chatter ids, or null for one drawn by lot.');
+        return value;
+      };
+      startDuel(id(body.a), id(body.b));
     } else if (pathname === '/api/brawl') {
       if (body.fighters !== undefined) {
         const { minFighters, maxFighters } = config.brawl;

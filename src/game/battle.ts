@@ -115,9 +115,10 @@ export interface BattleSetup {
   /**
    * Obstacles: `fixed`, a layout for the whole fight (only in some battles,
    * see `config.obstacles.chance`), or `changing`, obstacles that come and go.
-   * Without it, none.
+   * Without it, none; the battle runner adds them when they are switched on,
+   * unless it is `none`.
    */
-  obstacles?: ObstacleMode;
+  obstacles?: ObstacleMode | 'none';
   /** With `fixed` obstacles: this arena, always, instead of one by chance (for tests and previews). */
   place?: ArenaId;
   /**
@@ -133,6 +134,13 @@ export interface BattleSetup {
    * match between two tough fighters). Without it, none.
    */
   overtime?: { afterMs: number; perSecond: number };
+  /**
+   * Every hit a fighter lands deals its damage times a random factor from
+   * 1 - `hitSpread` to 1 + `hitSpread`. Without it, hits are steady. A duel
+   * needs it: two equal fighters would otherwise trade the same blows and
+   * fall at the same moment, every time.
+   */
+  hitSpread?: number;
   /**
    * The arena of this battle, when it is not `config.battle.arena`: shorter,
    * for example, when the map banner takes a strip of the screen.
@@ -332,7 +340,8 @@ export interface BattleResult {
   durationMs: number;
   sides: { id: string; team: string; fighters: number; survivors: number; health: number; damageDealt: number }[];
   /** Minions are not listed. */
-  fighters: { id: string; side: string; kills: number; alive: boolean; damageDealt: number }[];
+  /** `healthLeft`: the share of its health a fighter ended with, from 0 to 1 (1 on the bench). */
+  fighters: { id: string; side: string; kills: number; alive: boolean; damageDealt: number; healthLeft: number }[];
 }
 
 /** Flags in a frame: hit this step, slowed, shielded, enraged, hurled through the air, scorched, caught in a whirlwind. */
@@ -566,6 +575,9 @@ export class Battle {
   private readonly flightRng: Rng;
   /** For how fighters move (see `config.motion`): separate, so these rolls leave the others as they were. */
   private readonly motionRng: Rng;
+  /** See `BattleSetup.hitSpread`; its own random source, so battles without it roll as before. */
+  private readonly hitSpread: number;
+  private readonly hitRng: Rng;
   /** Whether the first blow of the battle fell yet (the "CLASH!"), and when the next rally is. */
   private clashed = false;
   private nextRallyAt: number = config.motion.rally.firstMs;
@@ -602,6 +614,8 @@ export class Battle {
     this.roamRng = createRng((setup.seed ^ 0x6a09e667) >>> 0);
     this.flightRng = createRng((setup.seed ^ 0x3c6ef372) >>> 0);
     this.motionRng = createRng((setup.seed ^ 0x510e527f) >>> 0);
+    this.hitSpread = setup.hitSpread ?? 0;
+    this.hitRng = createRng((setup.seed ^ 0x68e31da4) >>> 0);
     this.rng = rng;
     this.unit = fighterRadius;
     this.timeLimitWinner = setup.timeLimitWinner ?? null;
@@ -822,7 +836,7 @@ export class Battle {
 
     // Obstacles, away from where the teams gather and from a fighter that holds the middle.
     // They have their own random numbers, so a battle without them plays exactly as before.
-    if (setup.obstacles) {
+    if (setup.obstacles && setup.obstacles !== 'none') {
       const zones: ClearZone[] = [];
       if (this.teams.length <= 3) {
         this.teams.forEach((team, index) => {
@@ -1144,7 +1158,7 @@ export class Battle {
           }
         });
       }
-      fighter.cooldownMs = hitIntervalMs;
+      fighter.cooldownMs = hitIntervalMs * this.timingSpread();
     };
 
     // Each fighter walks toward the nearest enemy and strikes on contact.
@@ -1242,7 +1256,7 @@ export class Battle {
         circle(motion.strafe);
         if (cls === 'archer' && fighter.cooldownMs <= 0) {
           attacks.push([fighter, plan.target, 1, 'arrow']);
-          fighter.cooldownMs = hitIntervalMs;
+          fighter.cooldownMs = hitIntervalMs * this.timingSpread();
           m.struckAt = now;
           this.fx('arrow', fighter, { t: [this.fighters.indexOf(plan.target)], ms: 180 });
         }
@@ -1250,7 +1264,7 @@ export class Battle {
           const { castEveryMs, warnMs, blastRadiusFactor } = classes.mage;
           const r = this.unit * blastRadiusFactor;
           this.blasts.push({ x: plan.tx, y: plan.ty, r, at: now + warnMs, owner: fighter });
-          fighter.nextSpecialAt = now + castEveryMs;
+          fighter.nextSpecialAt = now + castEveryMs * this.timingSpread();
           m.struckAt = now;
           this.fx('blast-warn', fighter, { x: plan.tx, y: plan.ty, r, ms: warnMs });
         }
@@ -1261,7 +1275,7 @@ export class Battle {
       if (cls === 'thief') {
         if (fighter.hiddenUntil <= now && now >= fighter.nextSpecialAt) {
           fighter.hiddenUntil = now + classes.thief.shadowMs;
-          fighter.nextSpecialAt = now + classes.thief.shadowEveryMs;
+          fighter.nextSpecialAt = now + classes.thief.shadowEveryMs * this.timingSpread();
           fighter.retreatUntil = 0;
           this.fx('shadow', fighter, { ms: 400 });
         }
@@ -1309,7 +1323,7 @@ export class Battle {
           this.fx('shadow', fighter, { ms: 400 });
         }
         if (cls === 'thief' && plan.distance > 1e-6) {
-          fighter.retreatUntil = now + classes.thief.retreatMs;
+          fighter.retreatUntil = now + classes.thief.retreatMs * this.timingSpread();
           fighter.retreatX = (fighter.x - plan.tx) / plan.distance;
           fighter.retreatY = (fighter.y - plan.ty) / plan.distance;
         }
@@ -1393,8 +1407,18 @@ export class Battle {
     for (const fighter of alive) this.keepInArena(fighter);
 
     // All strikes of a step land together, so the order of fighters gives no advantage.
+    // With `hitSpread` (a duel), they land in a random order instead, and a fighter who
+    // falls to one of them does not land its own: two equal fighters would otherwise
+    // fall together whenever they strike in the same instant.
     const { damageVariation } = config.battle;
+    if (this.hitSpread > 0) {
+      for (let i = attacks.length - 1; i > 0; i--) {
+        const j = Math.floor(this.hitRng() * (i + 1));
+        [attacks[i], attacks[j]] = [attacks[j]!, attacks[i]!];
+      }
+    }
     for (const [attacker, target, factor, cause] of attacks) {
+      if (this.hitSpread > 0 && !attacker.alive) continue;
       let dealt = attacker.damage * (factor ?? 1) * (1 - damageVariation + 2 * damageVariation * this.rng());
       if (attacker.enraged) dealt *= config.skills.enrage.damage;
       this.hurt(attacker, target, dealt, now, cause ?? 'strike');
@@ -1634,6 +1658,7 @@ export class Battle {
   private hurt(source: Fighter | null, target: Fighter, amount: number, now: number, cause: DeathCause = 'strike'): void {
     if (!target.alive || target.shieldUntil > now || target.hiddenUntil > now) return;
     amount *= this.overtimeFactor(now);
+    if (source && this.hitSpread > 0) amount *= 1 + this.hitSpread * (2 * this.hitRng() - 1);
     if (source) source.damageDealt += Math.min(amount, Math.max(0, target.health));
     target.health -= amount;
     target.hit = true;
@@ -1784,6 +1809,17 @@ export class Battle {
     }
     fighter.x = clamp(fighter.x, limits.minX, limits.maxX);
     fighter.y = clamp(fighter.y, limits.minY, limits.maxY);
+  }
+
+  /**
+   * With `hitSpread`, the time to a fighter's next blow, arrow or spell also
+   * varies a little (a factor from 0.75 to 1.25 at the most), so two equal
+   * fighters do not keep striking in the same instant and fall together.
+   * Without it, 1, and no random number is drawn.
+   */
+  private timingSpread(): number {
+    if (this.hitSpread <= 0) return 1;
+    return 1 + Math.min(0.25, this.hitSpread / 2) * (2 * this.hitRng() - 1);
   }
 
   /** How much harder every hit lands at this moment: 1, or more in overtime (see `BattleSetup.overtime`). */
@@ -2310,6 +2346,7 @@ export class Battle {
           kills: f.kills,
           alive: f.alive || f.benched,
           damageDealt: f.damageDealt,
+          healthLeft: f.benched ? 1 : f.alive ? Math.max(0, f.health) / f.maxHealth : 0,
         })),
     };
   }

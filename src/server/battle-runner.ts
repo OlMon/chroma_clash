@@ -27,6 +27,8 @@ export interface BattleMeta {
   ambient?: boolean;
   /** Names and colors of teams that are not a single side, e.g. all of chat against the god. */
   teams?: Record<string, { name: string; color: string }>;
+  /** A duel: the overlay shows the two health bars of a fighting game. */
+  duel?: boolean;
 }
 
 /**
@@ -83,6 +85,7 @@ export class BattleRunner {
       // The map banner's strip of the screen, outside the arena.
       banner: this.bannerPlace ? { place: this.bannerPlace, height: config.battle.bannerHeight } : null,
       ambient: this.meta.ambient === true,
+      duel: this.meta.duel === true,
       // The arena's name, for the scoreboard and the highlights; null without one.
       place: this.battle.place,
       // When overtime begins (hits land harder from then on), or null.

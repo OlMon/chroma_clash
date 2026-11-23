@@ -27,6 +27,7 @@ ACTIONS = [
     ("guild-clash", "Start a Guild Clash countdown"),
     ("free-for-all", "Start a free-for-all countdown"),
     ("pachinko", "Start a Pachinko countdown"),
+    ("duel", "Start a duel, both drawn by lot"),
     ("gods-wrath", "Start God's Wrath"),
     ("streamer-vs-chat", "Start Streamer vs Chat"),
     ("friendly-fight", "Start a friendly fight"),
